@@ -8,10 +8,11 @@ Sistema autónomo de paper trading que analiza mercados diariamente, simula inve
 
 ## Qué hace este sistema
 
-- Descarga datos de mercado diariamente (acciones, ETFs, índices)
-- Puntúa y rankea activos usando análisis técnico
+- **Predice movimientos de mercado** usando análisis multi-factor: técnico, fundamental, macro, sentimiento, noticias y smart money combinados en un score compuesto
+- Actúa por adelantado a los movimientos esperados — no reacciona al precio histórico
+- Descarga y procesa diariamente datos de múltiples fuentes (OHLCV, fundamentales, macro, noticias, insiders)
 - Simula operaciones en un portfolio virtual (sin dinero real)
-- Expone un dashboard web con: balance, posiciones, gráficas, histórico de operaciones y estado del sistema
+- Expone un dashboard web con: balance, posiciones, gráficas, señales del algoritmo, estado del sistema
 - Preparado para conectar un broker real en el futuro cambiando solo una variable de entorno
 
 ---
@@ -76,25 +77,36 @@ Los prompts completos para cada agente están en [LAUNCH_PROMPT.md](LAUNCH_PROMP
 
 ## Fases de desarrollo
 
-### FASE 0 — Investigación
-*Secuencial. Nada más empieza hasta que esté completa.*
+### FASE 0A — Investigación (3 streams en paralelo ⚡)
+*Nada más empieza hasta que la Fase 0B (síntesis) esté completa.*
+
+| Agente | Stream | Output |
+|---|---|---|
+| Investment Researcher | Técnico + Fundamental | `docs/research/01-technical-fundamental.md` |
+| Trend Researcher | Noticias + Sentimiento + Smart Money | `docs/research/02-news-sentiment-smartmoney.md` |
+| Financial Analyst | Macro + Intermercado + Calendario | `docs/research/03-macro-intermarket-calendar.md` |
+
+Abre **3 conversaciones simultáneas** y pega un stream en cada una.
+
+### FASE 0B — Síntesis
+*Secuencial. Requiere los 3 outputs de 0A.*
 
 | Agente | Output |
 |---|---|
-| Investment Researcher | `docs/research/sector-study.md` — sectores, universo de activos, taxonomía de señales |
+| Investment Researcher | `docs/research/00-signal-synthesis.md` — mapa de prioridad de señales, fuentes de datos, arquitectura del score compuesto, modelo de régimen macro |
 
-Copia el bloque **FASE 0** de `LAUNCH_PROMPT.md` en una conversación de Claude Code.
+Este documento es la **fuente única de verdad** que leen todos los agentes de Fase 1 en adelante.
 
 ---
 
 ### FASE 1 — Fundación
-*Los 3 agentes corren en paralelo. Requiere FASE 0.*
+*Los 3 agentes corren en paralelo. Requiere FASE 0B.*
 
 | Agente | Output |
 |---|---|
-| Software Architect | `docs/architecture/module-contracts.md` + protocolos Python |
-| Database Optimizer | `docs/architecture/schema.md` + migraciones Alembic |
-| Workflow Architect | `docs/architecture/workflow-tree.md` |
+| Software Architect | `docs/architecture/module-contracts.md` + todos los protocolos Python (multi-categoría de señales) |
+| Database Optimizer | `docs/architecture/schema.md` + migraciones Alembic (incluye tablas para fundamentales, macro, noticias, sentimiento) |
+| Workflow Architect | `docs/architecture/workflow-tree.md` (incluye los 7 jobs diarios del scheduler) |
 
 Abre **3 conversaciones simultáneas** en Claude Code y pega un bloque de FASE 1 en cada una.
 
@@ -220,13 +232,16 @@ docker compose logs -f
 ## Jobs diarios (scheduler)
 
 ```
-07:00 UTC  →  fetch_market_data()       Descarga OHLCV del día
-07:30 UTC  →  run_analysis()            Calcula indicadores y scores
-08:00 UTC  →  execute_paper_trades()    Ejecuta operaciones simuladas
-08:15 UTC  →  update_portfolio_nav()    Actualiza valor del portfolio
+06:00 UTC  →  fetch_macro_data()        FRED API: tipos de interés, inflación, indicadores líderes
+06:15 UTC  →  fetch_news_sentiment()    NewsAPI + Fear & Greed Index
+06:30 UTC  →  fetch_market_data()       OHLCV bars (yfinance primario)
+06:45 UTC  →  fetch_fundamentals()      Earnings, revisiones de analistas, insiders (Form 4)
+07:30 UTC  →  run_analysis()            Todas las categorías de señales → score compuesto
+08:00 UTC  →  execute_paper_trades()    Señales top-ranked → órdenes simuladas
+08:15 UTC  →  update_portfolio_nav()    Snapshot del valor del portfolio
 ```
 
-Todos los jobs son idempotentes. Si se ejecutan dos veces el mismo día, no duplican datos.
+Los jobs de ingesta (06:xx) corren en secuencia. El análisis (07:30) lee de la DB, nunca llama APIs directamente. Todos los jobs son idempotentes.
 
 ---
 

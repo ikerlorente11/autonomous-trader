@@ -7,8 +7,9 @@ This file is the **constitution of the project**. Every agent working on this co
 ## What this project is
 
 An autonomous paper-trading system that:
-- Fetches daily market data (stocks, ETFs, indexes)
-- Scores and ranks assets using technical analysis
+- Fetches daily market data (stocks, ETFs, indexes) and a wide range of predictive signals
+- **Predicts market movements** using multi-factor analysis: technical, fundamental, macro, sentiment, news, and smart-money signals combined into a composite score
+- Scores and ranks assets and acts ahead of expected moves — not after them
 - Simulates trades in a virtual portfolio (no real money)
 - Exposes a web dashboard to monitor everything
 - Runs on a Raspberry Pi 4 via Docker Compose (ARM64, 4GB RAM)
@@ -57,12 +58,17 @@ class BrokerAdapter(Protocol):
 
 ## What is intentionally undefined
 
-These modules have their **interfaces defined** but no business logic yet. They will be filled after the sector study is complete. Every agent must leave them as clean stubs:
+These modules have their **interfaces defined** but no business logic yet. They will be filled after the Phase 0 research is complete. Every agent must leave them as clean stubs:
 
-- `analysis/indicators/` — which indicators to use (leave placeholder: MovingAverage, RSI, ATR stubs)
-- `analysis/scoring/` — how to weight and rank signals (leave configurable via env/config, no hardcoded weights)
+- `analysis/signals/technical/` — which technical indicators and thresholds to use
+- `analysis/signals/fundamental/` — which fundamental ratios and scoring logic
+- `analysis/signals/macro/` — which macro indicators and regime detection logic
+- `analysis/signals/sentiment/` — which sentiment sources and normalization approach
+- `analysis/scoring/` — how to weight all signal categories into a composite score
 - `trading/risk_manager.py` — position sizing rules (leave configurable %, no hardcoded values)
 - `watchlist` table — which symbols/sectors to track (leave empty, populated at runtime)
+
+**All signal weights, thresholds, and parameters must be configurable via `config/strategy.yaml` — never hardcoded.**
 
 ---
 
@@ -70,9 +76,21 @@ These modules have their **interfaces defined** but no business logic yet. They 
 
 ### Phase 0 — Research (before any code)
 
+Three parallel research streams, then one synthesis step. **Nothing else starts until the synthesis document exists.**
+
+#### Phase 0A — Three streams in parallel ⚡
+
+| Agent | Stream | Responsibility | Output |
+|---|---|---|---|
+| **Investment Researcher** | Technical + Fundamental | Sector universe, technical signals (momentum, mean reversion, volume), fundamental company signals (earnings, revenue, margins, valuation ratios, earnings surprises, analyst revisions) | `docs/research/01-technical-fundamental.md` |
+| **Trend Researcher** | News + Sentiment + Smart Money | How news events move prices, sentiment data sources (Reddit, StockTwits, put/call ratio, Fear & Greed), smart money signals (unusual options flow, insider Form 4 filings, dark pool volume, 13F changes), alternative data (SEC 8-K filings, job postings as growth proxy) | `docs/research/02-news-sentiment-smartmoney.md` |
+| **Financial Analyst** | Macro + Intermarket + Calendar | Macro regime signals (yield curve, CPI/PPI, leading economic indicators), intermarket relationships (bonds/stocks/commodities/FX), sector rotation model (economic cycle phases → defensive vs cyclical), calendar effects (earnings seasons, FOMC weeks, OpEx cycles, seasonal patterns), market breadth signals | `docs/research/03-macro-intermarket-calendar.md` |
+
+#### Phase 0B — Synthesis (after all three streams) →
+
 | Agent | Responsibility | Output |
 |---|---|---|
-| **Investment Researcher** | Study market sectors, asset classes, financial metrics that matter for scoring. Define what a "good" investment signal looks like. | `docs/research/sector-study.md` — universe of assets, metrics, signal taxonomy |
+| **Investment Researcher** | Read all three research docs and produce a unified signal priority map: which signals to implement first, what data sources are needed, what database tables are required, what prediction horizon each signal targets | `docs/research/00-signal-synthesis.md` — the master document that ALL Phase 1+ agents must read |
 
 ### Phase 1 — Foundation (parallel)
 
@@ -125,7 +143,13 @@ These modules have their **interfaces defined** but no business logic yet. They 
 ## Agent dependency map
 
 ```
-Investment Researcher
+[Phase 0A: parallel] ─────────────────────────────────────────────
+Investment Researcher (Technical+Fundamental) ──┐
+Trend Researcher (News+Sentiment+SmartMoney)  ──┤──► Phase 0B
+Financial Analyst (Macro+Intermarket+Calendar)──┘
+
+[Phase 0B: synthesis] ────────────────────────────────────────────
+Investment Researcher reads all 3 → docs/research/00-signal-synthesis.md
         │
         ▼
 [Phase 1: parallel] ──────────────────────────────────────────────
@@ -201,7 +225,10 @@ autonomous-trader/
 ├── .env.example
 ├── docs/
 │   ├── research/
-│   │   └── sector-study.md            ← Investment Researcher
+│   │   ├── 00-signal-synthesis.md     ← Investment Researcher (Phase 0B synthesis — READ THIS FIRST)
+│   │   ├── 01-technical-fundamental.md← Investment Researcher (Phase 0A)
+│   │   ├── 02-news-sentiment-smartmoney.md ← Trend Researcher (Phase 0A)
+│   │   └── 03-macro-intermarket-calendar.md← Financial Analyst (Phase 0A)
 │   ├── architecture/
 │   │   ├── module-contracts.md        ← Software Architect
 │   │   ├── schema.md                  ← Database Optimizer
@@ -225,13 +252,26 @@ autonomous-trader/
 │   │       ├── trades.py
 │   │       └── algorithms.py
 │   ├── data_ingestion/
-│   │   ├── protocols.py               ← MarketDataProvider Protocol
+│   │   ├── protocols.py               ← all data provider Protocols
 │   │   └── providers/
-│   │       ├── yfinance_provider.py
-│   │       └── twelve_data_provider.py
+│   │       ├── ohlcv/
+│   │       │   ├── yfinance_provider.py
+│   │       │   └── twelve_data_provider.py
+│   │       ├── fundamental/
+│   │       │   └── yfinance_fundamentals.py
+│   │       ├── macro/
+│   │       │   └── fred_provider.py
+│   │       ├── news/
+│   │       │   └── newsapi_provider.py
+│   │       └── sentiment/
+│   │           └── alternative_me_provider.py
 │   ├── analysis/
-│   │   ├── indicators/                ← stubs only (filled later)
-│   │   ├── scoring/                   ← stubs only (filled later)
+│   │   ├── signals/
+│   │   │   ├── technical/             ← stubs only (filled after Phase 0)
+│   │   │   ├── fundamental/           ← stubs only (filled after Phase 0)
+│   │   │   ├── macro/                 ← stubs only (filled after Phase 0)
+│   │   │   └── sentiment/             ← stubs only (filled after Phase 0)
+│   │   ├── scoring/                   ← CompositeScorer, SymbolRanker (stubs)
 │   │   ├── performance/               ← Financial Analyst metrics
 │   │   └── engine.py                  ← AnalysisEngine Protocol
 │   ├── trading/
@@ -280,28 +320,46 @@ Any agent whose implementation would exceed these budgets must flag it in their 
 
 ---
 
-## Market data sources
+## Data sources by signal category
 
-| Source | Role | API Key required |
-|---|---|---|
-| `yfinance` | Primary — daily OHLCV batch | No |
-| Twelve Data (free tier) | Fallback when yfinance is unavailable | Yes (`TWELVE_DATA_API_KEY`) |
+The exact sources to use are determined by Phase 0 research. This table is the expected outcome:
 
-Both implement `MarketDataProvider`. Selection via `MARKET_DATA_PROVIDER=yfinance` env var.
+| Category | Source | API Key | Cost |
+|---|---|---|---|
+| OHLCV (primary) | `yfinance` | No | Free |
+| OHLCV (fallback) | Twelve Data | Yes | Free tier |
+| Fundamentals (EPS, P/E, revenue) | `yfinance` financials | No | Free |
+| Earnings calendar + surprises | `yfinance` / Nasdaq API | No | Free |
+| Analyst ratings + revisions | `yfinance` | No | Free |
+| Insider transactions | OpenInsider (scrape) / SEC EDGAR | No | Free |
+| SEC filings (8-K, 10-K, 10-Q) | SEC EDGAR full-text API | No | Free |
+| Macro indicators (rates, CPI, GDP) | FRED API (Federal Reserve) | Yes | Free |
+| News headlines + sentiment | NewsAPI / Alpha Vantage News | Yes | Free tier |
+| Market sentiment (Fear & Greed) | Alternative.me API | No | Free |
+| Put/call ratio + VIX | CBOE via `yfinance` | No | Free |
+| Options unusual activity | Unusual Whales / Barchart | Yes | Paid (Phase 2) |
+| Market breadth | `yfinance` (SPY breadth ETFs) | No | Free |
+
+**Phase 0 research must confirm or replace these sources.** All providers implement a typed Protocol — swapping sources never touches analysis logic.
 
 ---
 
 ## Daily job sequence (scheduler)
 
 ```
-07:00 UTC  →  fetch_market_data()       ← Data Engineer
-07:30 UTC  →  run_analysis()            ← AI Engineer
-08:00 UTC  →  execute_paper_trades()    ← Backend Architect
-08:15 UTC  →  update_portfolio_nav()    ← Backend Architect
+06:00 UTC  →  fetch_macro_data()          ← FRED API: rates, inflation, leading indicators
+06:15 UTC  →  fetch_news_sentiment()      ← NewsAPI + Alternative.me Fear & Greed
+06:30 UTC  →  fetch_market_data()         ← OHLCV bars (yfinance primary)
+06:45 UTC  →  fetch_fundamentals()        ← Earnings, analyst revisions, insider filings
+07:30 UTC  →  run_analysis()              ← All signal categories → composite score
+08:00 UTC  →  execute_paper_trades()      ← Top-ranked signals → simulated orders
+08:15 UTC  →  update_portfolio_nav()      ← Snapshot portfolio value
 ```
 
-All jobs are idempotent. If a job runs twice on the same day, it must not create duplicate data.
-All jobs write `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
+**Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
+**Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
+All jobs are idempotent. Running twice on the same day must not create duplicate data.
+All jobs: `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
 
 ---
 

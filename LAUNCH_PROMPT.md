@@ -7,67 +7,559 @@ Read `CLAUDE.md` before launching any phase. All agents must follow those direct
 
 ---
 
-## PHASE 0 — Research
-*Run this first. Nothing else starts until this output exists.*
+## PHASE 0A — Research (3 streams in parallel ⚡)
+*Start all three simultaneously. Nothing else starts until Phase 0B (synthesis) is complete.*
+
+---
+
+### ⚡ Stream 1 — Investment Researcher (Technical + Fundamental)
 
 ```
 Activate Investment Researcher.
 
-Read the file CLAUDE.md in the current project directory and follow all directives in it.
+Read CLAUDE.md first. Follow all directives.
 
-Your mission: produce a deep research document at docs/research/sector-study.md
+The goal of this project is to PREDICT stock market movements and act ahead of them —
+not react to price history. Your stream covers the two foundational signal categories:
+technical price signals and company fundamental signals.
 
-The project is an autonomous paper-trading simulator. The algorithm and scoring logic
-have NOT been defined yet — that is exactly what you need to research. We need to know
-where to invest before we decide how to invest.
+Produce: docs/research/01-technical-fundamental.md
 
-Deliver a structured document covering:
+---
 
-1. SECTOR UNIVERSE
-   Research and evaluate which market sectors and asset classes are best suited for
-   algorithmic trading with daily timeframes. Cover at minimum:
-   - US equities by sector (Technology, Healthcare, Energy, Finance, Consumer, etc.)
-   - ETFs (sector ETFs, factor ETFs, index ETFs)
-   - Consider: liquidity requirements, volatility profiles, correlation between sectors
+SECTION 1: SECTOR UNIVERSE
 
-2. SIGNAL TAXONOMY
-   What types of financial signals and indicators have proven value for daily timeframe
-   algorithmic strategies? Research and classify:
-   - Trend signals (which moving averages, which timeframes actually matter)
-   - Momentum signals (RSI, MACD, Rate of Change — which thresholds are meaningful)
-   - Volatility signals (ATR, Bollinger Bands — how to use them for position sizing)
-   - Volume signals (OBV, VWAP — what they tell you on daily bars)
-   - Mean reversion vs momentum: which works better for which asset class?
+Research which market sectors and asset classes are best suited for daily-frequency
+algorithmic prediction. For each sector evaluate:
+- Historical predictability (does technical/fundamental analysis work better here?)
+- Liquidity requirements (minimum daily volume for clean execution)
+- Volatility profile (ATR as % of price — higher = more signal, more risk)
+- Correlation with other sectors (for diversification in portfolio construction)
+- Any structural quirks (earnings concentration in certain weeks, sector ETF distortions)
 
-3. SCORING FRAMEWORK PROPOSAL
-   Based on your research, propose a composite scoring approach:
-   - How to combine multiple signals into a single score (0-100 scale)
-   - Which signals to weight more heavily and why
-   - How to normalize signals across different asset classes
-   - How to avoid overfitting a scoring model to historical data
+Cover: Technology, Healthcare, Energy, Financials, Consumer Discretionary,
+Consumer Staples, Industrials, Materials, Real Estate (REITs), Utilities,
+Communication Services. Also: sector ETFs, factor ETFs (momentum, value, quality),
+broad index ETFs (SPY, QQQ, IWM).
 
-4. BENCHMARK STRATEGY
-   Define a simple benchmark strategy the simulation should compare itself against
-   (e.g., buy-and-hold S&P 500). This is how we measure if the algorithm adds value.
+Deliver a recommendation matrix: which sectors to prioritize, which to avoid, why.
 
-5. WATCHLIST SEED
-   Provide an initial watchlist of 30-50 symbols across the recommended sectors.
-   For each symbol include: ticker, sector, asset class, why it was selected.
+---
 
-6. RISK CONSIDERATIONS
-   What are the main risks of automated daily trading that the simulation must model
-   correctly? (slippage, bid-ask spread estimates, market impact, overnight risk)
+SECTION 2: TECHNICAL SIGNALS — what actually predicts price movements
 
-Output: docs/research/sector-study.md
+For each technical signal category, answer:
+- WHY does it have predictive power? (behavioral finance explanation)
+- Which specific parameters/thresholds have academic backing?
+- What prediction horizon does it work on (1d / 1w / 2w / 1m)?
+- Leading or lagging?
+- Free data source (yfinance is available, ta library for computation)
 
-End with a ## Handoff notes section listing key decisions made and any open questions
-for the Financial Analyst and AI Engineer.
+Cover exhaustively:
+
+PRICE MOMENTUM
+- Rate of Change (ROC): which lookback periods have shown edge? (1m, 3m, 6m, 12m)
+- 12-1 month momentum (Jegadeesh & Titman): skip most recent month, why?
+- Relative Strength vs sector and vs SPY: rolling 20/60/120 day versions
+- 52-week high proximity: stocks within X% of high — what does research say?
+
+TREND SIGNALS
+- Moving average crossovers: which pairs have real edge vs which are lagging noise?
+- Moving average slope (rate of change of the MA itself as a trend filter)
+- Price vs MA distance: how far above/below is a useful signal vs noise?
+
+MOMENTUM OSCILLATORS
+- RSI: which thresholds (30/70? 40/60?) and which lookback (14d vs 9d vs 21d)?
+- MACD: signal vs histogram — which is more predictive at daily frequency?
+- Stochastic: useful at daily frequency or too noisy?
+
+VOLUME SIGNALS
+- OBV (On-Balance Volume): what does rising OBV before price mean in practice?
+- Volume surge detection: X times average — what multiplier signals institutional activity?
+- Price-volume divergence: rising price on falling volume — how predictive?
+- VWAP: useful for daily bars or only intraday?
+
+VOLATILITY SIGNALS
+- ATR: primarily for position sizing, but also for breakout confirmation?
+- Bollinger Band width: contraction before expansion — the squeeze setup
+- Historical volatility: how to use it as a filter (avoid low-vol dead stocks)
+
+MEAN REVERSION VS MOMENTUM
+- Research the conditions under which each dominates
+- Which sectors are more mean-reverting vs trending?
+- How to detect the current regime for a symbol
+
+---
+
+SECTION 3: FUNDAMENTAL SIGNALS — company health predicts future price
+
+For each fundamental signal, answer:
+- Why does the market systematically underreact to this? (creating the predictive edge)
+- What specific metric and how to compute it from available data?
+- What prediction horizon? (fundamentals work slower than technicals)
+- Is it available via yfinance for free?
+
+Cover:
+
+EARNINGS & ANALYST SIGNALS (highest academic evidence)
+- Earnings surprise (SUE score): actual EPS vs consensus estimate — magnitude matters
+  Post-earnings drift: how long does the drift after a beat/miss last?
+- Earnings revision momentum: analysts raising estimates = strong leading indicator
+  How to measure the revision trend (count of ups vs downs over 30/60 days)
+- Earnings acceleration: revenue AND earnings growth accelerating, not just positive
+- Guidance changes: company raising guidance = strongest fundamental signal
+- Analyst upgrade/downgrade cascades: first mover advantage in acting on revisions
+
+VALUATION FACTORS (value investing evidence)
+- P/E relative to sector: cheap vs expensive — when does value mean-revert?
+- P/E vs growth rate (PEG ratio): PEG < 1 as a filter
+- Price-to-Book: works better in which sectors? (financials, industrials vs tech)
+- Enterprise Value / EBITDA: more reliable than P/E for capital-intensive companies
+- Forward P/E vs trailing P/E divergence: signals analyst expectation shift
+
+QUALITY FACTORS (quality premium evidence)
+- ROE and ROE trend: consistently high ROE companies tend to outperform
+- Gross margin expansion: improving margins before the market prices it
+- Revenue growth acceleration: 3 consecutive quarters of acceleration
+- Free cash flow yield: FCF/price — high FCF yield as a value+quality combo
+- Debt-to-equity trend: companies reducing leverage systematically outperform
+- Operating leverage: revenue growing faster than costs — upcoming margin expansion
+
+INSIDER ACTIVITY (strong leading indicator, often overlooked)
+- Form 4 filings (SEC): insiders buying their own stock = strongest bullish signal
+- Insider buy/sell ratio: multiple insiders buying vs isolated transactions
+- Cluster buying: multiple insiders buying within a 30-day window
+- Data source: OpenInsider.com (free, scrapeable), SEC EDGAR EDGAR full-text search
+
+---
+
+SECTION 4: WATCHLIST SEED
+
+Based on the sector analysis, provide an initial watchlist of 40-60 symbols.
+For each symbol: ticker, company name, sector, asset class (stock/ETF), market cap tier,
+and primary reason for inclusion (what signal category it's most useful for testing).
+
+Include: large cap anchors, mid cap growth names, sector ETFs, factor ETFs.
+
+---
+
+Output: docs/research/01-technical-fundamental.md
+
+End with ## Handoff notes covering: priority signal ranking (which to implement first),
+data gaps (what yfinance can't provide), and questions for the synthesis step.
+```
+
+---
+
+### ⚡ Stream 2 — Trend Researcher (News + Sentiment + Smart Money)
+
+```
+Activate Trend Researcher.
+
+Read CLAUDE.md first. Follow all directives.
+
+The goal of this project is to PREDICT stock price movements before they happen.
+Your research stream covers the information-based edge: news events, market sentiment,
+and smart money activity — signals that often move before price does.
+
+Produce: docs/research/02-news-sentiment-smartmoney.md
+
+---
+
+SECTION 1: NEWS AND EVENT SIGNALS
+
+Research how news and corporate events create predictable price movements:
+
+EVENT IMPACT TAXONOMY
+Classify corporate event types by their typical price impact and duration:
+- Earnings announcements (scheduled): magnitude vs estimate surprise matters
+- Guidance changes (scheduled with earnings): often more impactful than the earnings beat
+- Product launches / FDA approvals / regulatory decisions (unscheduled): sudden moves
+- M&A announcements: target spikes, acquirer often dips — why?
+- CEO/CFO changes: bullish or bearish depending on circumstances — what patterns exist?
+- Layoff announcements: short-term negative but often bullish 3-6 months later — why?
+- Share buyback announcements: reliable bullish signal — magnitude matters
+- Dividend initiations/cuts: strong signals in both directions
+- SEC investigations / legal issues: how long does the overhang last?
+
+POST-EVENT DRIFT
+Research the evidence on information diffusion:
+- How quickly does the market fully price in: good news / bad news?
+- Which types of events show multi-day drift (opportunity) vs instant pricing?
+- Does company size affect how long drift lasts? (small caps drift longer)
+
+NEWS SENTIMENT SCORING
+How to extract a signal from news text:
+- What free/cheap APIs provide pre-scored news sentiment? (Alpha Vantage News, Finnhub)
+- How to aggregate headline sentiment into a daily score per symbol
+- Sentiment momentum: 3-day rolling sentiment vs 14-day baseline
+- Sentiment divergence: negative news but price holding = relative strength signal
+
+DATA SOURCES — evaluate each for free-tier availability:
+- NewsAPI.org (free: 100 req/day, headlines only, no full text)
+- Alpha Vantage News Sentiment API (free tier: 25 req/day)
+- Finnhub News API (free tier: 60 req/min)
+- SEC EDGAR Full-Text Search API (free, no key): 8-K material event filings
+- RSS feeds from major financial media (Reuters, Bloomberg, WSJ — free headlines)
+
+For each source: daily request budget, data format, sentiment scores available?
+
+---
+
+SECTION 2: MARKET SENTIMENT SIGNALS
+
+Research how aggregate market sentiment predicts reversals and continuations:
+
+FEAR AND GREED SIGNALS
+- VIX (CBOE Volatility Index): what VIX levels historically precede rallies vs selloffs?
+- VIX term structure (VIX9D vs VIX vs VIX3M): what does backwardation signal?
+- Fear & Greed Index (CNN/Alternative.me): extreme readings as contrarian signals
+  Data source: Alternative.me API (free, no key required)
+- AAII sentiment survey: retail investor bullishness as contrarian indicator
+
+OPTIONS MARKET SENTIMENT
+- Put/Call ratio (total, equity-only): high put/call = fear = often contrarian buy
+  Data source: CBOE website (scrapeable), yfinance for aggregate VIX/PCR
+- Implied volatility vs historical volatility: IV premium as fear measure
+- Skew (put IV vs call IV): when investors are paying up for downside protection
+
+RETAIL SENTIMENT (alternative data)
+- Reddit WallStreetBets mention frequency: leading indicator for retail meme stocks
+  Data source: Reddit API (free, limited) / pushshift.io archives
+- StockTwits message volume and sentiment: available via StockTwits API (free tier)
+- Google Trends: search interest for company names — spikes precede price moves
+  Data source: pytrends library (Google Trends, free, no key)
+
+SHORT INTEREST
+- Short interest as % of float: high short interest = squeeze potential
+- Short interest change (increasing vs decreasing): trend matters more than level
+- Days to cover (short interest / avg daily volume): >10 days = squeeze risk
+  Data source: FINRA bi-monthly reports (free), yfinance has some short data
+
+---
+
+SECTION 3: SMART MONEY SIGNALS
+
+Research signals from sophisticated, well-informed market participants:
+
+INSIDER TRADING (Form 4 filings — most reliable free smart money signal)
+- Why insider buying is one of the most researched and validated alpha sources
+- What distinguishes signal from noise: cluster buying vs isolated transactions
+- Which insider types matter most: CEO/CFO > Board > lower officers
+- Open market purchases vs option exercises: which is more informative?
+- Timing: how many days after a Form 4 filing does the average move materialize?
+- Data source: OpenInsider.com (free scraping) or SEC EDGAR Form 4 API (free)
+
+INSTITUTIONAL OWNERSHIP CHANGES (13F filings)
+- Quarterly 13F filings: what fund managers are buying/selling
+- Limitations: 45-day lag makes this a confirmation, not prediction signal
+- How to use it: look for new institutional positions as a quality filter
+- Data source: SEC EDGAR 13F filings (free)
+
+UNUSUAL OPTIONS ACTIVITY
+- Large block options trades, especially out-of-the-money calls, often precede moves
+- What defines "unusual": 10x+ average daily volume on a specific strike/expiry
+- How smart money uses options to position ahead of known events (earnings, FDA, M&A)
+- Free vs paid: Unusual Whales, Market Chameleon have free tiers
+- Alternative: yfinance options chain — can you detect unusual activity from daily snapshots?
+
+DARK POOL VOLUME
+- Off-exchange (dark pool) volume as % of total volume: high dark pool = institutional interest
+- Data source: FINRA OTC (free, daily bulk downloads)
+- What does increasing dark pool % before a price move indicate?
+
+SEC 8-K FILINGS (material event detection)
+- 8-K filings announce material events: earnings guidance changes, M&A, officer changes, etc.
+- Full-Text Search API: SEC provides free API to search 8-K text
+- How to parse 8-K filings for bullish vs bearish keywords
+- Lead time: 8-K filed before market prices the event fully = opportunity
+
+---
+
+For all data sources, provide:
+- URL / API endpoint
+- Authentication requirements
+- Free tier limits (requests/day, historical depth)
+- Python library or requests pattern to access it
+
+Output: docs/research/02-news-sentiment-smartmoney.md
+
+End with ## Handoff notes covering: which sources are actually usable within free tier
+constraints for a daily batch job, priority ranking of signals by evidence strength,
+and what the AI Engineer needs to know about signal latency (when does data become
+available each day?).
+```
+
+---
+
+### ⚡ Stream 3 — Financial Analyst (Macro + Intermarket + Calendar)
+
+```
+Activate Financial Analyst.
+
+Read CLAUDE.md first. Follow all directives.
+
+The goal of this project is to predict market movements. Your research covers the
+macro-level forces that create the tide all stocks swim in: economic conditions,
+cross-market relationships, and time-based patterns. Understanding the macro regime
+is what allows the algorithm to shift between risk-on and risk-off positioning.
+
+Produce: docs/research/03-macro-intermarket-calendar.md
+
+---
+
+SECTION 1: MACRO REGIME SIGNALS
+
+Research how macroeconomic conditions predict broad market and sector behavior:
+
+INTEREST RATE ENVIRONMENT (most important macro variable)
+- Yield curve (2Y-10Y spread): what does inversion predict and over what horizon?
+- Rate direction vs level: rising rates hurt growth stocks, help value/financials
+- Fed funds rate trajectory: how does the market behave in hiking vs cutting cycles?
+- Real rates (nominal minus inflation): what level historically pressures equities?
+- Data source: FRED API (Federal Reserve — free, requires API key)
+  Key series: DGS2, DGS10, DFEDTARU, T10YIE (10Y breakeven inflation)
+
+INFLATION SIGNALS
+- CPI and PPI releases: what sectors benefit from high/low inflation?
+- Inflation surprise (actual vs consensus): market reaction pattern
+- PCE (Fed's preferred measure): how does it differ from CPI in market impact?
+- Data source: FRED API (free): CPIAUCSL, PPIACO, PCEPI
+
+ECONOMIC CYCLE PHASE DETECTION
+- Leading Economic Index (LEI): predicts economic turns 3-6 months ahead
+- Manufacturing PMI (ISM): above/below 50 line and direction of change
+- Employment data: NFP and jobless claims — market reaction asymmetry (bad news = good?)
+- Consumer confidence: leading for consumer discretionary sector
+- How to classify current regime: expansion / peak / contraction / trough
+- Data source: FRED API (free): USSLIND, MANEMP, IC4WSA, UMCSENT
+
+SECTOR ROTATION MODEL
+Based on the economic cycle phase, which sectors historically outperform?
+Produce a rotation matrix:
+  Early expansion  → Financials, Consumer Discretionary, Industrials
+  Late expansion   → Energy, Materials, Technology
+  Early contraction→ Utilities, Consumer Staples, Healthcare
+  Late contraction → Technology (recovering), Financials
+Quantify: how reliable is sector rotation? What signals trigger a rotation?
+
+---
+
+SECTION 2: INTERMARKET RELATIONSHIPS
+
+Research how other asset classes signal equity market direction:
+
+BONDS vs STOCKS
+- Inverse relationship breakdown: when do bonds and stocks move together? (risk-off crisis)
+- High yield credit spread (HYG vs IEF): widening spreads precede equity weakness
+- TLT (20Y treasuries): how to use as a risk-off/risk-on indicator
+- Data: all via yfinance (ETF tickers: HYG, IEF, TLT, LQD)
+
+COMMODITIES
+- Oil (USO/XLE): energy sector predictor, inflation signal
+- Gold (GLD): flight to safety indicator — what GLD rising tells us about equity risk
+- Copper ("Dr. Copper"): global economic health, industrial demand signal
+- Commodity index trend: CRB or GSCI as inflation/deflation regime indicator
+- Data: yfinance ETF tickers
+
+CURRENCIES
+- Dollar Index (DXY via UUP ETF): strong dollar hurts multinationals, helps domestics
+- Which S&P 500 sectors have highest revenue exposure to FX?
+- Emerging market currencies: stress precedes global risk-off
+- Data: yfinance (UUP, EEM, FXI)
+
+VOLATILITY
+- VIX level and trend: threshold levels (20, 30, 40) and their historical meanings
+- VIX/VIX3M ratio: when spot VIX > 3-month VIX = contango collapse = danger
+- VVIX (volatility of VIX): when this spikes, extreme moves are coming
+- Data: yfinance (^VIX, ^VVIX)
+
+MARKET BREADTH SIGNALS
+- Advance/Decline line: divergence from index = stealth weakness/strength
+- % of S&P 500 stocks above their 200MA: < 30% = washout, > 80% = overbought
+- New 52-week highs vs lows ratio: expansion of new highs confirms uptrend
+- McClellan Oscillator: breadth momentum indicator
+- Sectors making new highs while index stalls: leadership rotation signal
+- Data: can be computed from yfinance by downloading all S&P 500 components
+
+---
+
+SECTION 3: CALENDAR AND SEASONAL EFFECTS
+
+Research time-based predictable patterns:
+
+EARNINGS SEASON EFFECTS
+- S&P 500 earnings season calendar: when do 80% of companies report?
+  (Weeks 2-5 after each quarter end: mid-Jan, mid-Apr, mid-Jul, mid-Oct)
+- Pre-earnings drift: stocks with strong momentum tend to drift up into earnings
+- Post-earnings drift (PEAD): beats/misses continue trending for 20-60 days
+- Earnings season market uplift: overall market tends to rise during heavy earnings weeks
+- "Sell the news" pattern: how to identify when positive earnings are already priced
+
+FOMC MEETING EFFECTS
+- Meeting calendar (8 times/year): market behavior in the 2 days before/after
+- "Fed drift": historical tendency for market to rise in the week before FOMC
+- Rate decision surprise vs expected: how to measure the surprise
+- Post-FOMC statement drift: market direction often reverses 24h after initial reaction
+
+OPTIONS EXPIRATION EFFECTS (OpEx)
+- Monthly OpEx (3rd Friday): gamma exposure causes price pinning to major strikes
+- Quarterly OpEx ("Triple Witching" — March, June, September, December): more volatile
+- The week after OpEx: historical tendency for reversal of the week before's trend
+- Max pain theory: where do options market makers want price to expire?
+
+SEASONAL PATTERNS (documented in academic literature)
+- January Effect: small caps outperform in January (tax-loss selling reversal)
+- "Sell in May and Go Away" (Halloween effect): May-October historically weaker
+- September Effect: historically the worst month for equities — why?
+- End-of-quarter window dressing: fund managers buy winners last 5 days of quarter
+- Pre-holiday effect: day before market holidays tends to be bullish
+- Monday Effect: historically slight negative tendency (weekend news absorption)
+
+EARNINGS PRE-ANNOUNCEMENT CALENDAR
+- How to build a calendar of upcoming earnings dates for the watchlist
+- Data source: yfinance earnings calendar, Nasdaq earnings calendar (free)
+- How many days before earnings should the system increase or decrease position?
+
+---
+
+SECTION 4: PUTTING IT TOGETHER — MACRO REGIME FILTER
+
+Design a macro regime classification system:
+- What combination of signals defines each regime?
+- What is the algorithm's default behavior in each regime?
+  Regime "Risk On": yield curve normal, PMI > 50, VIX < 20 → aggressive scoring
+  Regime "Caution": yield curve flattening, PMI declining → reduce position sizes
+  Regime "Risk Off": VIX > 30, credit spreads widening → defensive only or cash
+- How does regime detection interact with individual stock signals?
+  (A great technical setup in a Risk Off macro regime should score lower)
+
+Output: docs/research/03-macro-intermarket-calendar.md
+
+End with ## Handoff notes covering: which macro signals are implementable with free APIs,
+the proposed regime classification thresholds, and what the Database Optimizer needs
+to know about storing macro time series data.
+```
+
+---
+
+## PHASE 0B — Synthesis
+*Run after ALL three Phase 0A streams are complete. Uses all three outputs.*
+
+### → Investment Researcher (Synthesis)
+
+```
+Activate Investment Researcher.
+
+Read CLAUDE.md first. Follow all directives.
+
+You have three research streams to synthesize:
+- docs/research/01-technical-fundamental.md
+- docs/research/02-news-sentiment-smartmoney.md
+- docs/research/03-macro-intermarket-calendar.md
+
+Read all three documents in full before producing anything.
+
+Your mission: produce the master signal synthesis document that EVERY Phase 1+ agent
+will read as their primary source of truth.
+
+Output: docs/research/00-signal-synthesis.md
+
+---
+
+SECTION 1: SIGNAL PRIORITY MATRIX
+
+Rank ALL signals identified across the three research streams by:
+1. Evidence strength (academic papers + practitioner validation)
+2. Availability (free API within our constraints)
+3. Implementation complexity (simple calculation vs requires NLP vs requires scraping)
+4. Prediction horizon alignment (we run daily jobs, 1-4 week horizon)
+5. Uniqueness / low correlation with other signals already in the list
+
+Produce a table: Signal | Category | Evidence | Availability | Complexity | Priority Tier
+
+Priority Tier 1 (implement first — high evidence, available, straightforward):
+  Expected: earnings surprises, price momentum, macro regime filter, technical crossovers
+
+Priority Tier 2 (implement second — good evidence, requires some data engineering):
+  Expected: analyst revisions, insider buying, sentiment aggregation, breadth signals
+
+Priority Tier 3 (implement later — powerful but complex or expensive):
+  Expected: unusual options flow, news NLP, dark pool volume
+
+---
+
+SECTION 2: DATA SOURCE MAP
+
+For every Tier 1 and Tier 2 signal, specify exactly:
+- Python library or API endpoint to retrieve the data
+- How often to fetch (daily batch, weekly, quarterly)
+- Which database table it maps to (propose table names)
+- Estimated data volume per symbol per year (for DB sizing)
+
+This section is the Database Optimizer's primary input.
+
+---
+
+SECTION 3: COMPOSITE SCORING ARCHITECTURE PROPOSAL
+
+Propose how to combine signals from different categories into one score:
+
+Multi-factor scoring approach:
+- Technical score (0-100): weighted average of technical signals
+- Fundamental score (0-100): weighted average of fundamental signals
+- Macro regime multiplier (0.5 to 1.5): scales the final score based on macro environment
+- Sentiment overlay (+/- adjustment): news/sentiment nudge on top of base score
+- Final composite score = (Technical × w1 + Fundamental × w2) × Macro multiplier + Sentiment delta
+
+Propose initial weights (these are stubs — will be calibrated after backtesting):
+- Which category should carry more weight at daily frequency?
+- How to handle missing data for a signal (symbol has no analyst coverage, no news)
+- How to prevent one extreme signal from dominating the composite
+
+---
+
+SECTION 4: MACRO REGIME CLASSIFICATION SPEC
+
+Define the 3-state macro regime model:
+- Risk On: what signals must be true, what behavior does the algorithm have
+- Caution: intermediate signals, reduced position sizing
+- Risk Off: defensive criteria, cash-heavy or inverse positions only
+
+This is the master switch that modulates all other signals.
+
+---
+
+SECTION 5: WATCHLIST FINAL
+
+Consolidate the watchlist seed from Stream 1. Annotate each symbol with:
+- Primary signal categories most applicable (technical / fundamental / macro)
+- Expected data availability (all signals available vs some gaps)
+- Role in portfolio (alpha generator / hedge / benchmark proxy)
+
+Target: 50 symbols total.
+
+---
+
+SECTION 6: WHAT EACH DOWNSTREAM AGENT NEEDS
+
+For each Phase 1+ agent, write a 5-bullet summary of what they need to know from this research:
+- Software Architect: new protocols needed, new module structure
+- Database Optimizer: new tables, new hypertables, data volumes
+- Data Engineer: new data providers, ingestion schedule, data freshness requirements
+- AI Engineer: signal implementation order, scoring architecture, regime filter
+- Workflow Architect: new jobs in the daily schedule, new failure modes
+
+Output: docs/research/00-signal-synthesis.md
+
+This document is the single source of truth for the entire development.
+End with ## Handoff notes confirming which agents can now proceed to Phase 1.
 ```
 
 ---
 
 ## PHASE 1 — Foundation
-*Run all three in parallel ⚡ after Phase 0 is complete.*
+*Run all three in parallel ⚡ after Phase 0B (synthesis) is complete.*
 
 ### ⚡ Software Architect
 
@@ -76,8 +568,9 @@ Activate Software Architect.
 
 Read CLAUDE.md first. Follow all directives.
 
-Context: Phase 0 (Investment Researcher) has completed. Read docs/research/sector-study.md
-for domain context before designing.
+Context: Phase 0 research is complete. Read docs/research/00-signal-synthesis.md first,
+then the three underlying research documents if you need detail on specific signals.
+This synthesis document defines the full scope of data and signals the system must handle.
 
 Your mission: define the complete module contract layer for the autonomous-trader project.
 
