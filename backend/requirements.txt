@@ -1,0 +1,13 @@
+# Consolidated, pinned, ARM64-verified dependency set for the api + scheduler image.
+# DevOps Automator (Phase 5) merged the four split layer files
+# (requirements-data / -analysis / -api / -db). The split files are kept as the
+# per-layer source of truth; this file pulls them in via -r and dedupes the one
+# overlap (pandas==2.2.3 appears in -data and -analysis — pip resolves it once).
+#
+# No requests / pydantic-settings / python-dotenv: the code reads config straight
+# from os.environ (docker-compose injects via env_file) and uses httpx, not requests.
+
+-r requirements-db.txt
+-r requirements-data.txt
+-r requirements-analysis.txt
+-r requirements-api.txt

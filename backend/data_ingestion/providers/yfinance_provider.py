@@ -1,28 +1,33 @@
-"""Primary OHLCV source — yfinance.
+"""Primary OHLCV source — Yahoo Finance chart API.
 
-Implements ``MarketDataProvider``. ``yfinance`` is synchronous and network-bound, so
-every call is offloaded with ``asyncio.to_thread`` to honour the async protocol
-without blocking the event loop. One batched ``yf.download`` covers the whole symbol
-list (one HTTP round trip on the Pi, not N). Output is normalised to UTC ``OHLCVBar``
-DTOs; correctness checks live in ``validation`` and run downstream in ``ingest``.
+Implements ``MarketDataProvider``. The ``yfinance`` library's crumb/timezone
+preflight calls are reliably 429'd from datacenter/WSL IPs, so this talks to the
+public chart endpoint (``/v8/finance/chart``) directly over ``httpx`` with a browser
+``User-Agent`` — the one request shape Yahoo still serves anonymously. Each symbol is
+one async round trip; output is normalised to midnight-UTC ``OHLCVBar`` DTOs keyed by
+session date (idempotent upsert). Correctness checks live in ``validation`` and run
+downstream in ``ingest``.
 """
 
 from __future__ import annotations
 
-import asyncio
 import datetime as dt
 import math
 from collections.abc import Mapping, Sequence
 from decimal import Decimal, InvalidOperation
 
-import pandas as pd
-import yfinance as yf
+import httpx
 
 from backend.contracts import OHLCVBar
 from backend.data_ingestion.errors import ProviderError
 
 _NAME = "yfinance"
-_REQUIRED = ("Open", "High", "Low", "Close", "Adj Close", "Volume")
+_CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+)
+_TIMEOUT = httpx.Timeout(30.0)
 
 
 def _to_decimal(value: object) -> Decimal | None:
@@ -34,38 +39,36 @@ def _to_decimal(value: object) -> Decimal | None:
         return None
 
 
-def _to_utc(index_value: pd.Timestamp) -> dt.datetime:
-    ts = index_value.to_pydatetime()
-    if ts.tzinfo is None:
-        return ts.replace(tzinfo=dt.timezone.utc)
-    return ts.astimezone(dt.timezone.utc)
+def _session_midnight_utc(epoch: int) -> dt.datetime:
+    date = dt.datetime.fromtimestamp(epoch, dt.timezone.utc).date()
+    return dt.datetime(date.year, date.month, date.day, tzinfo=dt.timezone.utc)
 
 
-def _frame_for_symbol(raw: pd.DataFrame, symbol: str, multi: bool) -> pd.DataFrame | None:
-    if multi:
-        if symbol not in raw.columns.get_level_values(0):
-            return None
-        return raw[symbol]
-    return raw
+def _result_to_bars(symbol: str, result: dict) -> list[OHLCVBar]:
+    timestamps = result.get("timestamp") or []
+    quote_block = (result.get("indicators", {}).get("quote") or [{}])[0]
+    adj_block = (result.get("indicators", {}).get("adjclose") or [{}])[0]
+    opens = quote_block.get("open") or []
+    highs = quote_block.get("high") or []
+    lows = quote_block.get("low") or []
+    closes = quote_block.get("close") or []
+    volumes = quote_block.get("volume") or []
+    adj_closes = adj_block.get("adjclose") or []
 
-
-def _rows_to_bars(symbol: str, frame: pd.DataFrame) -> list[OHLCVBar]:
-    if not set(_REQUIRED).issubset(frame.columns):
-        return []
     bars: list[OHLCVBar] = []
-    for index_value, row in frame.iterrows():
-        close = _to_decimal(row["Close"])
-        open_ = _to_decimal(row["Open"])
-        high = _to_decimal(row["High"])
-        low = _to_decimal(row["Low"])
-        volume = row["Volume"]
-        if None in (open_, high, low, close) or pd.isna(volume):
+    for i, epoch in enumerate(timestamps):
+        open_ = _to_decimal(opens[i] if i < len(opens) else None)
+        high = _to_decimal(highs[i] if i < len(highs) else None)
+        low = _to_decimal(lows[i] if i < len(lows) else None)
+        close = _to_decimal(closes[i] if i < len(closes) else None)
+        volume = volumes[i] if i < len(volumes) else None
+        if None in (open_, high, low, close) or volume is None:
             continue
-        adj = _to_decimal(row["Adj Close"]) or close
+        adj = _to_decimal(adj_closes[i] if i < len(adj_closes) else None) or close
         bars.append(
             OHLCVBar(
                 symbol=symbol,
-                ts=_to_utc(index_value),
+                ts=_session_midnight_utc(epoch),
                 open=open_,
                 high=high,
                 low=low,
@@ -78,7 +81,7 @@ def _rows_to_bars(symbol: str, frame: pd.DataFrame) -> list[OHLCVBar]:
 
 
 class YFinanceProvider:
-    """``MarketDataProvider`` backed by yfinance (batched, thread-offloaded)."""
+    """``MarketDataProvider`` backed by the Yahoo chart API (httpx, browser UA)."""
 
     name = _NAME
 
@@ -88,18 +91,30 @@ class YFinanceProvider:
         if not symbols:
             return {}
         tickers = list(dict.fromkeys(symbols))
-        raw = await asyncio.to_thread(self._download, tickers, start, end)
-        if raw is None or raw.empty:
+        period1 = int(dt.datetime(start.year, start.month, start.day, tzinfo=dt.timezone.utc).timestamp())
+        period2 = int(
+            (dt.datetime(end.year, end.month, end.day, tzinfo=dt.timezone.utc)
+             + dt.timedelta(days=1)).timestamp()
+        )
+        out: dict[str, list[OHLCVBar]] = {}
+        errors: list[str] = []
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers={"User-Agent": _USER_AGENT}
+        ) as client:
+            for symbol in tickers:
+                try:
+                    out[symbol] = await self._fetch_one(client, symbol, period1, period2)
+                except ProviderError as exc:
+                    out[symbol] = []
+                    errors.append(str(exc))
+
+        if all(not rows for rows in out.values()):
+            detail = errors[0] if errors else "no data"
             raise ProviderError(
-                f"yfinance returned no data for {len(tickers)} symbols "
-                f"({start.isoformat()}..{end.isoformat()})",
+                f"Yahoo chart API returned no data for {len(tickers)} symbols "
+                f"({start.isoformat()}..{end.isoformat()}): {detail}",
                 provider=_NAME,
             )
-        multi = isinstance(raw.columns, pd.MultiIndex)
-        out: dict[str, list[OHLCVBar]] = {}
-        for symbol in tickers:
-            frame = _frame_for_symbol(raw, symbol, multi)
-            out[symbol] = [] if frame is None else _rows_to_bars(symbol, frame)
         return out
 
     async def fetch_latest_price(
@@ -108,29 +123,33 @@ class YFinanceProvider:
         end = dt.date.today() + dt.timedelta(days=1)
         start = end - dt.timedelta(days=7)
         bars = await self.fetch_daily_bars(symbols, start, end)
-        return {
-            symbol: rows[-1].close
-            for symbol, rows in bars.items()
-            if rows
-        }
+        return {symbol: rows[-1].close for symbol, rows in bars.items() if rows}
 
     async def get_available_symbols(self) -> list[str]:
         return []
 
     @staticmethod
-    def _download(
-        tickers: list[str], start: dt.date, end: dt.date
-    ) -> pd.DataFrame | None:
+    async def _fetch_one(
+        client: httpx.AsyncClient, symbol: str, period1: int, period2: int
+    ) -> list[OHLCVBar]:
+        url = _CHART_URL.format(symbol=symbol)
+        params = {
+            "period1": period1,
+            "period2": period2,
+            "interval": "1d",
+            "events": "div,splits",
+        }
         try:
-            return yf.download(
-                tickers=tickers,
-                start=start.isoformat(),
-                end=(end + dt.timedelta(days=1)).isoformat(),
-                interval="1d",
-                auto_adjust=False,
-                group_by="ticker",
-                progress=False,
-                threads=False,
-            )
-        except Exception as exc:  # noqa: BLE001 — opaque yfinance/network failures
-            raise ProviderError(f"yfinance download failed: {exc}", provider=_NAME) from exc
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"chart fetch failed for {symbol}: {exc}", provider=_NAME) from exc
+
+        chart = payload.get("chart") or {}
+        if chart.get("error"):
+            raise ProviderError(f"chart error for {symbol}: {chart['error']}", provider=_NAME)
+        results = chart.get("result") or []
+        if not results:
+            return []
+        return _result_to_bars(symbol, results[0])

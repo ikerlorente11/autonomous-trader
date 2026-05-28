@@ -26,7 +26,7 @@ from backend.db.queries.portfolio_queries import (
 from backend.trading.broker_adapter import BrokerAdapter
 from backend.trading.risk_manager import make_risk_manager
 
-_DEFAULT_STARTING_CASH = Decimal("100000")
+_DEFAULT_STARTING_CASH = Decimal("500")
 
 
 def _starting_cash() -> Decimal:

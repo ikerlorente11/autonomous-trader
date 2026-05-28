@@ -1,0 +1,32 @@
+# Keep the build context small (build context = repo root). The frontend build
+# happens inside Stage 1, so a host-built frontend/build is excluded.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.venv-*/
+venv/
+env/
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/.vite/
+docs/
+*.log
+*.sqlite
+*.db
+data/
+logs/
+tmp/
+cache/
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,44 @@
+/* Component-facing aliases onto the canonical tokens in tokens.css (the single
+   source of truth, owned by UI Designer). Components reference these shorter names;
+   this file is the ONLY place that bridges them — tokens.css is never modified.
+   The two color languages are preserved: --color-gain/loss/flat = money (--pnl-*),
+   --color-warn/info/error/accent = status/chrome (--status-*, --accent). */
+
+:root {
+	/* Surfaces (deepest -> top) */
+	--color-bg-0: var(--surface-base);
+	--color-bg-1: var(--surface-base);
+	--color-bg-2: var(--surface-raised);
+	--color-bg-3: var(--surface-overlay);
+	--color-bg-4: var(--border-subtle);
+
+	/* Text (0 = strongest) */
+	--color-text-0: var(--text-primary);
+	--color-text-1: var(--text-secondary);
+	--color-text-2: var(--text-muted);
+	--color-text-3: var(--text-disabled);
+
+	/* Money palette (gain/loss/flat) */
+	--color-gain: var(--pnl-gain);
+	--color-gain-dim: var(--pnl-gain-strong);
+	--color-gain-bg: var(--pnl-gain-soft);
+	--color-loss: var(--pnl-loss);
+	--color-loss-dim: var(--pnl-loss-strong);
+	--color-loss-bg: var(--pnl-loss-soft);
+	--color-flat: var(--pnl-flat);
+
+	/* Status palette (health/regime) + chrome — never money */
+	--color-warn: var(--status-warn);
+	--color-warn-bg: var(--status-warn-soft);
+	--color-accent: var(--accent);
+	--color-accent-bg: var(--accent-soft);
+	--color-info: var(--accent);
+	--color-error: var(--status-critical);
+	--color-error-bg: var(--status-critical-soft);
+	--color-neutral: var(--text-muted);
+
+	/* Misc */
+	--radius-full: var(--radius-pill);
+	--lh-2xl: var(--leading-tight);
+	--width-max: var(--container-max);
+}

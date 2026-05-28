@@ -34,6 +34,14 @@ def _api_key() -> str:
     return key
 
 
+def _redact(text: str, key: str) -> str:
+    """Strip the API key out of any string before it can reach a log/DB/response.
+
+    httpx exception messages (and any URL echo) embed the full request URL, which
+    carries ``apikey=<secret>`` in the query string."""
+    return text.replace(key, "***") if key else text
+
+
 def _batch_size() -> int:
     return int(os.environ.get("TWELVE_DATA_BATCH", "8"))
 
@@ -134,20 +142,25 @@ class TwelveDataProvider:
         for attempt in range(_MAX_RETRIES):
             try:
                 resp = await client.get(_BASE_URL, params=params)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("Retry-After", delay))
+                    if attempt == _MAX_RETRIES - 1:
+                        raise RateLimitError(
+                            "twelve_data rate limit exhausted",
+                            provider=_NAME,
+                            retry_after=retry_after,
+                        )
+                    await asyncio.sleep(retry_after)
+                    delay *= 2
+                    continue
+                resp.raise_for_status()
             except httpx.HTTPError as exc:
-                raise ProviderError(f"twelve_data request failed: {exc}", provider=_NAME) from exc
-            if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", delay))
-                if attempt == _MAX_RETRIES - 1:
-                    raise RateLimitError(
-                        "twelve_data rate limit exhausted",
-                        provider=_NAME,
-                        retry_after=retry_after,
-                    )
-                await asyncio.sleep(retry_after)
-                delay *= 2
-                continue
-            resp.raise_for_status()
+                # `from None`: httpx exceptions embed the apikey-bearing URL; do not
+                # let the original chain leak it into tracebacks/logs.
+                raise ProviderError(
+                    f"twelve_data request failed: {_redact(str(exc), key)}",
+                    provider=_NAME,
+                ) from None
             data = resp.json()
             self._raise_on_api_error(data, delay, attempt)
             if self._is_rate_limited(data):

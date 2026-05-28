@@ -26,7 +26,7 @@ from backend.db.queries.portfolio_queries import (
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
-_DEFAULT_STARTING_CASH = Decimal("100000")
+_DEFAULT_STARTING_CASH = Decimal("500")
 
 
 def _starting_cash() -> Decimal:

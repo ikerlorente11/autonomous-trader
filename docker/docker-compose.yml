@@ -1,0 +1,80 @@
+# Autonomous Trader — Raspberry Pi 4 (ARM64) deployment.
+# Three long-running services (db, api, scheduler) + one short-lived init job.
+# Services communicate ONLY through the database (CLAUDE.md). Run from repo root:
+#   docker compose -f docker/docker-compose.yml up -d
+#
+# All app config comes from .env (env_file). The api/scheduler need DATABASE_URL
+# (async, +asyncpg); the db container needs the POSTGRES_* vars. DATABASE_URL and
+# the POSTGRES_* values must describe the same database — see .env.example.
+
+x-app-image: &app-image
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16   # verified ARM64
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      # TimescaleDB tuned conservatively for the Pi 4 RAM budget (< 200 MB idle).
+      TS_TUNE_MEMORY: 512MB
+      TS_TUNE_NUM_CPUS: "2"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_limit: 512m
+    # Optional host port for debugging; comment out for a closed deployment.
+    # ports:
+    #   - "5432:5432"
+
+  # One-shot: waits for db health, runs `alembic upgrade head`, exits.
+  # Migrations therefore run exactly once per `up`, before api/scheduler start.
+  init:
+    <<: *app-image
+    command: ["./docker/init-db.sh"]
+    env_file: ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 256m
+
+  api:
+    <<: *app-image
+    command:
+      ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file: ../.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 320m
+
+  scheduler:
+    <<: *app-image
+    command: ["python", "-m", "backend.scheduler.main"]
+    env_file: ../.env
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: 512m   # idle < 100 MB, peak ~400 MB during analysis (CLAUDE.md)
+
+volumes:
+  postgres_data:

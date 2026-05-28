@@ -1,12 +1,9 @@
 """PaperBroker — the only BrokerAdapter implementation in Phase 1.
 
 Simulates instant fills against the latest stored close with a configurable
-slippage model. It conforms to the sacred ``BrokerAdapter`` Protocol
-(``backend/trading/broker_adapter.py``); the only deliberate divergence is that
-its methods are ``async`` — the whole stack is async SQLAlchemy and a real broker
-adapter (the env-only swap target) is network-bound and would be async too. The
-sync Protocol shape is left untouched; ``runtime_checkable`` isinstance still
-passes (it checks attribute presence, not coroutine-ness).
+slippage model. It conforms to the sacred async ``BrokerAdapter`` Protocol
+(``backend/trading/broker_adapter.py``): every method is ``async`` because the
+whole stack is async SQLAlchemy and the real-broker swap target is network-bound.
 
 Cash is never stored: it is reconstructed from the append-only ``trade_orders``
 ledger (see ``compute_cash_from_ledger``). The caller owns the transaction —
@@ -37,7 +34,7 @@ from backend.db.queries.portfolio_queries import (
     get_position,
 )
 
-_DEFAULT_STARTING_CASH = Decimal("100000")
+_DEFAULT_STARTING_CASH = Decimal("500")
 _DEFAULT_SLIPPAGE_PCT = Decimal("0.001")
 
 

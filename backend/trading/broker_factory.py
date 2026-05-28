@@ -1,9 +1,9 @@
 """BrokerAdapter selection — the sacred env-only swap point.
 
 ``PortfolioManager`` never imports a concrete broker; it receives a
-``BrokerAdapter`` from this factory. Switching paper → real trading is a
-``BROKER_ADAPTER`` env change plus registering the new adapter here — no business
-logic changes (CLAUDE.md). Phase 1 ships ``paper`` only.
+``BrokerAdapter`` from this factory. Switching adapters is a ``BROKER_ADAPTER`` env
+change — no business-logic changes (CLAUDE.md). Phase 1 ships ``paper`` (DB-backed
+simulation) and ``mock_real`` (in-memory swap-test double); a real broker is Phase 2.
 """
 
 from __future__ import annotations
@@ -13,10 +13,11 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.trading.broker_adapter import BrokerAdapter
+from backend.trading.mock_real_broker import MockRealBroker
 from backend.trading.paper_broker import PaperBroker
 
 _DEFAULT_ADAPTER = "paper"
-_REGISTRY: dict[str, type] = {"paper": PaperBroker}
+_REGISTRY: dict[str, type] = {"paper": PaperBroker, "mock_real": MockRealBroker}
 
 
 def make_broker(
