@@ -1,0 +1,6 @@
+# Analysis-layer dependencies only. DevOps Automator (Phase 5) consolidates
+# these into the project-wide dependency set / Dockerfile.
+numpy==2.1.3
+pandas==2.2.3
+ta==0.11.0
+PyYAML==6.0.2

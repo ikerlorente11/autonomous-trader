@@ -1,0 +1,121 @@
+/* Autonomous Trader — design tokens (single source of truth).
+   Defined in docs/design/ui-system.md. Dark-only for Phase 1.
+   Two color languages that MUST NOT mix: --pnl-* (money) vs --status-* (health/regime). */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- A.1 Money palette (gain / loss / flat) ---- */
+  --pnl-gain: #26a269;
+  --pnl-gain-strong: #3fc380;
+  --pnl-loss: #e5484d;
+  --pnl-loss-strong: #ff6166;
+  --pnl-flat: #9aa4b2;
+  --pnl-gain-soft: rgba(38, 162, 105, 0.16);
+  --pnl-loss-soft: rgba(229, 72, 77, 0.16);
+  --pnl-flat-soft: rgba(154, 164, 178, 0.14);
+
+  /* ---- A.2 Status palette (health & regime — separate from money) ---- */
+  --status-ok: #2dd4bf;
+  --status-warn: #f5a623;
+  --status-critical: #d6409f;
+  --status-ok-soft: rgba(45, 212, 191, 0.16);
+  --status-warn-soft: rgba(245, 166, 35, 0.16);
+  --status-critical-soft: rgba(214, 64, 159, 0.16);
+
+  /* ---- A.3 Surfaces & borders ---- */
+  --surface-base: #0d1117;
+  --surface-raised: #161b22;
+  --surface-overlay: #1c2330;
+  --surface-overlay-2: #242c3a;
+  --surface-inset: #0a0e14;
+  --border-subtle: #262d38;
+  --border-strong: #3a4452;
+
+  /* ---- A.4 Text ---- */
+  --text-primary: #e6edf3;
+  --text-secondary: #aeb9c7;
+  --text-muted: #7d8896;
+  --text-disabled: #525b67;
+  --text-on-accent: #0d1117;
+
+  /* ---- A.5 Brand accent (interactive chrome only — never data) ---- */
+  --accent: #4c8dff;
+  --accent-strong: #6ba1ff;
+  --accent-soft: rgba(76, 141, 255, 0.16);
+  --focus-ring: #6ba1ff;
+
+  /* ---- A.6 Chart / multi-series ---- */
+  --chart-portfolio: #4c8dff;
+  --chart-benchmark: #9aa4b2;
+  --chart-grid: #21272f;
+  --chart-axis: #7d8896;
+  --chart-series-1: #4c8dff;
+  --chart-series-2: #2dd4bf;
+  --chart-series-3: #f5a623;
+  --chart-series-4: #a78bfa;
+  --chart-series-5: #f471b5;
+  --chart-series-6: #56d364;
+
+  /* ---- A.7 Candlesticks ---- */
+  --candle-up-body: #26a269;
+  --candle-up-wick: #3fc380;
+  --candle-down-body: #e5484d;
+  --candle-down-wick: #ff6166;
+  --candle-volume-up: rgba(38, 162, 105, 0.35);
+  --candle-volume-down: rgba(229, 72, 77, 0.35);
+
+  /* ---- B.1 Font stacks (system only — no web-font downloads) ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, "Liberation Mono", monospace;
+
+  /* ---- B.2 Size scale ---- */
+  --text-3xl: 2.25rem;
+  --text-2xl: 1.75rem;
+  --text-xl: 1.375rem;
+  --text-lg: 1.125rem;
+  --text-base: 1rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.75rem;
+  --text-2xs: 0.6875rem;
+
+  /* ---- B.3 Weights & line-height ---- */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+
+  /* ---- D.1 Spacing ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  /* ---- D.1 Radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ---- D.1 Elevation ---- */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* ---- D.2 Layout grid ---- */
+  --container-max: 1440px;
+  --grid-cols: 12;
+  --grid-gap: var(--space-4);
+  --page-pad-x: var(--space-6);
+
+  /* ---- D.3 Breakpoints (reference values for container queries / JS) ---- */
+  --bp-sm: 640px;
+  --bp-md: 900px;
+  --bp-lg: 1200px;
+  --bp-xl: 1440px;
+}

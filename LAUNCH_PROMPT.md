@@ -627,7 +627,7 @@ Activate Database Optimizer.
 
 Read CLAUDE.md first. Follow all directives.
 
-Context: read docs/research/sector-study.md to understand the data volume
+Context: read docs/research/00-signal-synthesis.md to understand the data volume
 (~30-50 symbols, daily bars, long history for backtesting).
 
 Your mission: design and implement the complete database layer.
@@ -728,7 +728,7 @@ End with ## Handoff notes for Backend Architect and DevOps Automator.
 Activate Financial Analyst.
 
 Read CLAUDE.md first. Follow all directives.
-Read docs/research/sector-study.md for context on the asset universe and strategy approach.
+Read docs/research/00-signal-synthesis.md for context on the asset universe and strategy approach.
 
 Your mission: define the complete performance measurement layer for the simulation.
 
@@ -774,7 +774,7 @@ End with ## Handoff notes for AI Engineer and Frontend Developer (what to displa
 Activate FP&A Analyst.
 
 Read CLAUDE.md first. Follow all directives.
-Read docs/research/sector-study.md and wait for Financial Analyst output if available.
+Read docs/research/00-signal-synthesis.md and wait for Financial Analyst output if available.
 
 Your mission: define the reporting and P&L structure for the simulation.
 
@@ -863,7 +863,7 @@ End with ## Handoff notes for AI Engineer and Analytics Reporter.
 Activate UI Designer.
 
 Read CLAUDE.md first. Follow all directives.
-Read: docs/research/sector-study.md, docs/finance/performance-metrics.md,
+Read: docs/research/00-signal-synthesis.md, docs/finance/performance-metrics.md,
 docs/finance/reporting-structure.md
 
 Your mission: design the visual system for the trading dashboard.
@@ -913,7 +913,7 @@ End with ## Handoff notes for Frontend Developer.
 Activate UX Architect.
 
 Read CLAUDE.md first. Follow all directives.
-Read: docs/research/sector-study.md, docs/finance/reporting-structure.md,
+Read: docs/research/00-signal-synthesis.md, docs/finance/reporting-structure.md,
 docs/architecture/module-contracts.md (API endpoints section)
 
 Your mission: define the information architecture and interaction design for the dashboard.
@@ -985,7 +985,7 @@ Depends on (read these before starting):
 - docs/architecture/schema.md (market_bars table structure)
 - backend/data_ingestion/protocols.py (already written by Software Architect)
 - backend/db/models.py (already written by Database Optimizer)
-- docs/research/sector-study.md (understand the asset universe)
+- docs/research/00-signal-synthesis.md (understand the asset universe)
 
 Your mission: implement the complete data ingestion pipeline.
 
@@ -1095,7 +1095,7 @@ Activate AI Engineer.
 Read CLAUDE.md first. Follow all directives.
 
 Depends on (read these before starting):
-- docs/research/sector-study.md (what signals matter, signal taxonomy)
+- docs/research/00-signal-synthesis.md (what signals matter, signal taxonomy)
 - docs/finance/performance-metrics.md (what metrics to compute)
 - docs/finance/experiment-framework.md (how to version strategies)
 - docs/architecture/module-contracts.md (AnalysisEngine and Indicator protocols)

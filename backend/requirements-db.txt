@@ -1,0 +1,5 @@
+# DB-layer dependencies only. DevOps Automator (Phase 5) consolidates these
+# into the project-wide dependency set / Dockerfile.
+SQLAlchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0

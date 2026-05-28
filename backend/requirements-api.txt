@@ -1,0 +1,8 @@
+# API + scheduler (trading) dependencies only. DevOps Automator (Phase 5)
+# consolidates these into the project-wide dependency set / Dockerfile. All
+# verified ARM64-compatible.
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+APScheduler==3.10.4
+psycopg[binary]==3.2.3

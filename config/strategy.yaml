@@ -1,0 +1,47 @@
+# Strategy configuration — version-controlled defaults.
+#
+# Every weight, threshold and parameter the analysis engine uses lives here, NOT
+# in code (CLAUDE.md). Values are stubs to be calibrated by the Experiment Tracker
+# (synthesis §3.2). Any leaf can be overridden by an environment variable named
+# STRATEGY__<SECTION>__<KEY> (double underscore = nesting); env wins over file.
+#
+# `version` is the human semver half of strategy_version; the engine appends a
+# config_hash so an un-bumped edit still records as a distinct version
+# (experiment-framework §2.1).
+
+version: "0.1.0"
+
+ranker:
+  # Symbols scoring below this are dropped from the buy-candidate list.
+  min_score_to_act: 60.0
+  # Symbols whose available-signal fraction is below this are dropped as low-coverage.
+  min_data_completeness: 0.5
+
+scoring:
+  # Bounds the final composite (0–100). Sub-scores outside are clipped.
+  score_min: 0.0
+  score_max: 100.0
+  # Per-indicator weights. Missing indicators are dropped and the remaining
+  # weights renormalized to sum to 1.0 (synthesis §3.3) — never imputed to zero.
+  weights:
+    rsi: 0.50
+    ma_trend: 0.30
+    atr: 0.20
+
+indicators:
+  # Simple / exponential moving average. ma_trend sub-score = logistic squash of
+  # the close's percentage distance above the average; `sensitivity` shapes the curve.
+  ma_trend:
+    kind: ema          # sma | ema
+    period: 20
+    sensitivity: 20.0
+  # RSI is natively 0–100; its sub-score is the raw value (passthrough).
+  # overbought/oversold are carried for downstream regime logic (not yet applied).
+  rsi:
+    period: 14
+    overbought: 70.0
+    oversold: 30.0
+  # Average True Range. atr sub-score = logistic squash of ATR-as-percent-of-close.
+  atr:
+    period: 14
+    sensitivity: 50.0

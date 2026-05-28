@@ -232,7 +232,10 @@ autonomous-trader/
 │   ├── architecture/
 │   │   ├── module-contracts.md        ← Software Architect
 │   │   ├── schema.md                  ← Database Optimizer
-│   │   └── workflow-tree.md           ← Workflow Architect
+│   │   ├── workflow-tree.md           ← Workflow Architect
+│   │   ├── data-ingestion.md          ← Data Engineer (Phase 4)
+│   │   ├── analysis-engine.md         ← AI Engineer (Phase 4)
+│   │   └── backend-services.md        ← Backend Architect (Phase 4)
 │   ├── finance/
 │   │   ├── performance-metrics.md     ← Financial Analyst
 │   │   ├── reporting-structure.md     ← FP&A Analyst
@@ -355,6 +358,16 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 08:00 UTC  →  execute_paper_trades()      ← Top-ranked signals → simulated orders
 08:15 UTC  →  update_portfolio_nav()      ← Snapshot portfolio value
 ```
+
+> **Implementation status (as of Phase 4).** The 7-job sequence above is the
+> **target**. What is actually built is the 4-job subset
+> `fetch_market_data → run_analysis → execute_paper_trades → update_portfolio_nav`
+> (06:30/07:30/08:00/08:15 UTC), the same set the Reality Checker gates on. The
+> `fetch_macro_data` / `fetch_news_sentiment` / `fetch_fundamentals` jobs and their
+> providers (FRED, Finnhub, fundamentals) are **not yet implemented**; only OHLCV
+> providers exist and analysis runs on technical indicators only (RSI/MA/ATR). The
+> fundamental/macro/sentiment signal modules remain clean stubs. Adding the missing
+> ingestion is post-Phase-5 work and does not block Frontend or DevOps.
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.

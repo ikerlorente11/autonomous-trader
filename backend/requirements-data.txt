@@ -1,0 +1,6 @@
+# Data-ingestion dependencies only. DevOps Automator (Phase 5) consolidates these
+# into the project-wide dependency set / Dockerfile. All verified ARM64-compatible.
+yfinance==0.2.50
+httpx==0.28.1
+pandas==2.2.3
+pandas-market-calendars==4.4.2
