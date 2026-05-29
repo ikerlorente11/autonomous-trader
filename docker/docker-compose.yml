@@ -6,6 +6,15 @@
 # All app config comes from .env (env_file). The api/scheduler need DATABASE_URL
 # (async, +asyncpg); the db container needs the POSTGRES_* vars. DATABASE_URL and
 # the POSTGRES_* values must describe the same database — see .env.example.
+#
+# Host-port allocation — this project owns the 8030-8039 range (siblings: manager
+# 800x, landing 801x, portfolio 802x). Every host-published port MUST stay in
+# range so future containers never collide with the conventional 5432/8000/etc:
+#   8030 -> api       (container 8000)
+#   8031 -> db        (container 5432)
+#   8032 -> scheduler (container 8000 — no network listener yet; the mapping just
+#                      reserves the host port against future conflicts)
+#   8033-8039 -> free
 
 x-app-image: &app-image
   build:
@@ -15,6 +24,7 @@ x-app-image: &app-image
 services:
   db:
     image: timescale/timescaledb:latest-pg16   # verified ARM64
+    container_name: trader-db
     restart: unless-stopped
     env_file: ../.env
     environment:
@@ -30,14 +40,16 @@ services:
       retries: 10
       start_period: 30s
     mem_limit: 512m
-    # Optional host port for debugging; comment out for a closed deployment.
-    # ports:
-    #   - "5432:5432"
+    # Host port stays inside this project's reserved range (8030-8039) so it never
+    # squats the conventional host 5432 a future Postgres might want.
+    ports:
+      - "${DB_PORT:-8031}:5432"
 
   # One-shot: waits for db health, runs `alembic upgrade head`, exits.
   # Migrations therefore run exactly once per `up`, before api/scheduler start.
   init:
     <<: *app-image
+    container_name: trader-init
     command: ["./docker/init-db.sh"]
     env_file: ../.env
     depends_on:
@@ -48,12 +60,13 @@ services:
 
   api:
     <<: *app-image
+    container_name: trader-api
     command:
       ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     env_file: ../.env
     ports:
       # Host port is configurable (8000 is often already in use); container stays 8000.
-      - "${API_PORT:-8080}:8000"
+      - "${API_PORT:-8030}:8000"
     depends_on:
       init:
         condition: service_completed_successfully
@@ -69,8 +82,13 @@ services:
 
   scheduler:
     <<: *app-image
+    container_name: trader-scheduler
     command: ["python", "-m", "backend.scheduler.main"]
     env_file: ../.env
+    # In-range host port like the rest. APScheduler runs no network server, so
+    # nothing answers on 8032 yet — the mapping only reserves the host port.
+    ports:
+      - "${SCHEDULER_PORT:-8032}:8000"
     depends_on:
       init:
         condition: service_completed_successfully
