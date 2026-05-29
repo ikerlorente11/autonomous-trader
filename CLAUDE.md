@@ -41,11 +41,15 @@ This is the most critical architectural decision. It must never be violated.
 
 ```python
 class BrokerAdapter(Protocol):
-    def place_order(self, symbol: str, side: str, qty: int, order_type: str) -> Order: ...
+    def place_order(self, symbol: str, side: str, qty: Decimal, order_type: str) -> Order: ...
     def get_positions(self) -> list[Position]: ...
     def get_account_balance(self) -> Decimal: ...
     def get_order_status(self, order_id: str) -> OrderStatus: ...
 ```
+
+> **`qty` is `Decimal`, not `int`** — the seam supports fractional shares so a small budget can
+> still take a position in a high-priced symbol. Every adapter (PaperBroker, MockRealBroker, a
+> future real one) honours it; the type is consistent across the whole seam, so this is not a bypass.
 
 - `PortfolioManager` calls `BrokerAdapter` — never a concrete broker directly
 - `PaperBroker` is the only implementation in Phase 1
@@ -69,6 +73,15 @@ These modules have their **interfaces defined** but no business logic yet. They 
 - `watchlist` table — which symbols/sectors to track (leave empty, populated at runtime)
 
 **All signal weights, thresholds, and parameters must be configurable via `config/strategy.yaml` — never hardcoded.**
+
+### Future: multi-market by capital (not yet built)
+
+The current sizing model is single-universe fractional-share investing: any budget participates,
+breadth scales with `MAX_OPEN_POSITIONS` and the watchlist. A richer model — selecting *different
+markets* with their own minimum-investment rules based on available capital (small budget → venues
+allowing tiny tickets; larger budget → more markets) — is **deliberately out of scope for Phase 1**
+and would extend the `RiskManager` / universe model. Documented here so it is a planned seam, not an
+accidental omission.
 
 ---
 
@@ -368,6 +381,36 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > providers exist and analysis runs on technical indicators only (RSI/MA/ATR). The
 > fundamental/macro/sentiment signal modules remain clean stubs. Adding the missing
 > ingestion is post-Phase-5 work and does not block Frontend or DevOps.
+
+> **Post-Phase-5 additions.** The 4-job pipeline can also be launched **on demand**:
+> `POST /api/system/run` runs the same sequence in order (single-flight guarded in the API
+> process; cross-process safety relies on the existing per-job idempotency), surfaced as a
+> **Run now** button on the dashboard. The `watchlist` is seeded at runtime via
+> `POST /api/market/watchlist` / `DELETE /api/market/watchlist/{symbol}` (and a small Market-page
+> control) — still never hardcoded. Position sizing supports **fractional shares**
+> (`ALLOW_FRACTIONAL`, `MIN_POSITION_EUR`) so a small budget actually trades.
+
+> **Default watchlist seed (owner-approved).** So the system trades out of the box, a
+> committed data file `config/watchlist.seed.csv` (a diversified, liquid yfinance-compatible
+> basket) is loaded by `init-db.sh` via `python -m backend.db.seed_watchlist` **only when the
+> `watchlist` table is empty** — removed symbols are never resurrected. This does **not** hardcode
+> symbols in analysis logic: they live as editable data and the API remains the source of truth.
+> Point `WATCHLIST_SEED_FILE` elsewhere to use a different basket, or set it empty to disable.
+
+> **Multi-portfolio (post-Phase-5).** The system holds several first-class **portfolios**
+> (`portfolios` table), each with its own budget, positions, trades and NAV. `trade_orders`,
+> `portfolio_positions` and `portfolio_nav` are scoped by `portfolio_id` (the last two re-keyed
+> to composite PKs; `portfolio_nav`'s continuous aggregate is recreated grouped by
+> `portfolio_id`). Budgets are **editable** via `cash_movements` (deposits/withdrawals); cash =
+> Σdeposits − Σwithdrawals − Σbuys + Σsells, and performance is measured against **net
+> contributed capital**, not a fixed starting figure. Migration `0005` seeds two portfolios
+> (`Cartera 500` = 500 €, `Cartera 100K` = 100 000 €); more can be created/deleted at runtime.
+> The daily engine and **Run now** trade **every active portfolio**, each sized by its own cash,
+> with a per-portfolio idempotency guard. The frontend selects the active portfolio client-side
+> (`?portfolio_id=`); the **`BrokerAdapter` seam is unchanged** — `portfolio_id` is a constructor
+> argument to `PaperBroker`/`MockRealBroker`, not part of `place_order`. `STARTING_CASH` no longer
+> drives the paper portfolio (it only seeds the `mock_real` double's in-memory cash); real budgets
+> live in `cash_movements`.
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.

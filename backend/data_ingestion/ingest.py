@@ -27,6 +27,10 @@ from backend.db.models import MarketBar
 
 logger = logging.getLogger(__name__)
 
+# asyncpg caps a statement at 32767 bind params; at 8 columns/row, chunk the
+# multi-row upsert well below that so large backfills don't overflow.
+_UPSERT_CHUNK_ROWS = 1000
+
 _PROVIDERS: dict[str, type[MarketDataProvider]] = {
     "yfinance": YFinanceProvider,
     "twelve_data": TwelveDataProvider,
@@ -81,19 +85,21 @@ async def upsert_bars(session: AsyncSession, bars: Sequence[OHLCVBar]) -> int:
         }
         for b in bars
     ]
-    stmt = insert(MarketBar).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[MarketBar.symbol, MarketBar.ts],
-        set_={
-            "open": stmt.excluded.open,
-            "high": stmt.excluded.high,
-            "low": stmt.excluded.low,
-            "close": stmt.excluded.close,
-            "volume": stmt.excluded.volume,
-            "adj_close": stmt.excluded.adj_close,
-        },
-    )
-    await session.execute(stmt)
+    for start in range(0, len(rows), _UPSERT_CHUNK_ROWS):
+        chunk = rows[start : start + _UPSERT_CHUNK_ROWS]
+        stmt = insert(MarketBar).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[MarketBar.symbol, MarketBar.ts],
+            set_={
+                "open": stmt.excluded.open,
+                "high": stmt.excluded.high,
+                "low": stmt.excluded.low,
+                "close": stmt.excluded.close,
+                "volume": stmt.excluded.volume,
+                "adj_close": stmt.excluded.adj_close,
+            },
+        )
+        await session.execute(stmt)
     return len(rows)
 
 

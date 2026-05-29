@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { marketApi, tradesApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
-	import { changeClass, formatDate, money, num } from '$lib/utils/format';
+	import { changeClass, formatDate, money, num, qty } from '$lib/utils/format';
 	import type { BarsRange } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -114,7 +114,7 @@
 								<tr>
 									<td>{formatDate(t.ts)}</td>
 									<td class={changeClass(t.side === 'buy' ? 1 : -1)}>{t.side.toUpperCase()}</td>
-									<td class="num">{num(t.qty, 0)}</td>
+									<td class="num">{qty(t.qty)}</td>
 									<td class="num">{money(t.price)}</td>
 									<td><StatusBadge status={t.status} /></td>
 								</tr>

@@ -56,6 +56,7 @@
 		display: flex;
 		gap: var(--space-2);
 		flex-shrink: 0;
+		flex-wrap: wrap;
 	}
 	.span-2 {
 		grid-column: span 2;
@@ -68,6 +69,20 @@
 		.span-2,
 		.span-3 {
 			grid-column: 1 / -1;
+		}
+	}
+	/* On phones, stack the header so wide action controls (search, date, range
+	   selectors) wrap to full width instead of overflowing the title row. */
+	@media (max-width: 640px) {
+		.card {
+			padding: var(--space-4);
+		}
+		header {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.actions {
+			width: 100%;
 		}
 	}
 </style>

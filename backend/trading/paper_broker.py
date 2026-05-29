@@ -5,9 +5,9 @@ slippage model. It conforms to the sacred async ``BrokerAdapter`` Protocol
 (``backend/trading/broker_adapter.py``): every method is ``async`` because the
 whole stack is async SQLAlchemy and the real-broker swap target is network-bound.
 
-Cash is never stored: it is reconstructed from the append-only ``trade_orders``
-ledger (see ``compute_cash_from_ledger``). The caller owns the transaction —
-PaperBroker flushes its writes but does not commit.
+Cash is never stored: it is reconstructed from the append-only cash-movement and
+``trade_orders`` ledgers for this broker's ``portfolio_id`` (see ``compute_cash``).
+The caller owns the transaction — PaperBroker flushes its writes but does not commit.
 """
 
 from __future__ import annotations
@@ -29,12 +29,11 @@ from backend.contracts import (
 from backend.db.models import PortfolioPosition, TradeOrder
 from backend.db.queries.market_queries import get_latest_bars
 from backend.db.queries.portfolio_queries import (
-    compute_cash_from_ledger,
+    compute_cash,
     get_open_positions,
     get_position,
 )
 
-_DEFAULT_STARTING_CASH = Decimal("500")
 _DEFAULT_SLIPPAGE_PCT = Decimal("0.001")
 
 
@@ -49,12 +48,13 @@ class PaperBroker:
     def __init__(
         self,
         session: AsyncSession,
+        portfolio_id: int,
         *,
         strategy_version: str | None = None,
     ) -> None:
         self._session = session
+        self._portfolio_id = portfolio_id
         self._strategy_version = strategy_version
-        self._starting_cash = _decimal_env("STARTING_CASH", _DEFAULT_STARTING_CASH)
         self._slippage_pct = _decimal_env("SLIPPAGE_PCT", _DEFAULT_SLIPPAGE_PCT)
 
     async def _latest_close(self, symbol: str) -> Decimal | None:
@@ -74,6 +74,7 @@ class PaperBroker:
         stmt = (
             sa_insert(TradeOrder)
             .values(
+                portfolio_id=self._portfolio_id,
                 symbol=symbol,
                 side=side,
                 qty=qty,
@@ -99,10 +100,15 @@ class PaperBroker:
         )
 
     async def _apply_buy(self, symbol: str, qty: Decimal, fill_price: Decimal) -> None:
-        existing = await get_position(self._session, symbol)
+        existing = await get_position(self._session, self._portfolio_id, symbol)
         if existing is None:
             self._session.add(
-                PortfolioPosition(symbol=symbol, qty=qty, avg_cost=fill_price)
+                PortfolioPosition(
+                    portfolio_id=self._portfolio_id,
+                    symbol=symbol,
+                    qty=qty,
+                    avg_cost=fill_price,
+                )
             )
             return
         new_qty = existing.qty + qty
@@ -112,16 +118,16 @@ class PaperBroker:
         existing.qty = new_qty
 
     async def _apply_sell(self, symbol: str, qty: Decimal) -> None:
-        existing = await get_position(self._session, symbol)
+        existing = await get_position(self._session, self._portfolio_id, symbol)
         if existing is None:
             return
         existing.qty = existing.qty - qty
 
     async def place_order(
-        self, symbol: str, side: str, qty: int, order_type: str
+        self, symbol: str, side: str, qty: Decimal, order_type: str
     ) -> Order:
         ts = dt.datetime.now(dt.timezone.utc)
-        qty_dec = Decimal(qty)
+        qty_dec = qty
         try:
             side_enum = OrderSide(side)
         except ValueError:
@@ -144,7 +150,7 @@ class PaperBroker:
             )
 
         if side_enum is OrderSide.SELL:
-            position = await get_position(self._session, symbol)
+            position = await get_position(self._session, self._portfolio_id, symbol)
             held = position.qty if position else Decimal(0)
             if held < qty_dec:
                 return await self._write_order(
@@ -166,7 +172,7 @@ class PaperBroker:
         return order
 
     async def get_positions(self) -> list[Position]:
-        rows = await get_open_positions(self._session)
+        rows = await get_open_positions(self._session, self._portfolio_id)
         return [
             Position(
                 symbol=r.symbol,
@@ -180,8 +186,8 @@ class PaperBroker:
         ]
 
     async def get_account_balance(self) -> Decimal:
-        cash = await compute_cash_from_ledger(self._session, self._starting_cash)
-        positions = await get_open_positions(self._session)
+        cash = await compute_cash(self._session, self._portfolio_id)
+        positions = await get_open_positions(self._session, self._portfolio_id)
         symbols = [p.symbol for p in positions]
         prices: dict[str, Decimal] = {}
         if symbols:

@@ -5,7 +5,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.deps import get_session
+from backend.api.deps import get_session, resolve_portfolio
 from backend.contracts import OrderSide, OrderState, TradeRecord
 from backend.db.queries.portfolio_queries import get_filtered_orders
 
@@ -18,10 +18,11 @@ async def trades(
     start: dt.datetime | None = Query(default=None),
     end: dt.datetime | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
+    portfolio_id: int = Depends(resolve_portfolio),
     session: AsyncSession = Depends(get_session),
 ) -> list[TradeRecord]:
     rows = await get_filtered_orders(
-        session, symbol=symbol, start=start, end=end, limit=limit
+        session, portfolio_id, symbol=symbol, start=start, end=end, limit=limit
     )
     return [
         TradeRecord(

@@ -12,7 +12,9 @@
 		chart: 'M3 3v18h18M7 14l3-3 3 3 5-6',
 		swap: 'M7 7h13l-3-3M17 17H4l3 3',
 		flask: 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M7 15h10',
-		activity: 'M3 12h4l3 8 4-16 3 8h4'
+		activity: 'M3 12h4l3 8 4-16 3 8h4',
+		wallet: 'M3 6h15a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3zM16 11h5v4h-5a2 2 0 0 1 0-4z',
+		info: 'M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zM12 8h.01M11 11h1v5h1'
 	};
 	let d = $derived(paths[name] ?? '');
 </script>

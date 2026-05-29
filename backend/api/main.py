@@ -10,10 +10,41 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
-from backend.api.routers import algorithms, market, portfolio, system, trades
+from backend.api.routers import (
+    algorithms,
+    market,
+    portfolio,
+    portfolios,
+    system,
+    trades,
+)
 
 _FRONTEND_BUILD = Path(__file__).resolve().parents[2] / "frontend" / "build"
+
+
+class SpaStaticFiles(StaticFiles):
+    """Serve the SPA, but never let the browser cache the HTML entry. Hashed assets
+    under /_app/immutable are content-addressed (safe to cache); index.html must be
+    revalidated so a rebuild's new asset hashes are always picked up — otherwise a
+    stale cached index points at chunk hashes that no longer exist and the app blanks."""
+
+    async def get_response(self, path: str, scope) -> Response:
+        try:
+            response = await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            # Never mask a missing API route with the SPA shell — keep its 404 JSON.
+            if exc.status_code != 404 or path.startswith("api/"):
+                raise
+            # SPA fallback: client routes (/market/MSFT, /portfolio, …) have no
+            # prerendered file — serve the SvelteKit fallback so its router renders.
+            response = await super().get_response("index.html", scope)
+        content_type = response.headers.get("content-type", "")
+        if content_type.startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def _cors_origins() -> list[str]:
@@ -38,6 +69,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(portfolio.router)
+    app.include_router(portfolios.router)
     app.include_router(market.router)
     app.include_router(trades.router)
     app.include_router(algorithms.router)
@@ -45,7 +77,7 @@ def create_app() -> FastAPI:
 
     if _FRONTEND_BUILD.is_dir():
         app.mount(
-            "/", StaticFiles(directory=str(_FRONTEND_BUILD), html=True), name="static"
+            "/", SpaStaticFiles(directory=str(_FRONTEND_BUILD), html=True), name="static"
         )
 
     return app

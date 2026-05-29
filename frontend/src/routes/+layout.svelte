@@ -5,7 +5,8 @@
 	import '$lib/styles/table.css';
 	import { page } from '$app/stores';
 	import { startSystemPolling, systemStatus, healthLevel } from '$lib/stores/systemStatus.svelte';
-	import { portfolioApi } from '$lib/api/endpoints';
+	import { portfolioApi, portfoliosApi } from '$lib/api/endpoints';
+	import { getActivePortfolioId, setActivePortfolioId } from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, relativeFromNow } from '$lib/utils/format';
 	import Icon from '$lib/components/Icon.svelte';
@@ -17,19 +18,30 @@
 
 	// Persistent portfolio-value anchor in the header; refreshes every 5 min.
 	const summary = createResource(() => portfolioApi.summary(), { intervalMs: 300_000 });
+	const portfolios = createResource(() => portfoliosApi.list(), { intervalMs: 300_000 });
+
+	// Active portfolio for the switcher: stored choice, else the first listed.
+	let selectedId = $derived(getActivePortfolioId() ?? portfolios.data?.[0]?.id ?? null);
+	function onSwitch(event: Event) {
+		const id = Number((event.currentTarget as HTMLSelectElement).value);
+		if (Number.isFinite(id) && id !== getActivePortfolioId()) setActivePortfolioId(id);
+	}
 
 	const nav = [
 		{ href: '/', label: 'Dashboard', icon: 'grid' },
-		{ href: '/portfolio', label: 'Portfolio', icon: 'briefcase' },
+		{ href: '/portfolios', label: 'Portfolios', icon: 'wallet' },
+		{ href: '/portfolio', label: 'Holdings', icon: 'briefcase' },
 		{ href: '/market', label: 'Market', icon: 'chart' },
 		{ href: '/trades', label: 'Trades', icon: 'swap' },
 		{ href: '/experiments', label: 'Experiments', icon: 'flask' },
-		{ href: '/system', label: 'System', icon: 'activity' }
+		{ href: '/system', label: 'System', icon: 'activity' },
+		{ href: '/info', label: 'Cómo funciona', icon: 'info' }
 	];
 
 	let pathname = $derived($page.url.pathname);
 	function isActive(href: string): boolean {
-		return href === '/' ? pathname === '/' : pathname.startsWith(href);
+		if (href === '/') return pathname === '/';
+		return pathname === href || pathname.startsWith(`${href}/`);
 	}
 
 	let mobileOpen = $state(false);
@@ -49,7 +61,12 @@
 	);
 </script>
 
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') mobileOpen = false; }} />
+
 <div class="shell">
+	{#if mobileOpen}
+		<button class="overlay" aria-label="Close menu" onclick={() => (mobileOpen = false)}></button>
+	{/if}
 	<aside class="sidebar" class:open={mobileOpen}>
 		<div class="brand">
 			<span class="brand-mark" aria-hidden="true">◢</span>
@@ -83,6 +100,14 @@
 					{systemStatus.available ? 'Updated' : 'System offline ·'}
 					{updatedLabel}
 				</span>
+			</div>
+			<div class="pf-switch">
+				<Icon name="wallet" size={16} />
+				<select aria-label="Active portfolio" value={selectedId} onchange={onSwitch}>
+					{#each portfolios.data ?? [] as p (p.id)}
+						<option value={p.id}>{p.name}</option>
+					{/each}
+				</select>
 			</div>
 			<div class="anchor">
 				<span class="anchor-label">NAV</span>
@@ -185,11 +210,12 @@
 		min-width: 0;
 	}
 	.topbar {
-		height: 64px;
+		min-height: 64px;
 		display: flex;
 		align-items: center;
-		gap: var(--space-4);
-		padding: 0 var(--space-6);
+		flex-wrap: wrap;
+		gap: var(--space-3) var(--space-4);
+		padding: var(--space-2) var(--space-6);
 		background: var(--color-bg-1);
 		border-bottom: 1px solid var(--color-bg-4);
 		position: sticky;
@@ -246,8 +272,22 @@
 	.health-banner a {
 		color: var(--status-warn);
 	}
-	.anchor {
+	.pf-switch {
 		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		color: var(--color-text-2);
+	}
+	.pf-switch select {
+		background: var(--color-bg-2);
+		border: 1px solid var(--color-bg-4);
+		color: var(--color-text-0);
+		border-radius: var(--radius-md);
+		padding: var(--space-1) var(--space-2);
+		font-size: var(--text-sm);
+	}
+	.anchor {
 		display: flex;
 		align-items: baseline;
 		gap: var(--space-2);
@@ -274,6 +314,10 @@
 		width: 100%;
 	}
 
+	.overlay {
+		display: none;
+	}
+
 	@media (max-width: 900px) {
 		.shell {
 			grid-template-columns: 1fr;
@@ -290,6 +334,39 @@
 		}
 		.hamburger {
 			display: block;
+		}
+		/* Backdrop: tap anywhere outside the drawer to close it. */
+		.overlay {
+			display: block;
+			position: fixed;
+			inset: 0;
+			z-index: 15;
+			border: none;
+			padding: 0;
+			background: rgba(0, 0, 0, 0.5);
+			cursor: pointer;
+		}
+	}
+	@media (max-width: 640px) {
+		.topbar {
+			padding: var(--space-2) var(--space-3);
+			gap: var(--space-2) var(--space-3);
+		}
+		/* Keep the health dot, drop the long "Updated …" text to save room. */
+		.status-text {
+			display: none;
+		}
+		.pf-switch {
+			margin-left: 0;
+		}
+		.pf-switch select {
+			max-width: 44vw;
+		}
+		.anchor {
+			margin-left: auto;
+		}
+		.content {
+			padding: var(--space-4);
 		}
 	}
 </style>

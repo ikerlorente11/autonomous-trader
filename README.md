@@ -181,11 +181,13 @@ Todo el sistema de trading pasa por este protocolo. Cambiar de paper trading a b
 
 ```python
 class BrokerAdapter(Protocol):
-    def place_order(self, symbol: str, side: str, qty: int, order_type: str) -> Order: ...
+    def place_order(self, symbol: str, side: str, qty: Decimal, order_type: str) -> Order: ...
     def get_positions(self) -> list[Position]: ...
     def get_account_balance(self) -> Decimal: ...
     def get_order_status(self, order_id: str) -> OrderStatus: ...
 ```
+
+> `qty` es `Decimal` (no `int`) para soportar **acciones fraccionadas**: así un presupuesto pequeño puede invertir en valores de precio alto.
 
 ### Lo que está intencionalmente vacío
 
@@ -226,6 +228,72 @@ docker compose logs -f
 # 4. Acceder al dashboard
 # http://[IP-de-la-Pi]:8000
 ```
+
+---
+
+## Desarrollo (hot reload)
+
+Para no reconstruir la imagen en cada cambio, usa el override de desarrollo:
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+```
+
+- Abre el dashboard de **desarrollo** en **http://localhost:5173** (no el :8080 de producción).
+- **Frontend:** Vite con **HMR** — editas algo en `frontend/` y el navegador se actualiza al instante.
+- **Backend:** el código va montado y `uvicorn --reload` recarga solo al cambiar Python; la API sigue en `:8080`.
+- La **imagen solo se reconstruye para producción** (`docker compose -f docker/docker-compose.yml up -d`,
+  que hornea el build estático de SvelteKit servido por FastAPI).
+
+> Alternativa sin Docker para el front: con la API levantada, `cd frontend && npm install && npm run dev`
+> (Vite proxyea `/api` a `http://localhost:8080`).
+
+---
+
+## Uso del dashboard
+
+### Carteras (multi-portfolio)
+
+- El sistema arranca con **dos carteras**: `Cartera 500` (500 €) y `Cartera 100K` (100 000 €).
+  Puedes **crear o borrar** más desde la página **Portfolios**.
+- El **selector** de la barra superior cambia la cartera activa al instante (recarga la vista,
+  como cambiar de proyecto). Cada cartera tiene sus propias posiciones, operaciones y NAV.
+- Los presupuestos son **editables**: usa **Deposit / Withdraw** en la página Portfolios para
+  simular ingresos o retiradas. El rendimiento (% de subida/bajada) se mide contra el
+  **capital aportado neto** (depósitos − retiradas), no contra una cifra inicial fija.
+- El motor diario y **Run now** operan **todas las carteras activas**, cada una dimensionada
+  según su propio efectivo.
+
+### Acciones fraccionadas
+
+- Con `ALLOW_FRACTIONAL=true` (por defecto) el sistema compra **fracciones de acción**, así
+  cualquier presupuesto puede tomar posición incluso en valores caros. `MIN_POSITION_EUR`
+  descarta posiciones por debajo de ese importe (suelo anti-polvo).
+- `STARTING_CASH` ya **no** define el dinero de la cartera de paper trading: los presupuestos
+  reales viven en los movimientos de caja de cada cartera (sembrados por la migración y
+  editables después).
+
+### Poblar la watchlist (necesario para que opere)
+
+El sistema solo invierte en los símbolos de la watchlist; **arranca vacía**. Añádelos desde
+la página **Market** (campo "Add symbol") o por API:
+
+```bash
+curl -X POST http://[IP-de-la-Pi]:8000/api/market/watchlist \
+  -H 'Content-Type: application/json' -d '{"symbol":"AAPL"}'
+```
+
+### Lanzar las operaciones a mano
+
+El pipeline corre solo a diario (ver más abajo), pero el botón **Run now** del dashboard
+(Home) ejecuta la secuencia completa al instante: datos de mercado → análisis → trades →
+snapshot de NAV. Es idempotente: repetirlo el mismo día no duplica operaciones.
+
+### Pantalla principal (Home)
+
+Muestra los datos vitales: presupuesto inicial, valor actual, cambio en % vs. el inicio, la
+gráfica del valor en el tiempo, y la tabla de **inversiones** del día (con selector de fecha).
+Cada fila abre la gráfica de tendencia del valor en el que se invirtió.
 
 ---
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { portfolioApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
-	import { money, num, percent, toNum } from '$lib/utils/format';
+	import { money, num, percent, qty, toNum } from '$lib/utils/format';
 	import {
 		band,
 		metricLabels,
@@ -106,7 +106,7 @@
 						{#each d as p (p.symbol)}
 							<tr class="clickable" onclick={() => (location.href = `/market/${p.symbol}`)}>
 								<td class="sym">{p.symbol}</td>
-								<td class="num">{num(p.qty, 0)}</td>
+								<td class="num">{qty(p.qty)}</td>
 								<td class="num">{money(p.avg_cost)}</td>
 								<td class="num">{money(p.current_price)}</td>
 								<td class="num">{money(marketValue(p))}</td>

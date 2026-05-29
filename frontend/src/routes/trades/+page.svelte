@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tradesApi, type TradeFilters } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
-	import { changeClass, formatDateTime, money, num } from '$lib/utils/format';
+	import { changeClass, formatDateTime, money, qty } from '$lib/utils/format';
 	import type { TradeRecord } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -100,7 +100,7 @@
 								<td>{formatDateTime(t.ts)}</td>
 								<td class="sym">{t.symbol}</td>
 								<td class={changeClass(t.side === 'buy' ? 1 : -1)}>{t.side.toUpperCase()}</td>
-								<td class="num">{num(t.qty, 0)}</td>
+								<td class="num">{qty(t.qty)}</td>
 								<td class="num">{money(t.price)}</td>
 								<td class="num">
 									{#if t.price}{money(Number(t.qty) * Number(t.price))}{:else}—{/if}

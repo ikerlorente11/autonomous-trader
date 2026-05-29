@@ -4,10 +4,11 @@
 # migration scripts). Idempotent: `alembic upgrade head` is a no-op once the DB
 # is already at head, so this is safe to re-run on every `docker compose up`.
 #
-# IMPORTANT (CLAUDE.md overrides the launch prompt): this script does NOT seed
-# any watchlist symbols. The watchlist is populated at runtime and hardcoding
-# symbols is forbidden. An operator may optionally point WATCHLIST_SEED_FILE at
-# a file they provide; if unset or the file is absent, nothing is seeded.
+# Watchlist seeding: symbols are never hardcoded in analysis logic (CLAUDE.md);
+# they live as data in WATCHLIST_SEED_FILE and stay editable via the API. The
+# loader runs ONLY when the watchlist table is empty, so removed symbols are not
+# resurrected. Default points at the committed config/watchlist.seed.csv; set
+# WATCHLIST_SEED_FILE empty to disable seeding entirely.
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL must be set}"
@@ -41,10 +42,13 @@ echo "init-db: running alembic upgrade head"
 alembic -c "${ALEMBIC_INI}" upgrade head
 echo "init-db: migrations applied"
 
-# --- optional, operator-provided seed (empty/absent by default) ------------
-if [ -n "${WATCHLIST_SEED_FILE:-}" ] && [ -s "${WATCHLIST_SEED_FILE}" ]; then
-  echo "init-db: WATCHLIST_SEED_FILE set; this is operator-provided and NOT committed."
-  echo "init-db: no built-in seeding logic — provide your own loader if needed."
+# --- seed the watchlist when empty (idempotent, no-op if already populated) -
+seed_file="${WATCHLIST_SEED_FILE-config/watchlist.seed.csv}"
+if [ -n "${seed_file}" ] && [ -s "${seed_file}" ]; then
+  echo "init-db: seeding watchlist from ${seed_file} (only if empty)"
+  python -m backend.db.seed_watchlist "${seed_file}"
+else
+  echo "init-db: no watchlist seed file; skipping watchlist seed"
 fi
 
 echo "init-db: done"

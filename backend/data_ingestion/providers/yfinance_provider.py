@@ -125,6 +125,52 @@ class YFinanceProvider:
         bars = await self.fetch_daily_bars(symbols, start, end)
         return {symbol: rows[-1].close for symbol, rows in bars.items() if rows}
 
+    async def fetch_live_prices(
+        self, symbols: Sequence[str]
+    ) -> Mapping[str, Decimal]:
+        """Near-real-time last price per symbol (display only, not persisted)."""
+        if not symbols:
+            return {}
+        tickers = list(dict.fromkeys(symbols))
+        out: dict[str, Decimal] = {}
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers={"User-Agent": _USER_AGENT}
+        ) as client:
+            for symbol in tickers:
+                try:
+                    price = await self._fetch_last_price(client, symbol)
+                except ProviderError:
+                    continue
+                if price is not None:
+                    out[symbol] = price
+        return out
+
+    @staticmethod
+    async def _fetch_last_price(
+        client: httpx.AsyncClient, symbol: str
+    ) -> Decimal | None:
+        url = _CHART_URL.format(symbol=symbol)
+        params = {"range": "1d", "interval": "1m"}
+        try:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"live fetch failed for {symbol}: {exc}", provider=_NAME) from exc
+        results = (payload.get("chart") or {}).get("result") or []
+        if not results:
+            return None
+        result = results[0]
+        price = _to_decimal((result.get("meta") or {}).get("regularMarketPrice"))
+        if price is not None:
+            return price
+        closes = ((result.get("indicators", {}).get("quote") or [{}])[0]).get("close") or []
+        for close in reversed(closes):
+            value = _to_decimal(close)
+            if value is not None:
+                return value
+        return None
+
     async def get_available_symbols(self) -> list[str]:
         return []
 

@@ -9,13 +9,33 @@ export interface ApiErrorEnvelope {
 
 // backend/api/schemas.py::PortfolioSummary
 export interface PortfolioSummary {
+	portfolio_id: number;
+	name: string;
 	cash: string;
 	equity: string;
 	total: string;
-	starting_cash: string;
+	contributed_capital: string;
 	total_pnl: string;
 	unrealized_pnl: string;
 	positions_count: number;
+}
+
+// backend/api/schemas.py::Portfolio
+export interface Portfolio {
+	id: number;
+	name: string;
+	active: boolean;
+	created_at: string;
+}
+
+// backend/api/schemas.py::CashMovement
+export interface CashMovement {
+	id: number;
+	portfolio_id: number;
+	kind: string;
+	amount: string;
+	ts: string;
+	note: string | null;
 }
 
 // backend/contracts.py::Position
@@ -26,6 +46,11 @@ export interface Position {
 	current_price: string | null;
 	unrealized_pnl: string | null;
 	updated_at: string | null;
+}
+
+export interface Quote {
+	symbol: string;
+	price: string;
 }
 
 // backend/contracts.py::PortfolioSnapshot
@@ -121,6 +146,12 @@ export interface SystemStatus {
 	server_time: string;
 	jobs: JobStatus[];
 	recent_errors: JobStatus[];
+}
+
+// backend/api/schemas.py::RunTrigger
+export interface RunTrigger {
+	status: string;
+	detail: string;
 }
 
 // Client-side NAV range presets -> translated to start/end ISO datetimes.

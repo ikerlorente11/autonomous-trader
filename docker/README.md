@@ -86,7 +86,7 @@ daily schedule resumes automatically (see workflow-tree §5).
 |---|---|
 | `docker/Dockerfile` | Multi-stage: node:20-alpine builds the frontend → python:3.12-slim runtime. Non-root, lean final layer. |
 | `docker/docker-compose.yml` | `db`, one-shot `init`, `api`, `scheduler`. Health gates, mem_limits, named volume. |
-| `docker/init-db.sh` | Waits for DB, runs `alembic upgrade head`. Idempotent. No watchlist seed. |
+| `docker/init-db.sh` | Waits for DB, runs `alembic upgrade head`, then seeds the watchlist from `WATCHLIST_SEED_FILE` only if the table is empty. Idempotent. |
 | `docker/README.md` | This file — fresh-Pi setup + ops. |
 | `.env.example` | Every env var the backend reads, grouped, placeholders only. |
 | `.dockerignore` | Keeps the build context lean. |
@@ -101,9 +101,11 @@ daily schedule resumes automatically (see workflow-tree §5).
    resolves to `/app` from `/app/backend/...`, which is exactly where
    `frontend/build` and `config/strategy.yaml` are placed. The launch prompt's
    `WORKDIR /app/backend` + `api.main:app` would `ImportError` immediately.
-2. **No watchlist seeding** (CLAUDE.md overrides the launch prompt). `init-db.sh`
-   stops after migrations. An optional, operator-provided `WATCHLIST_SEED_FILE`
-   hook exists but is unset/inert by default and ships no symbols.
+2. **Default watchlist seed (owner-approved).** Symbols are never hardcoded in
+   analysis logic (CLAUDE.md); they live as data in `WATCHLIST_SEED_FILE`
+   (default `config/watchlist.seed.csv`) and `init-db.sh` loads them only when
+   the watchlist table is empty, so removed symbols are not resurrected. They
+   stay editable via the API. Set `WATCHLIST_SEED_FILE` empty to disable.
 
 ### Alembic / driver decision
 - Alembic's `env.py` uses `async_engine_from_config` + `asyncio.run(...)` and

@@ -16,6 +16,40 @@
 	let sortKey = $state<'score' | 'symbol' | 'price'>('score');
 	let sortDir = $state<'asc' | 'desc'>('desc');
 
+	let newSymbol = $state('');
+	let editMsg = $state<string | null>(null);
+	let busy = $state(false);
+
+	async function addSymbol() {
+		const symbol = newSymbol.trim().toUpperCase();
+		if (!symbol) return;
+		busy = true;
+		editMsg = null;
+		try {
+			await marketApi.addSymbol({ symbol });
+			newSymbol = '';
+			await watchlist.refresh();
+		} catch (e) {
+			editMsg = e instanceof Error ? e.message : 'Could not add symbol.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function removeSymbol(symbol: string, ev: Event) {
+		ev.stopPropagation();
+		busy = true;
+		editMsg = null;
+		try {
+			await marketApi.removeSymbol(symbol);
+			await watchlist.refresh();
+		} catch (e) {
+			editMsg = e instanceof Error ? e.message : 'Could not remove symbol.';
+		} finally {
+			busy = false;
+		}
+	}
+
 	function setSort(key: 'score' | 'symbol' | 'price') {
 		if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
 		else {
@@ -51,6 +85,10 @@
 <Card title="Watchlist" caption="Tracked universe · click a row for per-symbol detail" span="full">
 	{#snippet actions()}
 		<input class="search" bind:value={search} placeholder="Search symbol or sector" />
+		<form class="add" onsubmit={(e) => { e.preventDefault(); void addSymbol(); }}>
+			<input class="add-in" bind:value={newSymbol} placeholder="Add symbol (e.g. AAPL)" />
+			<button class="add-btn" type="submit" disabled={busy}>Add</button>
+		</form>
 	{/snippet}
 	<Region resource={watchlist} isEmpty={(d) => d.length === 0} emptyMessage="Watchlist is empty — populate it at runtime.">
 		{#snippet children(d)}
@@ -64,6 +102,7 @@
 							<th class="num sortable" onclick={() => setSort('price')}>Last{arrowFor('price')}</th>
 							<th class="num sortable" onclick={() => setSort('score')}>Score{arrowFor('score')}</th>
 							<th>Action</th>
+							<th></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -79,6 +118,14 @@
 									{:else}—{/if}
 								</td>
 								<td>{#if w.action}<StatusBadge status={w.action} />{:else}—{/if}</td>
+								<td>
+									<button
+										class="rm"
+										title="Remove from watchlist"
+										disabled={busy}
+										onclick={(e) => removeSymbol(w.symbol, e)}>×</button
+									>
+								</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -90,6 +137,8 @@
 		{/snippet}
 	</Region>
 </Card>
+
+{#if editMsg}<p class="edit-msg">{editMsg}</p>{/if}
 
 <p class="note">
 	Daily price change is not exposed by <code>/api/market/watchlist</code> (marks are daily closes).
@@ -113,6 +162,50 @@
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--text-sm);
 		min-width: 220px;
+	}
+	.add {
+		display: flex;
+		gap: var(--space-2);
+	}
+	.add-in {
+		background: var(--color-bg-1);
+		border: 1px solid var(--color-bg-4);
+		color: var(--color-text-0);
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--text-sm);
+		min-width: 160px;
+	}
+	.add-btn {
+		background: var(--color-accent, var(--color-text-0));
+		color: var(--color-bg-0);
+		border: none;
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-semibold);
+		cursor: pointer;
+	}
+	.add-btn:disabled {
+		opacity: 0.6;
+		cursor: progress;
+	}
+	.rm {
+		background: none;
+		border: none;
+		color: var(--color-text-2);
+		font-size: var(--text-lg);
+		line-height: 1;
+		cursor: pointer;
+		padding: 0 var(--space-2);
+	}
+	.rm:hover {
+		color: var(--color-loss, var(--color-text-0));
+	}
+	.edit-msg {
+		font-size: var(--text-sm);
+		color: var(--color-loss, var(--color-text-1));
+		margin-bottom: var(--space-3);
 	}
 	.muted {
 		color: var(--color-text-2);

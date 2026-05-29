@@ -1,0 +1,36 @@
+# Development override — hot reload, NO image rebuilds on each change.
+# Run alongside the base file:
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+# Then open the Vite dev server at http://localhost:5173 (HMR for the UI).
+#
+# - api: source is bind-mounted and uvicorn runs with --reload, so backend edits
+#   reload automatically (no rebuild). It still serves /api on the host at :8080.
+# - frontend: a Node container runs `vite dev` with hot module replacement and
+#   proxies /api to the api service. Edit anything under frontend/ and the browser
+#   updates instantly.
+services:
+  api:
+    volumes:
+      - ..:/app
+    command:
+      ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app/frontend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      # In-container the API is reachable by its compose service name.
+      VITE_API_PROXY: http://api:8000
+    volumes:
+      - ../frontend:/app/frontend
+      # Keep node_modules in a volume so the host's absence/OS doesn't matter and
+      # installs persist across restarts.
+      - frontend_node_modules:/app/frontend/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  frontend_node_modules:

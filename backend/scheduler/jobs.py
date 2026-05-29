@@ -30,20 +30,25 @@ from backend.contracts import RankedSymbol, SignalAction, SymbolScore
 from backend.data_ingestion.calendar import is_trading_day
 from backend.data_ingestion.ingest import ingest_daily_bars
 from backend.db.models import JobRun
-from backend.db.queries.market_queries import get_bars_range
+from backend.db.queries.market_queries import count_bars_per_symbol, get_bars_range
 from backend.db.queries.portfolio_queries import (
     count_orders_since,
     get_active_watchlist,
     get_latest_analysis_ts,
     get_top_ranked_signals,
+    list_portfolios,
 )
 from backend.db.session import async_session
+from backend.scheduler.schedule import JOB_SCHEDULE
 from backend.trading.broker_factory import make_broker
 from backend.trading.portfolio_manager import PortfolioManager
 
 logger = logging.getLogger(__name__)
 
 _ANALYSIS_LOOKBACK_DAYS = 400
+# Below this many stored bars a symbol is backfilled over the full lookback window
+# instead of just appending today (comfortably above the longest indicator period).
+_MIN_HISTORY_BARS = 60
 _RANK_LIMIT = 50
 
 
@@ -139,13 +144,27 @@ async def fetch_market_data() -> None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "empty_watchlist"}
                 return
-            report = await ingest_daily_bars(session, symbols, today, today)
-            missing = list(report.empty_symbols)
+            asof = _today_utc_midnight()
+            lookback_start = today - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
+            counts = await count_bars_per_symbol(
+                session, symbols, asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS), asof
+            )
+            backfill = [s for s in symbols if counts.get(s, 0) < _MIN_HISTORY_BARS]
+            current = [s for s in symbols if counts.get(s, 0) >= _MIN_HISTORY_BARS]
+            reports = []
+            if backfill:
+                reports.append(
+                    await ingest_daily_bars(session, backfill, lookback_start, today)
+                )
+            if current:
+                reports.append(await ingest_daily_bars(session, current, today, today))
+            missing = [s for r in reports for s in r.empty_symbols]
             outcome.status = "degraded" if missing else "success"
             outcome.detail = {
                 "symbols_requested": len(symbols),
+                "symbols_backfilled": len(backfill),
                 "symbols_missing": missing,
-                "anomalies": len(report.anomalies),
+                "anomalies": sum(len(r.anomalies) for r in reports),
             }
 
 
@@ -197,15 +216,15 @@ async def execute_paper_trades() -> None:
             outcome.detail = {"reason": "MARKET_CLOSED"}
             return
         async with async_session() as session:
-            if await count_orders_since(session, _today_utc_midnight()) > 0:
-                outcome.status = "skipped"
-                outcome.detail = {"reason": "already_traded_today"}
-                _log_event("execute_paper_trades", "NO_TRADES", reason="already_traded")
-                return
             asof = await get_latest_analysis_ts(session)
             if asof is None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "NO_SIGNALS"}
+                return
+            portfolios = await list_portfolios(session, active_only=True)
+            if not portfolios:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_active_portfolios"}
                 return
             signals = await get_top_ranked_signals(session, asof, limit=_RANK_LIMIT)
             ranked = [
@@ -223,29 +242,47 @@ async def execute_paper_trades() -> None:
                 for i, s in enumerate(signals)
             ]
             engine = DefaultAnalysisEngine()
-            broker = make_broker(session, strategy_version=engine.strategy_version)
-            manager = PortfolioManager(broker, session)
-            orders = await manager.execute_signals(ranked)
+            midnight = _today_utc_midnight()
+            total_orders = 0
+            per_portfolio: dict[str, int] = {}
+            skipped: list[int] = []
+            for portfolio in portfolios:
+                # Per-portfolio idempotency: don't double-trade one already traded today.
+                if await count_orders_since(session, portfolio.id, midnight) > 0:
+                    skipped.append(portfolio.id)
+                    continue
+                broker = make_broker(
+                    session, portfolio.id, strategy_version=engine.strategy_version
+                )
+                manager = PortfolioManager(broker, session, portfolio.id)
+                orders = await manager.execute_signals(ranked)
+                per_portfolio[str(portfolio.id)] = len(orders)
+                total_orders += len(orders)
             await session.commit()
-            by_state: dict[str, int] = {}
-            for order in orders:
-                by_state[order.status.value] = by_state.get(order.status.value, 0) + 1
-            outcome.detail = {"orders": len(orders), "by_state": by_state}
+            outcome.detail = {
+                "orders": total_orders,
+                "per_portfolio": per_portfolio,
+                "skipped_already_traded": skipped,
+            }
 
 
 async def update_portfolio_nav() -> None:
     async with _job_context("update_portfolio_nav") as outcome:
         async with async_session() as session:
-            broker = make_broker(session)
-            manager = PortfolioManager(broker, session)
-            await manager.update_positions()
-            snapshot = await manager.snapshot_nav()
+            portfolios = await list_portfolios(session, active_only=True)
+            if not portfolios:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_active_portfolios"}
+                return
+            navs: dict[str, str] = {}
+            for portfolio in portfolios:
+                broker = make_broker(session, portfolio.id)
+                manager = PortfolioManager(broker, session, portfolio.id)
+                await manager.update_positions()
+                snapshot = await manager.snapshot_nav()
+                navs[str(portfolio.id)] = str(snapshot.total)
             await session.commit()
-            outcome.detail = {
-                "nav_total": str(snapshot.total),
-                "cash": str(snapshot.cash),
-                "equity": str(snapshot.equity),
-            }
+            outcome.detail = {"nav_total_by_portfolio": navs}
 
 
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {
@@ -254,3 +291,18 @@ JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "execute_paper_trades": execute_paper_trades,
     "update_portfolio_nav": update_portfolio_nav,
 }
+
+
+async def run_pipeline() -> list[str]:
+    """Run the daily jobs in canonical order, on demand (manual trigger).
+
+    Each job owns its session, records a ``job_runs`` row and swallows its own
+    errors, so one failing step degrades the run rather than aborting the rest —
+    the same guarantee the scheduler relies on. Idempotency guards make a manual
+    run safe even if the scheduler already ran today.
+    """
+    completed: list[str] = []
+    for job_name in JOB_SCHEDULE:
+        await JOBS[job_name]()
+        completed.append(job_name)
+    return completed

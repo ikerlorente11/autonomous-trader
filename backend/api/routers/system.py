@@ -2,18 +2,49 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_session
-from backend.api.schemas import JobStatus, SystemStatus
+from backend.api.schemas import JobStatus, RunTrigger, SystemStatus
 from backend.db.queries.system_queries import (
     get_last_run_per_job,
     get_recent_job_runs,
 )
+from backend.scheduler.jobs import run_pipeline
 from backend.scheduler.schedule import JOB_SCHEDULE, next_run_after
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+# Single-flight guard for the manual trigger within this API process. Set
+# synchronously in the handler before the background task is scheduled, so two
+# rapid POSTs cannot both start a run. Cross-process overlap with the scheduler is
+# already neutralized by each job's idempotency guards.
+_pipeline_running = False
+
+
+async def _run_pipeline_guarded() -> None:
+    global _pipeline_running
+    try:
+        await run_pipeline()
+    finally:
+        _pipeline_running = False
+
+
+@router.post("/run", response_model=RunTrigger)
+async def run_pipeline_now(background: BackgroundTasks) -> RunTrigger:
+    global _pipeline_running
+    if _pipeline_running:
+        return RunTrigger(
+            status="already_running",
+            detail="A pipeline run is already in progress.",
+        )
+    _pipeline_running = True
+    background.add_task(_run_pipeline_guarded)
+    return RunTrigger(
+        status="started",
+        detail="Daily pipeline started: market data, analysis, trades, NAV snapshot.",
+    )
 
 
 @router.get("/status", response_model=SystemStatus)

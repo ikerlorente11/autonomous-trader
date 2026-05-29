@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import os
 from decimal import Decimal
 
 import pandas as pd
@@ -13,36 +12,31 @@ from backend.analysis.performance.metrics import (
     risk_free_rate_from_env,
     summarize_performance,
 )
-from backend.api.deps import get_session
+from backend.api.deps import get_session, resolve_portfolio
 from backend.api.schemas import PortfolioSummary
 from backend.contracts import PerformanceMetrics, Position, PortfolioSnapshot
 from backend.db.queries.market_queries import get_latest_bars
 from backend.db.queries.portfolio_queries import (
-    compute_cash_from_ledger,
+    compute_cash,
+    compute_contributed_capital,
     get_filled_orders,
     get_nav_history,
     get_open_positions,
+    get_portfolio,
 )
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
-_DEFAULT_STARTING_CASH = Decimal("500")
-
-
-def _starting_cash() -> Decimal:
-    raw = os.environ.get("STARTING_CASH")
-    if raw is None or raw.strip() == "":
-        return _DEFAULT_STARTING_CASH
-    return Decimal(raw)
-
 
 @router.get("/summary", response_model=PortfolioSummary)
 async def portfolio_summary(
+    portfolio_id: int = Depends(resolve_portfolio),
     session: AsyncSession = Depends(get_session),
 ) -> PortfolioSummary:
-    starting = _starting_cash()
-    cash = await compute_cash_from_ledger(session, starting)
-    positions = await get_open_positions(session)
+    portfolio = await get_portfolio(session, portfolio_id)
+    cash = await compute_cash(session, portfolio_id)
+    contributed = await compute_contributed_capital(session, portfolio_id)
+    positions = await get_open_positions(session, portfolio_id)
     prices: dict[str, Decimal] = {}
     if positions:
         for bar in await get_latest_bars(session, [p.symbol for p in positions]):
@@ -59,11 +53,13 @@ async def portfolio_summary(
     )
     total = cash + equity
     return PortfolioSummary(
+        portfolio_id=portfolio_id,
+        name=portfolio.name if portfolio else "",
         cash=cash,
         equity=equity,
         total=total,
-        starting_cash=starting,
-        total_pnl=total - starting,
+        contributed_capital=contributed,
+        total_pnl=total - contributed,
         unrealized_pnl=unrealized,
         positions_count=len(positions),
     )
@@ -71,9 +67,10 @@ async def portfolio_summary(
 
 @router.get("/positions", response_model=list[Position])
 async def portfolio_positions(
+    portfolio_id: int = Depends(resolve_portfolio),
     session: AsyncSession = Depends(get_session),
 ) -> list[Position]:
-    rows = await get_open_positions(session)
+    rows = await get_open_positions(session, portfolio_id)
     return [
         Position(
             symbol=r.symbol,
@@ -91,11 +88,12 @@ async def portfolio_positions(
 async def portfolio_nav(
     start: dt.datetime | None = Query(default=None),
     end: dt.datetime | None = Query(default=None),
+    portfolio_id: int = Depends(resolve_portfolio),
     session: AsyncSession = Depends(get_session),
 ) -> list[PortfolioSnapshot]:
     end = end or dt.datetime.now(dt.timezone.utc)
     start = start or (end - dt.timedelta(days=90))
-    rows = await get_nav_history(session, start, end)
+    rows = await get_nav_history(session, portfolio_id, start, end)
     return [
         PortfolioSnapshot(
             ts=r.ts,
@@ -112,11 +110,12 @@ async def portfolio_nav(
 async def portfolio_performance(
     start: dt.datetime | None = Query(default=None),
     end: dt.datetime | None = Query(default=None),
+    portfolio_id: int = Depends(resolve_portfolio),
     session: AsyncSession = Depends(get_session),
 ) -> PerformanceMetrics:
     end = end or dt.datetime.now(dt.timezone.utc)
     start = start or (end - dt.timedelta(days=365))
-    nav_rows = await get_nav_history(session, start, end)
+    nav_rows = await get_nav_history(session, portfolio_id, start, end)
     if len(nav_rows) < 2:
         return PerformanceMetrics()
     nav_df = pd.DataFrame(
@@ -129,7 +128,7 @@ async def portfolio_performance(
             ],
         }
     )
-    orders = await get_filled_orders(session)
+    orders = await get_filled_orders(session, portfolio_id)
     orders_df = pd.DataFrame(
         {
             "symbol": [o.symbol for o in orders],

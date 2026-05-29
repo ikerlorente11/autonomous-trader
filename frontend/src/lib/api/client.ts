@@ -25,13 +25,24 @@ function buildQuery(params?: Record<string, string | number | undefined | null>)
 
 async function request<T>(
 	path: string,
-	opts: { params?: Record<string, string | number | undefined | null>; fetcher?: typeof fetch } = {}
+	opts: {
+		method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+		params?: Record<string, string | number | undefined | null>;
+		body?: unknown;
+		fetcher?: typeof fetch;
+	} = {}
 ): Promise<T> {
 	const f = opts.fetcher ?? fetch;
 	const url = `${BASE}${path}${buildQuery(opts.params)}`;
+	const headers: Record<string, string> = { Accept: 'application/json' };
+	const init: RequestInit = { method: opts.method ?? 'GET', headers };
+	if (opts.body !== undefined) {
+		headers['Content-Type'] = 'application/json';
+		init.body = JSON.stringify(opts.body);
+	}
 	let res: Response;
 	try {
-		res = await f(url, { headers: { Accept: 'application/json' } });
+		res = await f(url, init);
 	} catch (e) {
 		throw new ApiError('NETWORK', e instanceof Error ? e.message : 'Network request failed', 0);
 	}
@@ -53,6 +64,8 @@ async function request<T>(
 		throw new ApiError(code, message, res.status);
 	}
 
+	if (res.status === 204) return undefined as T;
+
 	try {
 		return (await res.json()) as T;
 	} catch {
@@ -61,5 +74,11 @@ async function request<T>(
 }
 
 export const api = {
-	get: request
+	get: request,
+	post: <T>(path: string, body?: unknown, fetcher?: typeof fetch) =>
+		request<T>(path, { method: 'POST', body, fetcher }),
+	patch: <T>(path: string, body?: unknown, fetcher?: typeof fetch) =>
+		request<T>(path, { method: 'PATCH', body, fetcher }),
+	del: <T>(path: string, fetcher?: typeof fetch) =>
+		request<T>(path, { method: 'DELETE', fetcher })
 };

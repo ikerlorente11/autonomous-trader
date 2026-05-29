@@ -1,13 +1,18 @@
 import { api } from './client';
+import { getActivePortfolioId } from '$lib/stores/activePortfolio';
 import type {
 	BarsRange,
+	CashMovement,
 	ExperimentEntry,
 	NavRange,
 	OHLCVBar,
 	PerformanceMetrics,
+	Portfolio,
 	PortfolioSnapshot,
 	PortfolioSummary,
 	Position,
+	Quote,
+	RunTrigger,
 	SignalEntry,
 	SystemStatus,
 	TradeRecord,
@@ -17,6 +22,12 @@ import type {
 type F = typeof fetch;
 
 const DAY_MS = 86_400_000;
+
+// Scope a request to the active portfolio (omitted -> backend uses its default).
+function portfolioParam(): { portfolio_id?: number } {
+	const id = getActivePortfolioId();
+	return id === null ? {} : { portfolio_id: id };
+}
 
 // Translate a UI range preset into a backend start/end datetime window.
 function rangeWindow(range: NavRange | BarsRange): { start?: string; end?: string } {
@@ -35,20 +46,53 @@ function rangeWindow(range: NavRange | BarsRange): { start?: string; end?: strin
 }
 
 export const portfolioApi = {
-	summary: (f?: F) => api.get<PortfolioSummary>('/portfolio/summary', { fetcher: f }),
-	positions: (f?: F) => api.get<Position[]>('/portfolio/positions', { fetcher: f }),
+	summary: (f?: F) =>
+		api.get<PortfolioSummary>('/portfolio/summary', { params: portfolioParam(), fetcher: f }),
+	positions: (f?: F) =>
+		api.get<Position[]>('/portfolio/positions', { params: portfolioParam(), fetcher: f }),
 	nav: (range: NavRange, f?: F) =>
-		api.get<PortfolioSnapshot[]>('/portfolio/nav', { params: rangeWindow(range), fetcher: f }),
-	performance: (f?: F) => api.get<PerformanceMetrics>('/portfolio/performance', { fetcher: f })
+		api.get<PortfolioSnapshot[]>('/portfolio/nav', {
+			params: { ...rangeWindow(range), ...portfolioParam() },
+			fetcher: f
+		}),
+	performance: (f?: F) =>
+		api.get<PerformanceMetrics>('/portfolio/performance', {
+			params: portfolioParam(),
+			fetcher: f
+		})
+};
+
+export interface NewPortfolio {
+	name: string;
+	initial_deposit?: number;
+}
+
+export const portfoliosApi = {
+	list: (f?: F) => api.get<Portfolio[]>('/portfolios', { fetcher: f }),
+	create: (input: NewPortfolio) => api.post<Portfolio>('/portfolios', input),
+	rename: (id: number, name: string) => api.patch<Portfolio>(`/portfolios/${id}`, { name }),
+	remove: (id: number) => api.del<void>(`/portfolios/${id}`),
+	deposit: (id: number, amount: number, note?: string) =>
+		api.post<CashMovement>(`/portfolios/${id}/deposit`, { amount, note }),
+	withdraw: (id: number, amount: number, note?: string) =>
+		api.post<CashMovement>(`/portfolios/${id}/withdraw`, { amount, note }),
+	movements: (id: number, f?: F) =>
+		api.get<CashMovement[]>(`/portfolios/${id}/movements`, { fetcher: f })
 };
 
 export const marketApi = {
 	watchlist: (f?: F) => api.get<WatchlistEntry[]>('/market/watchlist', { fetcher: f }),
+	quotes: (symbols: string[], f?: F) =>
+		api.get<Quote[]>('/market/quotes', { params: { symbols: symbols.join(',') }, fetcher: f }),
 	bars: (symbol: string, range: BarsRange, f?: F) =>
 		api.get<OHLCVBar[]>(`/market/bars/${encodeURIComponent(symbol)}`, {
 			params: rangeWindow(range),
 			fetcher: f
-		})
+		}),
+	addSymbol: (input: { symbol: string; sector?: string; asset_class?: string }) =>
+		api.post<WatchlistEntry>('/market/watchlist', input),
+	removeSymbol: (symbol: string) =>
+		api.del<WatchlistEntry>(`/market/watchlist/${encodeURIComponent(symbol)}`)
 };
 
 export interface TradeFilters {
@@ -60,7 +104,7 @@ export interface TradeFilters {
 
 export const tradesApi = {
 	list: (filters: TradeFilters = {}, f?: F) =>
-		api.get<TradeRecord[]>('/trades', { params: { ...filters }, fetcher: f })
+		api.get<TradeRecord[]>('/trades', { params: { ...filters, ...portfolioParam() }, fetcher: f })
 };
 
 export const algorithmsApi = {
@@ -70,5 +114,6 @@ export const algorithmsApi = {
 };
 
 export const systemApi = {
-	status: (f?: F) => api.get<SystemStatus>('/system/status', { fetcher: f })
+	status: (f?: F) => api.get<SystemStatus>('/system/status', { fetcher: f }),
+	run: () => api.post<RunTrigger>('/system/run')
 };

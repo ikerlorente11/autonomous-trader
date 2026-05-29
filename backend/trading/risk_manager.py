@@ -20,6 +20,10 @@ from backend.contracts import AccountBalance, RankedSymbol
 _DEFAULT_MAX_POSITION_PCT = Decimal("0.05")
 _DEFAULT_MAX_OPEN_POSITIONS = 10
 _DEFAULT_MIN_CASH_PCT = Decimal("0.20")
+_DEFAULT_ALLOW_FRACTIONAL = True
+_DEFAULT_MIN_POSITION_EUR = Decimal("1")
+# Fractional share precision — matches the Numeric(18, 6) qty columns.
+_QTY_QUANTUM = Decimal("0.000001")
 
 
 @runtime_checkable
@@ -43,9 +47,19 @@ def _int_env(name: str, default: int) -> int:
     return int(raw)
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class FixedFractionalRiskManager:
     """Invest ``MAX_POSITION_PCT`` of portfolio value per symbol, capped by
-    ``MAX_OPEN_POSITIONS`` and a ``MIN_CASH_PCT`` dry-powder reserve."""
+    ``MAX_OPEN_POSITIONS`` and a ``MIN_CASH_PCT`` dry-powder reserve. With
+    ``ALLOW_FRACTIONAL`` (default), sizing yields fractional shares so a small
+    budget can still take a position in a high-priced symbol; orders whose target
+    falls below ``MIN_POSITION_EUR`` are skipped as dust."""
 
     def __init__(
         self,
@@ -54,6 +68,8 @@ class FixedFractionalRiskManager:
         max_position_pct: Decimal | None = None,
         max_open_positions: int | None = None,
         min_cash_pct: Decimal | None = None,
+        allow_fractional: bool | None = None,
+        min_position_eur: Decimal | None = None,
         open_position_count: int = 0,
     ) -> None:
         self._prices = prices
@@ -72,6 +88,16 @@ class FixedFractionalRiskManager:
             if min_cash_pct is not None
             else _decimal_env("MIN_CASH_PCT", _DEFAULT_MIN_CASH_PCT)
         )
+        self._allow_fractional = (
+            allow_fractional
+            if allow_fractional is not None
+            else _bool_env("ALLOW_FRACTIONAL", _DEFAULT_ALLOW_FRACTIONAL)
+        )
+        self._min_position_eur = (
+            min_position_eur
+            if min_position_eur is not None
+            else _decimal_env("MIN_POSITION_EUR", _DEFAULT_MIN_POSITION_EUR)
+        )
         self._open_position_count = open_position_count
 
     def compute_position_size(
@@ -81,7 +107,14 @@ class FixedFractionalRiskManager:
         if price is None or price <= 0:
             return Decimal(0)
         target_dollars = portfolio_value * self._max_position_pct
-        qty = (target_dollars / price).to_integral_value(rounding=ROUND_DOWN)
+        if target_dollars < self._min_position_eur:
+            return Decimal(0)
+        raw_qty = target_dollars / price
+        qty = (
+            raw_qty.quantize(_QTY_QUANTUM, rounding=ROUND_DOWN)
+            if self._allow_fractional
+            else raw_qty.to_integral_value(rounding=ROUND_DOWN)
+        )
         return qty if qty > 0 else Decimal(0)
 
     def size_positions(

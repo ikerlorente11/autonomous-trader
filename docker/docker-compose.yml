@@ -52,7 +52,8 @@ services:
       ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     env_file: ../.env
     ports:
-      - "8000:8000"
+      # Host port is configurable (8000 is often already in use); container stays 8000.
+      - "${API_PORT:-8080}:8000"
     depends_on:
       init:
         condition: service_completed_successfully

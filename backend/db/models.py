@@ -64,9 +64,36 @@ class MacroSeries(Base):
     release_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
+class CashMovement(Base):
+    __tablename__ = "cash_movements"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(BigInteger)
+    kind: Mapped[str] = mapped_column(String(16))
+    amount: Mapped[Decimal] = mapped_column(MONEY)
+    ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_cash_movements_portfolio_ts", "portfolio_id", "ts"),
+    )
+
+
 class PortfolioNav(Base):
     __tablename__ = "portfolio_nav"
 
+    portfolio_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     cash: Mapped[Decimal] = mapped_column(MONEY)
     equity: Mapped[Decimal] = mapped_column(MONEY)
@@ -80,6 +107,7 @@ class PortfolioNav(Base):
 class PortfolioPosition(Base):
     __tablename__ = "portfolio_positions"
 
+    portfolio_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 6))
     avg_cost: Mapped[Decimal] = mapped_column(PRICE)
@@ -94,6 +122,7 @@ class TradeOrder(Base):
     __tablename__ = "trade_orders"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(BigInteger)
     symbol: Mapped[str] = mapped_column(String(16))
     side: Mapped[str] = mapped_column(String(8))
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 6))
@@ -103,7 +132,10 @@ class TradeOrder(Base):
     strategy_version: Mapped[str | None] = mapped_column(String(64))
     ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
 
-    __table_args__ = (Index("ix_trade_orders_ts", text("ts DESC")),)
+    __table_args__ = (
+        Index("ix_trade_orders_ts", text("ts DESC")),
+        Index("ix_trade_orders_portfolio_ts", "portfolio_id", "ts"),
+    )
 
 
 class AlgorithmSignal(Base):

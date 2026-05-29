@@ -9,7 +9,6 @@ The caller owns the transaction (the scheduler job commits once per batch).
 from __future__ import annotations
 
 import datetime as dt
-import os
 from collections.abc import Sequence
 from decimal import Decimal
 
@@ -20,26 +19,20 @@ from backend.contracts import AccountBalance, Order, RankedSymbol, SignalAction
 from backend.db.models import PortfolioNav
 from backend.db.queries.market_queries import get_latest_bars
 from backend.db.queries.portfolio_queries import (
-    compute_cash_from_ledger,
+    compute_cash,
     get_open_positions,
 )
 from backend.trading.broker_adapter import BrokerAdapter
 from backend.trading.risk_manager import make_risk_manager
 
-_DEFAULT_STARTING_CASH = Decimal("500")
-
-
-def _starting_cash() -> Decimal:
-    raw = os.environ.get("STARTING_CASH")
-    if raw is None or raw.strip() == "":
-        return _DEFAULT_STARTING_CASH
-    return Decimal(raw)
-
 
 class PortfolioManager:
-    def __init__(self, broker: BrokerAdapter, session: AsyncSession) -> None:
+    def __init__(
+        self, broker: BrokerAdapter, session: AsyncSession, portfolio_id: int
+    ) -> None:
         self._broker = broker
         self._session = session
+        self._portfolio_id = portfolio_id
 
     async def _latest_prices(self, symbols: Sequence[str]) -> dict[str, Decimal]:
         if not symbols:
@@ -49,7 +42,7 @@ class PortfolioManager:
 
     async def _account_balance(self) -> AccountBalance:
         total = await self._broker.get_account_balance()
-        cash = await compute_cash_from_ledger(self._session, _starting_cash())
+        cash = await compute_cash(self._session, self._portfolio_id)
         equity = total - cash
         return AccountBalance(cash=cash, equity=equity, total=total)
 
@@ -60,18 +53,18 @@ class PortfolioManager:
         if not buys:
             return []
         prices = await self._latest_prices([s.score.symbol for s in buys])
-        open_positions = await get_open_positions(self._session)
+        open_positions = await get_open_positions(self._session, self._portfolio_id)
         balance = await self._account_balance()
         risk = make_risk_manager(prices, open_position_count=len(open_positions))
         sizes = risk.size_positions(buys, balance)
         orders: list[Order] = []
         for symbol, qty in sizes.items():
-            order = await self._broker.place_order(symbol, "buy", int(qty), "market")
+            order = await self._broker.place_order(symbol, "buy", qty, "market")
             orders.append(order)
         return orders
 
     async def update_positions(self) -> int:
-        positions = await get_open_positions(self._session)
+        positions = await get_open_positions(self._session, self._portfolio_id)
         if not positions:
             return 0
         prices = await self._latest_prices([p.symbol for p in positions])
@@ -94,19 +87,31 @@ class PortfolioManager:
         as_of = ts or dt.datetime.now(dt.timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
-        cash = await compute_cash_from_ledger(self._session, _starting_cash())
-        positions = await get_open_positions(self._session)
+        cash = await compute_cash(self._session, self._portfolio_id)
+        positions = await get_open_positions(self._session, self._portfolio_id)
         prices = await self._latest_prices([p.symbol for p in positions])
         equity = sum(
             (p.qty * prices.get(p.symbol, p.avg_cost) for p in positions),
             Decimal(0),
         )
         total = cash + equity
-        row = {"ts": as_of, "cash": cash, "equity": equity, "total": total}
+        row = {
+            "portfolio_id": self._portfolio_id,
+            "ts": as_of,
+            "cash": cash,
+            "equity": equity,
+            "total": total,
+        }
         stmt = insert(PortfolioNav).values(row)
         stmt = stmt.on_conflict_do_update(
-            index_elements=[PortfolioNav.ts],
+            index_elements=[PortfolioNav.portfolio_id, PortfolioNav.ts],
             set_={"cash": cash, "equity": equity, "total": total},
         )
         await self._session.execute(stmt)
-        return PortfolioNav(ts=as_of, cash=cash, equity=equity, total=total)
+        return PortfolioNav(
+            portfolio_id=self._portfolio_id,
+            ts=as_of,
+            cash=cash,
+            equity=equity,
+            total=total,
+        )

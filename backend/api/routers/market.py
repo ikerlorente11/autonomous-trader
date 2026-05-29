@@ -3,20 +3,32 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_session
-from backend.api.schemas import WatchlistEntry
+from backend.api.schemas import QuoteEntry, WatchlistCreate, WatchlistEntry
 from backend.contracts import OHLCVBar
+from backend.data_ingestion.providers.yfinance_provider import YFinanceProvider
 from backend.db.queries.market_queries import get_bars_range, get_latest_bars
 from backend.db.queries.portfolio_queries import (
+    deactivate_watchlist_symbol,
     get_active_watchlist,
     get_latest_analysis_ts,
     get_top_ranked_signals,
+    upsert_watchlist_symbol,
 )
 
 router = APIRouter(prefix="/api/market", tags=["market"])
+
+
+@router.get("/quotes", response_model=list[QuoteEntry])
+async def market_quotes(symbols: str = Query(...)) -> list[QuoteEntry]:
+    requested = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not requested:
+        return []
+    prices = await YFinanceProvider().fetch_live_prices(requested)
+    return [QuoteEntry(symbol=s, price=prices[s]) for s in requested if s in prices]
 
 
 @router.get("/bars/{symbol}", response_model=list[OHLCVBar])
@@ -75,3 +87,33 @@ async def market_watchlist(
             )
         )
     return out
+
+
+@router.post("/watchlist", response_model=WatchlistEntry, status_code=201)
+async def add_watchlist_symbol(
+    payload: WatchlistCreate,
+    session: AsyncSession = Depends(get_session),
+) -> WatchlistEntry:
+    entry = await upsert_watchlist_symbol(
+        session,
+        payload.symbol,
+        sector=payload.sector,
+        asset_class=payload.asset_class,
+    )
+    await session.commit()
+    return WatchlistEntry(
+        symbol=entry.symbol, sector=entry.sector, asset_class=entry.asset_class
+    )
+
+
+@router.delete("/watchlist/{symbol}", response_model=WatchlistEntry)
+async def remove_watchlist_symbol(
+    symbol: str = Path(...),
+    session: AsyncSession = Depends(get_session),
+) -> WatchlistEntry:
+    normalized = symbol.strip().upper()
+    removed = await deactivate_watchlist_symbol(session, normalized)
+    await session.commit()
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"{normalized} not on watchlist")
+    return WatchlistEntry(symbol=normalized)

@@ -3,10 +3,26 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Sequence
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.models import MacroSeries, MarketBar, MarketSentiment, SignalValue
+
+
+async def count_bars_per_symbol(
+    session: AsyncSession, symbols: Sequence[str], start: dt.datetime, end: dt.datetime
+) -> dict[str, int]:
+    """Stored-bar count per symbol within a window (history-sufficiency check)."""
+    stmt = (
+        select(MarketBar.symbol, func.count())
+        .where(
+            MarketBar.symbol.in_(symbols),
+            MarketBar.ts >= start,
+            MarketBar.ts <= end,
+        )
+        .group_by(MarketBar.symbol)
+    )
+    return {symbol: count for symbol, count in (await session.execute(stmt)).all()}
 
 
 async def get_bars_range(

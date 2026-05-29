@@ -26,10 +26,12 @@ class MockRealBroker:
     def __init__(
         self,
         session: AsyncSession,
+        portfolio_id: int,
         *,
         strategy_version: str | None = None,
     ) -> None:
         self._session = session
+        self._portfolio_id = portfolio_id
         self._strategy_version = strategy_version
         raw = os.environ.get("STARTING_CASH")
         self._cash = Decimal(raw) if raw and raw.strip() else _DEFAULT_STARTING_CASH
@@ -42,10 +44,10 @@ class MockRealBroker:
         return bars[0].close if bars else None
 
     async def place_order(
-        self, symbol: str, side: str, qty: int, order_type: str
+        self, symbol: str, side: str, qty: Decimal, order_type: str
     ) -> Order:
         ts = dt.datetime.now(dt.timezone.utc)
-        qty_dec = Decimal(qty)
+        qty_dec = qty
         side_enum = OrderSide(side)
         order_id = len(self._orders) + 1
 

@@ -1,0 +1,38 @@
+# Default watchlist seed (bootstrap only).
+#
+# Loaded by backend/db/seed_watchlist.py ONLY when the watchlist table is empty,
+# so symbols you later remove via the API are never resurrected. Symbols live
+# here as data (CLAUDE.md: never hardcoded in analysis logic) and remain fully
+# editable at runtime through POST/DELETE /api/market/watchlist.
+#
+# A diversified, liquid basket compatible with the yfinance provider (daily bars,
+# USD-priced). Fractional shares let even the 500 EUR portfolio take positions.
+symbol,sector,asset_class
+AAPL,Technology,stock
+MSFT,Technology,stock
+NVDA,Technology,stock
+GOOGL,Communication Services,stock
+AMZN,Consumer Discretionary,stock
+META,Communication Services,stock
+AVGO,Technology,stock
+TSLA,Consumer Discretionary,stock
+AMD,Technology,stock
+JPM,Financials,stock
+V,Financials,stock
+MA,Financials,stock
+JNJ,Health Care,stock
+LLY,Health Care,stock
+UNH,Health Care,stock
+WMT,Consumer Staples,stock
+COST,Consumer Staples,stock
+PG,Consumer Staples,stock
+KO,Consumer Staples,stock
+MCD,Consumer Discretionary,stock
+XOM,Energy,stock
+CVX,Energy,stock
+CAT,Industrials,stock
+SPY,Broad Market,etf
+QQQ,Broad Market,etf
+VTI,Broad Market,etf
+GLD,Commodities,etf
+TLT,Fixed Income,etf
