@@ -39,6 +39,7 @@ class _Frozen(BaseModel):
 
 class RankerConfig(_Frozen):
     min_score_to_act: float
+    min_score_to_exit: float
     min_data_completeness: float
 
 

@@ -12,8 +12,13 @@
 version: "0.1.0"
 
 ranker:
-  # Symbols scoring below this are dropped from the buy-candidate list.
+  # Symbols scoring at/above this become buy candidates.
   min_score_to_act: 60.0
+  # Held symbols scoring at/below this are sold (exit). The gap between the two
+  # thresholds is a hysteresis band: a name must decay clearly below the buy line
+  # before it is liquidated, so scores hovering near the cutoff don't churn
+  # (synthesis §4.2). Stub — calibrated by the Experiment Tracker alongside the rest.
+  min_score_to_exit: 45.0
   # Symbols whose available-signal fraction is below this are dropped as low-coverage.
   min_data_completeness: 0.5
 

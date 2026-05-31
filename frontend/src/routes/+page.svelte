@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { portfolioApi, algorithmsApi, tradesApi, systemApi, marketApi } from '$lib/api/endpoints';
+	import { portfolioApi, algorithmsApi, systemApi, marketApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
-	import { formatDate, money, num, percentFrac, qty, toNum } from '$lib/utils/format';
-	import { band } from '$lib/utils/thresholds';
-	import type { BarsRange, SignalEntry, TradeRecord } from '$lib/api/types';
+	import { money, qty, toNum } from '$lib/utils/format';
+	import type { BarsRange, Position, SignalEntry } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
-	import MetricCard from '$lib/components/MetricCard.svelte';
 	import PriceChange from '$lib/components/PriceChange.svelte';
 	import SignalScore from '$lib/components/SignalScore.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -17,34 +15,8 @@
 	// Daily-batch backend: cards/NAV/signals refresh every 5 min (ux §3.1).
 	const REFRESH = 300_000;
 	const summary = createResource(() => portfolioApi.summary(), { intervalMs: REFRESH });
-	const performance = createResource(() => portfolioApi.performance(), { intervalMs: REFRESH });
 	const nav = createResource(() => portfolioApi.nav('90d'), { intervalMs: REFRESH });
 	const signals = createResource(() => algorithmsApi.signals(20), { intervalMs: REFRESH });
-
-	// Investments over a chosen date range (default today, UTC), with presets.
-	function todayStr(): string {
-		return new Date().toISOString().slice(0, 10);
-	}
-	function daysAgoStr(days: number): string {
-		const d = new Date();
-		d.setUTCDate(d.getUTCDate() - days);
-		return d.toISOString().slice(0, 10);
-	}
-	let invFrom = $state(todayStr());
-	let invTo = $state(todayStr());
-	function setRange(days: number): void {
-		invTo = todayStr();
-		invFrom = days <= 1 ? todayStr() : daysAgoStr(days - 1);
-	}
-	const investments = createResource(
-		() => tradesApi.list({ start: `${invFrom}T00:00:00Z`, end: `${invTo}T23:59:59Z`, limit: 200 }),
-		{ immediate: false }
-	);
-	$effect(() => {
-		void invFrom;
-		void invTo;
-		void investments.refresh();
-	});
 
 	// Live valuation: refresh held positions and their prices every 60s so the
 	// portfolio value tracks the market intraday (display only — trading stays daily).
@@ -114,31 +86,102 @@
 		return (pnl / base) * 100;
 	});
 
-	let risk = $derived(performance.data?.risk ?? {});
-	let tradeStats = $derived(performance.data?.trades ?? {});
+	// Per-holding figures: what was spent (qty × avg cost) vs current value
+	// (qty × live price, falling back to last stored price).
+	function priceOf(p: Position): number | null {
+		return liveQuoteMap.get(p.symbol) ?? toNum(p.current_price);
+	}
+	function investedOf(p: Position): number {
+		return (toNum(p.qty) ?? 0) * (toNum(p.avg_cost) ?? 0);
+	}
+	function valueOf(p: Position): number | null {
+		const price = priceOf(p);
+		return price === null ? null : (toNum(p.qty) ?? 0) * price;
+	}
+	function pnlOf(p: Position): number | null {
+		const v = valueOf(p);
+		return v === null ? null : v - investedOf(p);
+	}
+	function pctOf(p: Position): number | null {
+		const inv = investedOf(p);
+		const g = pnlOf(p);
+		return g === null || inv === 0 ? null : (g / inv) * 100;
+	}
+	let totals = $derived.by(() => {
+		const ps = positions.data ?? [];
+		let invested = 0;
+		let value = 0;
+		let hasValue = false;
+		for (const p of ps) {
+			invested += investedOf(p);
+			const v = valueOf(p);
+			if (v !== null) {
+				value += v;
+				hasValue = true;
+			}
+		}
+		const g = hasValue ? value - invested : null;
+		const pct = g !== null && invested !== 0 ? (g / invested) * 100 : null;
+		return { invested, value: hasValue ? value : null, pnl: g, pct };
+	});
 
 	// Manual pipeline trigger (the daily run, on demand).
 	let running = $state(false);
+	let refreshing = $state(false);
 	let runMsg = $state<string | null>(null);
+
+	function refreshAll(): void {
+		void summary.refresh();
+		void nav.refresh();
+		void signals.refresh();
+		void positions.refresh();
+		void quotes.refresh();
+	}
+
 	async function runNow() {
 		running = true;
 		runMsg = null;
+		// Remember the last NAV-job run so we can tell when *this* pipeline finishes.
+		let navBefore: string | null = null;
 		try {
+			try {
+				const before = await systemApi.status();
+				navBefore =
+					before.jobs.find((j) => j.job === 'update_portfolio_nav')?.last_run_at ?? null;
+			} catch {
+				navBefore = null;
+			}
 			const r = await systemApi.run();
 			runMsg = r.detail;
 		} catch (e) {
 			runMsg = e instanceof Error ? e.message : 'Could not start the run.';
-		} finally {
 			running = false;
+			return;
 		}
+		running = false;
+		// The run executes in the background, so the POST returns before any data
+		// changes. Poll the pipeline's final job until it records a fresh run, then
+		// pull the new numbers in — the page updates itself, no manual reload.
+		refreshing = true;
+		for (let i = 0; i < 20; i++) {
+			await new Promise((res) => setTimeout(res, 3000));
+			try {
+				const st = await systemApi.status();
+				const navNow =
+					st.jobs.find((j) => j.job === 'update_portfolio_nav')?.last_run_at ?? null;
+				if (navNow && navNow !== navBefore) {
+					refreshAll();
+					refreshing = false;
+					return;
+				}
+			} catch {
+				// transient — keep polling
+			}
+		}
+		refreshAll();
+		refreshing = false;
 	}
 
-	function amountInvested(t: TradeRecord): number | null {
-		const q = toNum(t.qty);
-		const p = toNum(t.price);
-		if (q === null || p === null) return null;
-		return q * p;
-	}
 	function topBuys(d: SignalEntry[]): SignalEntry[] {
 		return d
 			.filter((s) => s.action === 'buy')
@@ -150,8 +193,8 @@
 <div class="page-head">
 	<h1 class="page-title">Dashboard</h1>
 	<div class="run">
-		<button class="run-btn" onclick={runNow} disabled={running}>
-			{running ? 'Starting…' : 'Run now'}
+		<button class="run-btn" onclick={runNow} disabled={running || refreshing}>
+			{running ? 'Starting…' : refreshing ? 'Actualizando…' : 'Run now'}
 		</button>
 		{#if runMsg}<span class="run-msg">{runMsg}</span>{/if}
 	</div>
@@ -214,76 +257,50 @@
 	{/if}
 </Card>
 
-<Card title="Investments" span="full">
-	{#snippet actions()}
-		<div class="date-pick">
-			<button type="button" class="preset" onclick={() => setRange(1)}>Hoy</button>
-			<button type="button" class="preset" onclick={() => setRange(7)}>7d</button>
-			<button type="button" class="preset" onclick={() => setRange(30)}>30d</button>
-			<label>Desde <input type="date" bind:value={invFrom} max={invTo} /></label>
-			<label>Hasta <input type="date" bind:value={invTo} max={todayStr()} /></label>
-		</div>
-	{/snippet}
-	<Region resource={investments} isEmpty={(d) => d.length === 0} emptyMessage="No investments in this range.">
+<Card
+	title="Mis inversiones"
+	caption="Lo que tienes comprado, lo invertido en cada uno y su valor actual"
+	span="full"
+>
+	<Region resource={positions} isEmpty={(d) => d.length === 0} emptyMessage="Todavía no tienes inversiones — pulsa «Run now» para que el sistema empiece a invertir.">
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Date</th>
-							<th>Symbol</th>
-							<th>Side</th>
-							<th class="num">Qty</th>
-							<th class="num">Price</th>
-							<th class="num">Invested</th>
-							<th>Status</th>
+							<th>Símbolo</th>
+							<th class="num">Cantidad</th>
+							<th class="num">Invertido</th>
+							<th class="num">Valor actual</th>
+							<th class="num">Ganancia / Pérdida</th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each d as t (t.id)}
-							<tr class="clickable" onclick={() => selectInvestment(t.symbol)} title="Ver evolución del precio">
-								<td>{formatDate(t.ts)}</td>
-								<td class="sym">{t.symbol}</td>
-								<td>{t.side.toUpperCase()}</td>
-								<td class="num">{qty(t.qty)}</td>
-								<td class="num">{money(t.price)}</td>
-								<td class="num">{money(amountInvested(t))}</td>
-								<td><StatusBadge status={t.status} /></td>
+						{#each d as p (p.symbol)}
+							<tr class="clickable" onclick={() => selectInvestment(p.symbol)} title="Ver evolución del precio">
+								<td class="sym">{p.symbol}</td>
+								<td class="num">{qty(p.qty)}</td>
+								<td class="num">{money(investedOf(p))}</td>
+								<td class="num">{money(valueOf(p))}</td>
+								<td class="num"><PriceChange value={pnlOf(p)} pct={pctOf(p)} /></td>
 							</tr>
 						{/each}
 					</tbody>
+					<tfoot>
+						<tr class="total-row">
+							<td>Total</td>
+							<td class="num"></td>
+							<td class="num">{money(totals.invested)}</td>
+							<td class="num">{money(totals.value)}</td>
+							<td class="num"><PriceChange value={totals.pnl} pct={totals.pct} /></td>
+						</tr>
+					</tfoot>
 				</table>
 			</div>
-			<p class="hint">Click a row to see the price trend of what you invested in.</p>
+			<p class="hint">Pulsa una fila para ver la evolución del precio de esa inversión.</p>
 		{/snippet}
 	</Region>
 </Card>
-
-<section class="cards">
-	<MetricCard
-		label="Sharpe (90d)"
-		value={num(risk.sharpe, 2)}
-		band={band('sharpe', risk.sharpe)}
-		tooltip="Return earned for the risk taken. Higher is better; above 1 is good."
-	/>
-	<MetricCard
-		label="Max Drawdown"
-		value={percentFrac(risk.max_drawdown)}
-		band={band('max_drawdown', risk.max_drawdown)}
-		tooltip="Worst drop from a peak so far. Closer to 0% is better."
-	/>
-	<MetricCard
-		label="Win Rate"
-		value={percentFrac(tradeStats.win_rate, false)}
-		band={band('win_rate', tradeStats.win_rate)}
-		tooltip="Share of closed trades that made money."
-	/>
-	<MetricCard
-		label="Open Positions"
-		value={summary.data ? String(summary.data.positions_count) : '—'}
-		tooltip="How many holdings you have right now."
-	/>
-</section>
 
 <Card title="Today's Top Signals" caption="Highest-scoring buy candidates">
 	<Region resource={signals} isEmpty={(d) => topBuys(d).length === 0} emptyMessage="No buy signals today.">
@@ -400,27 +417,6 @@
 		color: var(--color-up, #34d399);
 		margin-left: var(--space-2);
 	}
-	.date-pick {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-		font-size: var(--text-sm);
-		color: var(--color-text-1);
-	}
-	.date-pick label {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-	.date-pick input {
-		background: var(--color-bg-1);
-		border: 1px solid var(--color-bg-4);
-		color: var(--color-text-0);
-		border-radius: var(--radius-md);
-		padding: var(--space-1) var(--space-2);
-		font-size: var(--text-sm);
-	}
 	.preset {
 		background: var(--color-bg-1);
 		border: 1px solid var(--color-bg-4);
@@ -439,15 +435,9 @@
 		font-size: var(--text-xs);
 		color: var(--color-text-2);
 	}
-	.cards {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: var(--space-4);
-		margin-bottom: var(--space-4);
-	}
-	@media (max-width: 900px) {
-		.cards {
-			grid-template-columns: repeat(2, 1fr);
-		}
+	.total-row td {
+		border-top: 1px solid var(--color-bg-4);
+		font-weight: var(--weight-semibold);
+		color: var(--color-text-0);
 	}
 </style>

@@ -59,11 +59,12 @@ class WeightedCompositeScorer:
             self._config.scoring.score_max,
             max(self._config.scoring.score_min, raw),
         )
-        action = (
-            SignalAction.BUY
-            if score >= self._config.ranker.min_score_to_act
-            else SignalAction.HOLD
-        )
+        if score >= self._config.ranker.min_score_to_act:
+            action = SignalAction.BUY
+        elif score <= self._config.ranker.min_score_to_exit:
+            action = SignalAction.SELL
+        else:
+            action = SignalAction.HOLD
         return SymbolScore(
             symbol=symbol,
             ts=asof,

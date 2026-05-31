@@ -49,7 +49,10 @@ _ANALYSIS_LOOKBACK_DAYS = 400
 # Below this many stored bars a symbol is backfilled over the full lookback window
 # instead of just appending today (comfortably above the longest indicator period).
 _MIN_HISTORY_BARS = 60
-_RANK_LIMIT = 50
+# Must span the whole scored universe, not just buy candidates: the manager also
+# reads the low-scored end to find SELL signals on names it currently holds, so a
+# larger watchlist must not truncate exits. Comfortably above the 50-symbol target.
+_RANK_LIMIT = 500
 
 
 def _today_utc_midnight() -> dt.datetime:

@@ -49,18 +49,35 @@ class PortfolioManager:
     async def execute_signals(
         self, signals: Sequence[RankedSymbol]
     ) -> list[Order]:
-        buys = [s for s in signals if s.score.action is SignalAction.BUY]
-        if not buys:
-            return []
-        prices = await self._latest_prices([s.score.symbol for s in buys])
         open_positions = await get_open_positions(self._session, self._portfolio_id)
-        balance = await self._account_balance()
-        risk = make_risk_manager(prices, open_position_count=len(open_positions))
-        sizes = risk.size_positions(buys, balance)
+        held = {p.symbol: p for p in open_positions}
         orders: list[Order] = []
-        for symbol, qty in sizes.items():
-            order = await self._broker.place_order(symbol, "buy", qty, "market")
+
+        # Exits first: a held name whose score has decayed to a SELL is liquidated
+        # in full. Doing this before sizing buys frees the freed cash for entries
+        # (the broker flushes each fill, so the balance read below sees it).
+        for signal in signals:
+            if signal.score.action is not SignalAction.SELL:
+                continue
+            position = held.get(signal.score.symbol)
+            if position is None:
+                continue
+            order = await self._broker.place_order(
+                position.symbol, "sell", position.qty, "market"
+            )
             orders.append(order)
+
+        # Entries: size the buy candidates against current cash.
+        buys = [s for s in signals if s.score.action is SignalAction.BUY]
+        if buys:
+            prices = await self._latest_prices([s.score.symbol for s in buys])
+            balance = await self._account_balance()
+            risk = make_risk_manager(prices, open_position_count=len(open_positions))
+            sizes = risk.size_positions(buys, balance)
+            for symbol, qty in sizes.items():
+                order = await self._broker.place_order(symbol, "buy", qty, "market")
+                orders.append(order)
+
         return orders
 
     async def update_positions(self) -> int:
