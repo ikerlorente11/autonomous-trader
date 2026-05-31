@@ -1,13 +1,21 @@
 # Development override — hot reload, NO image rebuilds on each change.
 # Run alongside the base file:
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
-# Then open the Vite dev server at http://localhost:5173 (HMR for the UI).
+#
+# The Vite dev server OWNS the subdomain port (host 8030) and proxies /api to the
+# api service, so the public subdomain shows live edits with HMR. FastAPI moves to
+# the host port set by API_PORT (8033 in .env) for direct backend access.
 #
 # - api: source is bind-mounted and uvicorn runs with --reload, so backend edits
-#   reload automatically (no rebuild). It still serves /api on the host at :8080.
-# - frontend: a Node container runs `vite dev` with hot module replacement and
-#   proxies /api to the api service. Edit anything under frontend/ and the browser
-#   updates instantly.
+#   reload automatically (no rebuild).
+# - frontend: a Node container runs `vite dev` with HMR on host 8030 and proxies
+#   /api to the api service. Edit anything under frontend/ and the browser updates.
+#
+# Behind a TLS reverse proxy / subdomain, set these in .env so HMR + host checks work:
+#   VITE_ALLOWED_HOSTS=trader.example.com   (or "all")
+#   VITE_HMR_HOST=trader.example.com
+#   VITE_HMR_CLIENT_PORT=443
+#   VITE_HMR_PROTOCOL=wss
 services:
   api:
     volumes:
@@ -22,13 +30,19 @@ services:
     environment:
       # In-container the API is reachable by its compose service name.
       VITE_API_PROXY: http://api:8000
+      # Subdomain/HMR config (passed through from .env; safe when unset).
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-}
+      VITE_HMR_HOST: ${VITE_HMR_HOST:-}
+      VITE_HMR_CLIENT_PORT: ${VITE_HMR_CLIENT_PORT:-}
+      VITE_HMR_PROTOCOL: ${VITE_HMR_PROTOCOL:-}
     volumes:
       - ../frontend:/app/frontend
       # Keep node_modules in a volume so the host's absence/OS doesn't matter and
       # installs persist across restarts.
       - frontend_node_modules:/app/frontend/node_modules
     ports:
-      - "5173:5173"
+      # Vite takes the subdomain port (8030); container stays 5173.
+      - "${FRONTEND_PORT:-8030}:5173"
     depends_on:
       - api
 
