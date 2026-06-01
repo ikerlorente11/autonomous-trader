@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-push guard: run the fast, DB-free suites (unit + regression) before any push.
+# Install with `make install-hooks`. The full DB-backed suite runs via `make test`.
+set -euo pipefail
+
+echo "pre-push: running unit + regression tests..."
+exec "$(git rev-parse --show-toplevel)/scripts/test.sh" "unit or regression"

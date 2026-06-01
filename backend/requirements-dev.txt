@@ -1,6 +1,10 @@
-# Test + lint tooling for the backend. Pinned, ARM64-safe, CI-only (never shipped
-# in the api/scheduler image). Runtime deps (pandas/numpy/pyyaml/pydantic/sqlalchemy)
-# come from requirements*.txt; this file only adds the harness.
+# Test/dev tooling for the backend — NOT shipped in the runtime image. Installed into
+# the running api container by scripts/test.sh, and on ubuntu CI by .github/workflows.
+# Pinned + ARM64/aarch64-safe. Runtime deps live in requirements*.txt.
 pytest==8.3.4
 pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+respx==0.22.0          # httpx 0.28 mocking (matches requirements-data.txt httpx==0.28.1)
+time-machine==2.16.0   # freeze "today" for calendar/date logic
 ruff==0.8.4
+mypy==1.13.0

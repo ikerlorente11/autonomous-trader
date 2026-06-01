@@ -1,29 +1,61 @@
-# Tooling config only (test + lint). The project ships no build metadata here;
-# runtime deps live in backend/requirements*.txt and the Dockerfile.
+# Tooling config only (pytest / ruff / mypy / coverage). The app is not packaged —
+# it runs as the `backend` namespace under /app in the container. Dependencies live
+# in backend/requirements*.txt, test deps in backend/requirements-dev.txt.
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-q"
+testpaths = ["backend/tests"]
+cache_dir = "/tmp/pytest_cache"   # /app is read-only for the container user
+addopts = "-ra --strict-markers"
+markers = [
+    "unit: pure logic, no DB and no network (fast)",
+    "integration: needs the test database (and/or mocked providers)",
+    "regression: locks in a previously-fixed bug",
+]
+
+[tool.coverage.run]
+source = ["backend"]
+omit = [
+    "backend/tests/*",
+    "backend/db/migrations/*",
+    "backend/scheduler/main.py",
+    "backend/api/main.py",
+]
+
+[tool.coverage.report]
+skip_empty = true
+precision = 1
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+cache-dir = "/tmp/ruff_cache"   # /app is read-only for the container user
 extend-exclude = ["frontend", ".venv-test", "backend/db/migrations/versions"]
 
 [tool.ruff.lint]
-# E/F/W are correctness-leaning; I keeps imports sorted; the new test suite is held
-# to the full set. The repo-wide selection is the subset the existing application
-# code already satisfies, so CI is a forward gate (new code cannot regress these)
-# without rewriting code outside this change's scope.
+# Kept at E/F/W/I — the exact set the whole backend already satisfies on main, so
+# `ruff check backend` stays a forward gate. (Bugbear "B" is intentionally NOT enabled
+# here: it was only ever run against backend/tests, never the app code, so turning it
+# on repo-wide would surface unreviewed findings outside this change's scope.)
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-# Pre-existing, reported in the test-suite handoff — not fixed here because this
-# change is scoped to tests/CI and must not touch application code.
+# Pre-existing, reported in the test-suite handoff — not fixed here because this change
+# is scoped to tests/CI and must not touch application code.
 "backend/data_ingestion/providers/twelve_data_provider.py" = ["F401"]
 "backend/api/routers/portfolio.py" = ["I001"]
 "backend/api/routers/portfolios.py" = ["I001"]
 "backend/db/migrations/env.py" = ["I001"]
+# Test fixtures carry long inline literals (API payloads, assertions) — readability
+# beats wrapping them.
+"backend/tests/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true   # yfinance / ta / pandas_market_calendars ship no stubs
+check_untyped_defs = true
+warn_unused_ignores = true
+cache_dir = "/tmp/mypy_cache"   # /app is read-only for the container user
+exclude = "backend/db/migrations/"
