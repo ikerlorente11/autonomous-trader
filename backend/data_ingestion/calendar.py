@@ -32,6 +32,23 @@ def is_trading_day(day: dt.date, *, calendar: str | None = None) -> bool:
     return day in set(trading_days(day, day, calendar=calendar))
 
 
+def is_market_open_now(
+    *, calendar: str | None = None, now: dt.datetime | None = None
+) -> bool:
+    """True if the exchange is in a regular session at ``now`` (UTC; defaults to wall-clock).
+
+    Used by the intraday protective-sell job so it only acts while the market trades.
+    ``now`` is injectable for tests."""
+    moment = now or dt.datetime.now(dt.timezone.utc)
+    cal = mcal.get_calendar(calendar or _calendar_name())
+    schedule = cal.schedule(start_date=moment.date(), end_date=moment.date())
+    if schedule.empty:
+        return False
+    open_ts = schedule.iloc[0]["market_open"].to_pydatetime()
+    close_ts = schedule.iloc[0]["market_close"].to_pydatetime()
+    return open_ts <= moment <= close_ts
+
+
 def previous_trading_day(day: dt.date, *, calendar: str | None = None) -> dt.date:
     """The most recent session strictly before ``day``."""
     window_start = day - dt.timedelta(days=10)

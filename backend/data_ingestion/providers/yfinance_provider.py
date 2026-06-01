@@ -7,12 +7,20 @@ public chart endpoint (``/v8/finance/chart``) directly over ``httpx`` with a bro
 one async round trip; output is normalised to midnight-UTC ``OHLCVBar`` DTOs keyed by
 session date (idempotent upsert). Correctness checks live in ``validation`` and run
 downstream in ``ingest``.
+
+Yahoo still rate-limits flagged IPs even with a browser UA, so each request retries
+on 429/5xx with exponential backoff (honouring ``Retry-After``) and rotates through a
+small UA pool, and symbols are paced by ``YFINANCE_THROTTLE_MS``. The point is to keep
+the *primary* healthy so the metered Twelve Data fallback stays a rare event.
 """
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import math
+import os
+import random
 from collections.abc import Mapping, Sequence
 from decimal import Decimal, InvalidOperation
 
@@ -23,11 +31,34 @@ from backend.data_ingestion.errors import ProviderError
 
 _NAME = "yfinance"
 _CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
-_USER_AGENT = (
+_USER_AGENTS = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
 )
+_USER_AGENT = _USER_AGENTS[0]
 _TIMEOUT = httpx.Timeout(30.0)
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+
+def _max_retries() -> int:
+    return int(os.environ.get("YFINANCE_MAX_RETRIES", "3"))
+
+
+def _throttle_seconds() -> float:
+    return int(os.environ.get("YFINANCE_THROTTLE_MS", "250")) / 1000.0
+
+
+def _retry_after(resp: httpx.Response, default: float) -> float:
+    raw = resp.headers.get("Retry-After")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return default
 
 
 def _to_decimal(value: object) -> Decimal | None:
@@ -102,12 +133,17 @@ class YFinanceProvider:
         )
         out: dict[str, list[OHLCVBar]] = {}
         errors: list[str] = []
+        throttle = _throttle_seconds()
         async with httpx.AsyncClient(
             timeout=_TIMEOUT, headers={"User-Agent": _USER_AGENT}
         ) as client:
-            for symbol in tickers:
+            for idx, symbol in enumerate(tickers):
+                if idx and throttle > 0:
+                    await asyncio.sleep(throttle)
                 try:
-                    out[symbol] = await self._fetch_one(client, symbol, period1, period2)
+                    out[symbol] = await self._fetch_one(
+                        client, symbol, period1, period2, ua_index=idx
+                    )
                 except ProviderError as exc:
                     out[symbol] = []
                     errors.append(str(exc))
@@ -137,12 +173,15 @@ class YFinanceProvider:
             return {}
         tickers = list(dict.fromkeys(symbols))
         out: dict[str, Decimal] = {}
+        throttle = _throttle_seconds()
         async with httpx.AsyncClient(
             timeout=_TIMEOUT, headers={"User-Agent": _USER_AGENT}
         ) as client:
-            for symbol in tickers:
+            for idx, symbol in enumerate(tickers):
+                if idx and throttle > 0:
+                    await asyncio.sleep(throttle)
                 try:
-                    price = await self._fetch_last_price(client, symbol)
+                    price = await self._fetch_last_price(client, symbol, ua_index=idx)
                 except ProviderError:
                     continue
                 if price is not None:
@@ -151,28 +190,53 @@ class YFinanceProvider:
 
     @staticmethod
     async def _fetch_last_price(
-        client: httpx.AsyncClient, symbol: str
+        client: httpx.AsyncClient, symbol: str, *, ua_index: int = 0
     ) -> Decimal | None:
         url = _CHART_URL.format(symbol=symbol)
         params = {"range": "1d", "interval": "1m"}
-        try:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            payload = resp.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"live fetch failed for {symbol}: {exc}", provider=_NAME) from exc
-        results = (payload.get("chart") or {}).get("result") or []
-        if not results:
+        retries = _max_retries()
+        delay = 1.0
+        for attempt in range(retries + 1):
+            headers = {"User-Agent": _USER_AGENTS[(ua_index + attempt) % len(_USER_AGENTS)]}
+            try:
+                resp = await client.get(url, params=params, headers=headers)
+            except httpx.HTTPError as exc:
+                if attempt == retries:
+                    raise ProviderError(
+                        f"live fetch failed for {symbol}: {exc}", provider=_NAME
+                    ) from exc
+                await asyncio.sleep(delay + random.uniform(0, 0.25))
+                delay *= 2
+                continue
+            if resp.status_code in _RETRY_STATUSES:
+                if attempt == retries:
+                    raise ProviderError(
+                        f"live fetch failed for {symbol}: HTTP {resp.status_code}",
+                        provider=_NAME,
+                    )
+                await asyncio.sleep(_retry_after(resp, delay) + random.uniform(0, 0.25))
+                delay *= 2
+                continue
+            try:
+                resp.raise_for_status()
+                payload = resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise ProviderError(
+                    f"live fetch failed for {symbol}: {exc}", provider=_NAME
+                ) from exc
+            results = (payload.get("chart") or {}).get("result") or []
+            if not results:
+                return None
+            result = results[0]
+            price = _to_decimal((result.get("meta") or {}).get("regularMarketPrice"))
+            if price is not None:
+                return price
+            closes = ((result.get("indicators", {}).get("quote") or [{}])[0]).get("close") or []
+            for close in reversed(closes):
+                value = _to_decimal(close)
+                if value is not None:
+                    return value
             return None
-        result = results[0]
-        price = _to_decimal((result.get("meta") or {}).get("regularMarketPrice"))
-        if price is not None:
-            return price
-        closes = ((result.get("indicators", {}).get("quote") or [{}])[0]).get("close") or []
-        for close in reversed(closes):
-            value = _to_decimal(close)
-            if value is not None:
-                return value
         return None
 
     async def get_available_symbols(self) -> list[str]:
@@ -180,7 +244,12 @@ class YFinanceProvider:
 
     @staticmethod
     async def _fetch_one(
-        client: httpx.AsyncClient, symbol: str, period1: int, period2: int
+        client: httpx.AsyncClient,
+        symbol: str,
+        period1: int,
+        period2: int,
+        *,
+        ua_index: int = 0,
     ) -> list[OHLCVBar]:
         url = _CHART_URL.format(symbol=symbol)
         params = {
@@ -189,17 +258,52 @@ class YFinanceProvider:
             "interval": "1d",
             "events": "div,splits",
         }
-        try:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            payload = resp.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"chart fetch failed for {symbol}: {exc}", provider=_NAME) from exc
+        retries = _max_retries()
+        delay = 1.0
+        last_detail = "no response"
+        for attempt in range(retries + 1):
+            headers = {"User-Agent": _USER_AGENTS[(ua_index + attempt) % len(_USER_AGENTS)]}
+            try:
+                resp = await client.get(url, params=params, headers=headers)
+            except httpx.HTTPError as exc:
+                last_detail = f"transport error: {exc}"
+                if attempt == retries:
+                    raise ProviderError(
+                        f"chart fetch failed for {symbol}: {exc}", provider=_NAME
+                    ) from exc
+                await asyncio.sleep(delay + random.uniform(0, 0.25))
+                delay *= 2
+                continue
 
-        chart = payload.get("chart") or {}
-        if chart.get("error"):
-            raise ProviderError(f"chart error for {symbol}: {chart['error']}", provider=_NAME)
-        results = chart.get("result") or []
-        if not results:
-            return []
-        return _result_to_bars(symbol, results[0])
+            if resp.status_code in _RETRY_STATUSES:
+                last_detail = f"HTTP {resp.status_code}"
+                if attempt == retries:
+                    raise ProviderError(
+                        f"chart fetch failed for {symbol}: HTTP {resp.status_code}",
+                        provider=_NAME,
+                    )
+                await asyncio.sleep(_retry_after(resp, delay) + random.uniform(0, 0.25))
+                delay *= 2
+                continue
+
+            try:
+                resp.raise_for_status()
+                payload = resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise ProviderError(
+                    f"chart fetch failed for {symbol}: {exc}", provider=_NAME
+                ) from exc
+
+            chart = payload.get("chart") or {}
+            if chart.get("error"):
+                raise ProviderError(
+                    f"chart error for {symbol}: {chart['error']}", provider=_NAME
+                )
+            results = chart.get("result") or []
+            if not results:
+                return []
+            return _result_to_bars(symbol, results[0])
+
+        raise ProviderError(
+            f"chart fetch failed for {symbol}: {last_detail}", provider=_NAME
+        )

@@ -16,6 +16,7 @@ import os
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from backend.scheduler.jobs import JOBS
 from backend.scheduler.schedule import JOB_SCHEDULE
@@ -23,6 +24,20 @@ from backend.scheduler.schedule import JOB_SCHEDULE
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MISFIRE_GRACE = 3600
+_DEFAULT_PROTECTIVE_SELL_INTERVAL_MIN = 15
+
+
+def _protective_sell_enabled() -> bool:
+    return os.environ.get("PROTECTIVE_SELL_ENABLED", "true").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _protective_sell_interval_min() -> int:
+    raw = os.environ.get("PROTECTIVE_SELL_INTERVAL_MIN")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_PROTECTIVE_SELL_INTERVAL_MIN
+    return int(raw)
 
 
 def _jobstore_url() -> str:
@@ -58,6 +73,16 @@ def build_scheduler() -> AsyncIOScheduler:
             JOBS[job_name],
             trigger=CronTrigger(hour=hour, minute=minute, timezone=timezone),
             id=job_name,
+            replace_existing=True,
+        )
+    # Intraday trailing-stop guard — an interval job, not part of the daily JOB_SCHEDULE
+    # (which the API shares to derive next-run times). The job itself no-ops outside
+    # market hours; coalesce/max_instances=1 (job_defaults) prevent overlap.
+    if _protective_sell_enabled():
+        scheduler.add_job(
+            JOBS["protective_sell"],
+            trigger=IntervalTrigger(minutes=_protective_sell_interval_min()),
+            id="protective_sell",
             replace_existing=True,
         )
     return scheduler

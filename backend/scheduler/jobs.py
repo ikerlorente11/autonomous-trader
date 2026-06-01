@@ -13,29 +13,38 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import os
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
 from backend.analysis.engine import DefaultAnalysisEngine
+from backend.analysis.indicators.volatility import AverageTrueRangeIndicator
 from backend.analysis.performance.settle import settle_due_signals
 from backend.analysis.scoring.persistence import (
     persist_algorithm_signals,
     persist_signal_values,
 )
-from backend.contracts import RankedSymbol, SignalAction, SymbolScore
-from backend.data_ingestion.calendar import is_trading_day
-from backend.data_ingestion.ingest import ingest_daily_bars
+from backend.contracts import OHLCVBar, OrderState, RankedSymbol, SignalAction, SymbolScore
+from backend.data_ingestion.calendar import is_market_open_now, is_trading_day
+from backend.data_ingestion.ingest import ingest_daily_bars, upsert_bars
+from backend.data_ingestion.providers.yfinance_provider import YFinanceProvider
 from backend.db.models import JobRun
-from backend.db.queries.market_queries import count_bars_per_symbol, get_bars_range
+from backend.db.queries.market_queries import (
+    count_bars_per_symbol,
+    get_bars_range,
+    get_latest_bars,
+)
 from backend.db.queries.portfolio_queries import (
     count_filled_orders_since,
     get_active_watchlist,
     get_latest_analysis_ts,
+    get_open_positions,
     get_top_ranked_signals,
     list_portfolios,
 )
@@ -43,6 +52,17 @@ from backend.db.session import async_session
 from backend.scheduler.schedule import JOB_SCHEDULE
 from backend.trading.broker_factory import make_broker
 from backend.trading.portfolio_manager import PortfolioManager
+from backend.trading.stops import (
+    atr_stop_multiple,
+    evaluate_trailing_stop,
+    regime_adjustment,
+    regime_enabled,
+    stop_tighten_factor,
+    trailing_stop_pct,
+    vix_panic_above,
+    vix_panic_hold,
+    vix_tighten_above,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +70,11 @@ _ANALYSIS_LOOKBACK_DAYS = 400
 # Below this many stored bars a symbol is backfilled over the full lookback window
 # instead of just appending today (comfortably above the longest indicator period).
 _MIN_HISTORY_BARS = 60
+# The incremental fetch asks for a trailing window, not today..today: the job runs at
+# 06:30 UTC — before the US session — so "today" has no settled bar yet, and a single
+# day spanning a weekend/holiday would be empty. A few days back always catches the
+# last close; the upsert is idempotent so re-fetching is free.
+_INCREMENTAL_LOOKBACK_DAYS = 5
 # Must span the whole scored universe, not just buy candidates: the manager also
 # reads the low-scored end to find SELL signals on names it currently holds, so a
 # larger watchlist must not truncate exits. Comfortably above the 50-symbol target.
@@ -130,6 +155,24 @@ def _bars_to_frame(rows) -> pd.DataFrame:
     )
 
 
+_ATR_PERIOD = 14
+_ATR_LOOKBACK_DAYS = 40
+
+
+def _latest_atr(rows) -> Decimal | None:
+    """Raw ATR(14) in price units from stored daily bars, or None if too few bars."""
+    if len(rows) < _ATR_PERIOD + 1:
+        return None
+    series = (
+        AverageTrueRangeIndicator(period=_ATR_PERIOD, sensitivity=1.0)
+        .compute(_bars_to_frame(rows))
+        .dropna()
+    )
+    if series.empty:
+        return None
+    return Decimal(str(float(series.iloc[-1])))
+
+
 # --------------------------------------------------------------------------- #
 # Ingestion job (external calls)
 # --------------------------------------------------------------------------- #
@@ -161,7 +204,10 @@ async def fetch_market_data() -> None:
                     await ingest_daily_bars(session, backfill, lookback_start, today)
                 )
             if current:
-                reports.append(await ingest_daily_bars(session, current, today, today))
+                incremental_start = today - dt.timedelta(days=_INCREMENTAL_LOOKBACK_DAYS)
+                reports.append(
+                    await ingest_daily_bars(session, current, incremental_start, today)
+                )
             missing = [s for r in reports for s in r.empty_symbols]
             outcome.status = "degraded" if missing else "success"
             outcome.detail = {
@@ -319,11 +365,135 @@ async def update_portfolio_nav() -> None:
             }
 
 
+_PROTECTIVE_SELL_STRATEGY = "protective-sell"
+
+
+def _protective_sell_enabled() -> bool:
+    return os.environ.get("PROTECTIVE_SELL_ENABLED", "true").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+async def protective_sell() -> None:
+    """Intraday trailing-stop guard (interval job, market hours only).
+
+    For every held position it ratchets a high-water mark on the live price and, when
+    the price has retraced past the trailing stop from that peak, sells the position in
+    full — cutting losses and locking in gains without waiting for the daily pipeline.
+    Sells are tagged ``strategy_version='protective-sell'`` so they're distinguishable in
+    the trades table. The broker fills against the latest stored bar, so the live price is
+    first marked as today's bar (overwritten by the next morning's fetch)."""
+    async with _job_context("protective_sell") as outcome:
+        if not _protective_sell_enabled():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "DISABLED"}
+            return
+        if not is_market_open_now():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            return
+
+        pct = trailing_stop_pct()
+        atr_mult = atr_stop_multiple()
+        provider = YFinanceProvider()
+        asof = _today_utc_midnight()
+
+        # Market-stress regime from a live VIX read (best-effort): tighten the stop under
+        # stress, but hold (don't sell) in outright panic — extreme VIX is often the bottom.
+        distance_factor = Decimal(1)
+        panic_hold = False
+        vix_val: Decimal | None = None
+        if regime_enabled():
+            vix_val = (await provider.fetch_live_prices(["^VIX"])).get("^VIX")
+            distance_factor, panic_hold = regime_adjustment(
+                vix_val,
+                tighten_above=vix_tighten_above(),
+                panic_above=vix_panic_above(),
+                tighten_factor=stop_tighten_factor(),
+            )
+            if panic_hold and not vix_panic_hold():
+                panic_hold = False  # operator opted to always protect
+
+        async with async_session() as session:
+            portfolios = await list_portfolios(session, active_only=True)
+            if not portfolios:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_active_portfolios"}
+                return
+
+            atr_start = asof - dt.timedelta(days=_ATR_LOOKBACK_DAYS)
+            triggered_total = 0
+            per_portfolio: dict[str, int] = {}
+            for portfolio in portfolios:
+                positions = await get_open_positions(session, portfolio.id)
+                if not positions:
+                    continue
+                symbols = [p.symbol for p in positions]
+                live = await provider.fetch_live_prices(symbols)
+                # Feed fallback: if the live quote is missing (Yahoo 429), fall back to the
+                # latest stored close so the stop still evaluates rather than going blind.
+                missing = [s for s in symbols if s not in live]
+                if missing:
+                    for b in await get_latest_bars(session, missing):
+                        live.setdefault(b.symbol, b.close)
+                broker = make_broker(
+                    session, portfolio.id, strategy_version=_PROTECTIVE_SELL_STRATEGY
+                )
+                triggered = 0
+                for position in positions:
+                    price = live.get(position.symbol)
+                    if price is None:
+                        continue
+                    atr = _latest_atr(
+                        await get_bars_range(session, position.symbol, atr_start, asof)
+                    )
+                    new_hwm, hit = evaluate_trailing_stop(
+                        position.avg_cost, position.high_water_mark, price,
+                        pct=pct, atr=atr, atr_multiple=atr_mult,
+                        distance_factor=distance_factor,
+                    )
+                    position.high_water_mark = new_hwm  # ratchet up, persisted on commit
+                    if not hit or panic_hold:
+                        continue
+                    # Mark today's bar at the live price so the simulated fill is realistic.
+                    await upsert_bars(
+                        session,
+                        [OHLCVBar(
+                            symbol=position.symbol, ts=asof, open=price, high=price,
+                            low=price, close=price, volume=0, adj_close=price,
+                        )],
+                    )
+                    order = await broker.place_order(
+                        position.symbol, "sell", position.qty, "market"
+                    )
+                    if order.status is OrderState.FILLED:
+                        triggered += 1
+                        _log_event(
+                            "protective_sell", "stop_triggered",
+                            portfolio_id=portfolio.id, symbol=position.symbol,
+                            avg_cost=str(position.avg_cost), peak=str(new_hwm),
+                            live_price=str(price), atr=str(atr) if atr is not None else None,
+                        )
+                per_portfolio[str(portfolio.id)] = triggered
+                triggered_total += triggered
+
+            await session.commit()
+            outcome.detail = {
+                "stops_triggered": triggered_total,
+                "trailing_stop_pct": str(pct),
+                "atr_multiple": str(atr_mult),
+                "vix": str(vix_val) if vix_val is not None else None,
+                "panic_hold": panic_hold,
+                "per_portfolio": per_portfolio,
+            }
+
+
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "fetch_market_data": fetch_market_data,
     "run_analysis": run_analysis,
     "execute_paper_trades": execute_paper_trades,
     "update_portfolio_nav": update_portfolio_nav,
+    "protective_sell": protective_sell,
 }
 
 

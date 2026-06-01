@@ -1,10 +1,12 @@
 """Fallback OHLCV source — Twelve Data.
 
 Implements the same ``MarketDataProvider`` protocol as the yfinance provider so the
-orchestrator can swap them without touching analysis. Built for the free tier:
-symbols are comma-batched into a single ``/time_series`` call (fewer of the 800
-daily requests), and HTTP 429 / quota responses raise ``RateLimitError`` and are
-retried with exponential backoff before giving up. The API key comes from
+orchestrator can swap them without touching analysis. Built for the free tier, where
+``/time_series`` costs **one credit per symbol** (comma-batching cuts the request
+count, not the credits) and the cap is ~8 credits/min and ~800/day. So requests are
+paced to ``TWELVE_DATA_CREDITS_PER_MIN`` to avoid tripping the per-minute limit in a
+burst, and 429 / quota responses raise ``RateLimitError`` (classified per-minute vs
+daily) after retrying with exponential backoff. The API key comes from
 ``TWELVE_DATA_API_KEY``; the batch size from ``TWELVE_DATA_BATCH`` (default 8).
 """
 
@@ -12,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import logging
 import os
 from collections.abc import Mapping, Sequence
 from decimal import Decimal, InvalidOperation
@@ -20,6 +23,8 @@ import httpx
 
 from backend.contracts import OHLCVBar
 from backend.data_ingestion.errors import ProviderError, RateLimitError
+
+logger = logging.getLogger(__name__)
 
 _NAME = "twelve_data"
 _BASE_URL = "https://api.twelvedata.com/time_series"
@@ -31,6 +36,20 @@ def _api_key() -> str:
     if not key:
         raise ProviderError("TWELVE_DATA_API_KEY is not set", provider=_NAME)
     return key
+
+
+def _credits_per_min() -> int:
+    return int(os.environ.get("TWELVE_DATA_CREDITS_PER_MIN", "8"))
+
+
+def _classify_429(message: str) -> str:
+    """Turn an opaque 429 into an honest, actionable reason for logs/dashboard."""
+    low = (message or "").lower()
+    if "day" in low:
+        return "daily quota exhausted (free tier ~800/day)"
+    if "minute" in low:
+        return "per-minute credit limit hit (free tier ~8/min)"
+    return "rate limit hit"
 
 
 def _redact(text: str, key: str) -> str:
@@ -101,12 +120,21 @@ class TwelveDataProvider:
         tickers = list(dict.fromkeys(symbols))
         key = _api_key()
         size = _batch_size()
+        cpm = _credits_per_min()
         out: dict[str, list[OHLCVBar]] = {}
+        pending_credits = 0  # credits owed by the previous request, paced before the next
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             for i in range(0, len(tickers), size):
                 chunk = tickers[i : i + size]
+                if cpm > 0 and pending_credits:
+                    wait = pending_credits / cpm * 60.0
+                    logger.debug(
+                        "twelve_data: pacing %.1fs to stay under %d credits/min", wait, cpm
+                    )
+                    await asyncio.sleep(wait)
                 payload = await self._request(client, chunk, start, end, key)
                 out.update(self._unpack(chunk, payload))
+                pending_credits = len(chunk)
         return out
 
     async def fetch_latest_price(
@@ -145,7 +173,7 @@ class TwelveDataProvider:
                     retry_after = float(resp.headers.get("Retry-After", delay))
                     if attempt == _MAX_RETRIES - 1:
                         raise RateLimitError(
-                            "twelve_data rate limit exhausted",
+                            f"twelve_data {_classify_429(self._http_429_message(resp))}",
                             provider=_NAME,
                             retry_after=retry_after,
                         )
@@ -173,6 +201,13 @@ class TwelveDataProvider:
     def _is_rate_limited(data: dict[str, object]) -> bool:
         return data.get("status") == "error" and data.get("code") == 429
 
+    @staticmethod
+    def _http_429_message(resp: httpx.Response) -> str:
+        try:
+            return str(resp.json().get("message", ""))
+        except (ValueError, AttributeError):
+            return resp.text[:200]
+
     def _raise_on_api_error(self, data: dict[str, object], delay: float, attempt: int) -> None:
         if data.get("status") == "error" and data.get("code") != 429:
             raise ProviderError(
@@ -181,7 +216,9 @@ class TwelveDataProvider:
             )
         if self._is_rate_limited(data) and attempt == _MAX_RETRIES - 1:
             raise RateLimitError(
-                "twelve_data rate limit exhausted", provider=_NAME, retry_after=delay
+                f"twelve_data {_classify_429(str(data.get('message', '')))}",
+                provider=_NAME,
+                retry_after=delay,
             )
 
     @staticmethod

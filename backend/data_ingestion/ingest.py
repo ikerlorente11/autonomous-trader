@@ -1,10 +1,11 @@
 """Ingestion orchestrator — the scheduler's entry point.
 
 Wires the pieces together: pick a provider (``MARKET_DATA_PROVIDER``), fetch, validate,
-and upsert idempotently. Auto-fallback is single-hop: if the primary raises
-``ProviderError`` the secondary is tried exactly once, then the failure is logged and
-re-raised. Writes use ``INSERT ... ON CONFLICT (symbol, ts) DO UPDATE`` so re-running
-the same day overwrites rather than duplicates — the idempotency the brief requires.
+and upsert idempotently. Auto-fallback is per-symbol: the secondary is asked only for
+the symbols the primary left empty (or all of them if the primary raised), so a partial
+primary outage doesn't dump the whole watchlist onto the metered fallback. Writes use
+``INSERT ... ON CONFLICT (symbol, ts) DO UPDATE`` so re-running the same day overwrites
+rather than duplicates — the idempotency the brief requires.
 """
 
 from __future__ import annotations
@@ -54,18 +55,38 @@ def make_provider(name: str) -> MarketDataProvider:
 async def fetch_with_fallback(
     symbols: Sequence[str], start: dt.date, end: dt.date
 ) -> Mapping[str, list[OHLCVBar]]:
-    """Try primary then (once) secondary. Re-raise if both fail."""
+    """Primary first; the secondary only covers the symbols the primary left empty.
+
+    Per-symbol (not all-or-nothing) so a partial yfinance outage hands the metered
+    Twelve Data fallback just the gaps — not the whole watchlist — keeping its free
+    credits intact. Re-raise only if nothing at all came back."""
+    requested = list(dict.fromkeys(symbols))
+    out: dict[str, list[OHLCVBar]] = {}
+    remaining = requested
     last_error: ProviderError | None = None
     for name in _provider_order():
+        if not remaining:
+            break
         provider = make_provider(name)
         try:
-            return await provider.fetch_daily_bars(symbols, start, end)
+            fetched = await provider.fetch_daily_bars(remaining, start, end)
         except ProviderError as exc:
             logger.warning("provider %s failed: %s", name, exc)
             last_error = exc
-    assert last_error is not None
-    logger.error("all market-data providers failed for %d symbols", len(symbols))
-    raise last_error
+            continue
+        for symbol, bars in fetched.items():
+            if bars:
+                out[symbol] = bars
+        remaining = [s for s in remaining if not out.get(s)]
+    if not out and last_error is not None:
+        logger.error("all market-data providers failed for %d symbols", len(requested))
+        raise last_error
+    if remaining:
+        logger.warning("no data for %d symbols after fallback: %s",
+                       len(remaining), ", ".join(remaining))
+    for symbol in requested:
+        out.setdefault(symbol, [])
+    return out
 
 
 async def upsert_bars(session: AsyncSession, bars: Sequence[OHLCVBar]) -> int:

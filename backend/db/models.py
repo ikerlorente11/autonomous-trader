@@ -113,6 +113,10 @@ class PortfolioPosition(Base):
     avg_cost: Mapped[Decimal] = mapped_column(PRICE)
     current_price: Mapped[Decimal | None] = mapped_column(PRICE)
     unrealized_pnl: Mapped[Decimal | None] = mapped_column(MONEY)
+    # Highest price seen since entry — the reference for the intraday trailing stop.
+    # Nullable: initialized lazily on the first protective-sell check (max of avg_cost
+    # and the live price), so existing positions need no backfill.
+    high_water_mark: Mapped[Decimal | None] = mapped_column(PRICE)
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

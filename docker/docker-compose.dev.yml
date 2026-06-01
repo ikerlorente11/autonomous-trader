@@ -17,11 +17,23 @@
 #   VITE_HMR_CLIENT_PORT=443
 #   VITE_HMR_PROTOCOL=wss
 services:
+  # One-shot migrator: bind-mount so it sees new migrations without an image rebuild.
+  init:
+    volumes:
+      - ..:/app
+
   api:
     volumes:
       - ..:/app
     command:
       ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Bind-mount the source so scheduler code edits take effect on restart (no rebuild).
+  # APScheduler has no --reload, so a `docker restart trader-scheduler` is needed after
+  # changing job code — but no image build.
+  scheduler:
+    volumes:
+      - ..:/app
 
   frontend:
     image: node:20-alpine
