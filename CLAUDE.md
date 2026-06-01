@@ -412,10 +412,37 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > drives the paper portfolio (it only seeds the `mock_real` double's in-memory cash); real budgets
 > live in `cash_movements`.
 
+> **Intraday protective sell (post-Phase-5).** Beyond the daily jobs above there is a fifth,
+> **interval** job — `protective_sell` — that runs every `PROTECTIVE_SELL_INTERVAL_MIN` (15 min)
+> **only during market hours** and sells held positions on a **trailing stop** from a per-position
+> `high_water_mark` (migration `0006`). Stop distance is `ATR(14)×STOP_ATR_MULTIPLE` (fallback
+> `TRAILING_STOP_PCT`), tightened/held by a live-VIX regime. It is **not** in `JOB_SCHEDULE` (which
+> the API shares for next-run times) — it's registered as an `IntervalTrigger` in
+> `scheduler/main.py`, gated by `PROTECTIVE_SELL_ENABLED`. Maths in `backend/trading/stops.py`;
+> the `BrokerAdapter` seam is unchanged (sells via `place_order`). Full design:
+> `docs/architecture/protective-sell.md`.
+
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.
 All jobs: `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
+
+---
+
+## Local development & testing (post-Phase-5)
+
+- **Hot reload / bind mounts.** `docker/docker-compose.dev.yml` bind-mounts the repo (`..:/app`)
+  into `api`, `init`, `scheduler` and `frontend`, so code edits take effect **without an image
+  rebuild**. Only `api` (uvicorn `--reload`) and `frontend` (vite HMR) reload automatically — the
+  **`scheduler` has no reload**, so after changing `backend/scheduler/*`, job code or a migration
+  you must `docker restart trader-scheduler`. Apply migrations from the `trader-api` container
+  (it has the live code): `docker exec trader-api sh -lc "cd backend/db/migrations && alembic upgrade head"`.
+  `docker/init-db.sh` must keep its execute bit (`chmod +x`).
+- **Tests.** A pytest suite lives under `backend/tests/` (unit / integration / regression) and runs
+  **inside the `trader-api` container** against a separate database `autonomous_trader_test`:
+  `make test` (full), `make test-unit` (fast, no DB), `make lint`, `make typecheck`. Test-only deps
+  are in `backend/requirements-dev.txt` (not baked into the image). No test touches the real network
+  (provider HTTP is mocked with `respx`). Full strategy: `docs/qa/testing-strategy.md`.
 
 ---
 
