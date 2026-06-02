@@ -4,7 +4,7 @@
 #   2) Run the fast, DB-free suites (unit + regression) before any push.
 # Install with `make install-hooks`. The full DB-backed suite runs via `make test`.
 # Note: local-only guardrail; `git push --no-verify` bypasses it. Real enforcement
-# needs a public repo or GitHub Pro/Team branch protection.
+# needs server-side branch protection (e.g. GitHub branch protection rules / required checks).
 set -euo pipefail
 
 PROTECTED_BRANCH="main"
