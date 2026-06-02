@@ -2,13 +2,14 @@
 # Run alongside the base file:
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
 #
-# The Vite dev server OWNS the subdomain port (host 8030) and proxies /api to the
-# api service, so the public subdomain shows live edits with HMR. FastAPI moves to
-# the host port set by API_PORT (8033 in .env) for direct backend access.
+# FastAPI OWNS the subdomain port (host 8030) — that is where the live domain points
+# and what serves the app. The Vite dev server runs on a separate host port
+# (FRONTEND_PORT, default 8034) for frontend HMR during development; it proxies /api
+# to the api service. The two MUST use different host ports or the containers collide.
 #
 # - api: source is bind-mounted and uvicorn runs with --reload, so backend edits
 #   reload automatically (no rebuild).
-# - frontend: a Node container runs `vite dev` with HMR on host 8030 and proxies
+# - frontend: a Node container runs `vite dev` with HMR on host 8034 and proxies
 #   /api to the api service. Edit anything under frontend/ and the browser updates.
 #
 # Behind a TLS reverse proxy / subdomain, set these in .env so HMR + host checks work:
@@ -27,11 +28,6 @@ services:
       - ..:/app
     command:
       ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    # In dev the Vite frontend owns the subdomain port (8030), so FastAPI must move
-    # off it. Default to 8033 here so api and frontend never collide even when .env
-    # leaves API_PORT unset — the base file's 8030 default would otherwise clash.
-    ports:
-      - "${API_PORT:-8033}:8000"
 
   # Bind-mount the source so scheduler code edits take effect on restart (no rebuild).
   # APScheduler has no --reload, so a `docker restart trader-scheduler` is needed after
@@ -58,8 +54,8 @@ services:
       # installs persist across restarts.
       - frontend_node_modules:/app/frontend/node_modules
     ports:
-      # Vite takes the subdomain port (8030); container stays 5173.
-      - "${FRONTEND_PORT:-8030}:5173"
+      # Vite runs on its own dev host port (8034); the API owns 8030. Container stays 5173.
+      - "${FRONTEND_PORT:-8034}:5173"
     depends_on:
       - api
 
