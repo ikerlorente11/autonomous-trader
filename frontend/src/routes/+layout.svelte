@@ -9,11 +9,13 @@
 	import { getActivePortfolioId, setActivePortfolioId } from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, relativeFromNow } from '$lib/utils/format';
+	import { t, getLocale, setLocale, initLocale, LOCALES } from '$lib/i18n';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { Snippet } from 'svelte';
 
 	let { children }: { children: Snippet } = $props();
 
+	initLocale();
 	startSystemPolling();
 
 	// Persistent portfolio-value anchor in the header; refreshes every 5 min.
@@ -28,14 +30,13 @@
 	}
 
 	const nav = [
-		{ href: '/', label: 'Dashboard', icon: 'grid' },
-		{ href: '/portfolios', label: 'Portfolios', icon: 'wallet' },
-		{ href: '/portfolio', label: 'Holdings', icon: 'briefcase' },
-		{ href: '/market', label: 'Market', icon: 'chart' },
-		{ href: '/trades', label: 'Trades', icon: 'swap' },
-		{ href: '/experiments', label: 'Experiments', icon: 'flask' },
-		{ href: '/system', label: 'System', icon: 'activity' },
-		{ href: '/info', label: 'Cómo funciona', icon: 'info' }
+		{ href: '/', labelKey: 'nav.dashboard', icon: 'grid' },
+		{ href: '/portfolios', labelKey: 'nav.portfolios', icon: 'wallet' },
+		{ href: '/market', labelKey: 'nav.market', icon: 'chart' },
+		{ href: '/trades', labelKey: 'nav.trades', icon: 'swap' },
+		{ href: '/experiments', labelKey: 'nav.experiments', icon: 'flask' },
+		{ href: '/system', labelKey: 'nav.system', icon: 'activity' },
+		{ href: '/info', labelKey: 'nav.info', icon: 'info' }
 	];
 
 	let pathname = $derived($page.url.pathname);
@@ -65,14 +66,14 @@
 
 <div class="shell">
 	{#if mobileOpen}
-		<button class="overlay" aria-label="Close menu" onclick={() => (mobileOpen = false)}></button>
+		<button class="overlay" aria-label={t('layout.closeMenu')} onclick={() => (mobileOpen = false)}></button>
 	{/if}
 	<aside class="sidebar" class:open={mobileOpen}>
 		<div class="brand">
 			<span class="brand-mark" aria-hidden="true">◢</span>
-			<span class="brand-name">Autonomous Trader</span>
+			<span class="brand-name">{t('layout.brand')}</span>
 		</div>
-		<nav aria-label="Primary">
+		<nav aria-label={t('layout.primaryNav')}>
 			{#each nav as item (item.href)}
 				<a
 					href={item.href}
@@ -82,7 +83,7 @@
 					onclick={() => (mobileOpen = false)}
 				>
 					<Icon name={item.icon} />
-					<span>{item.label}</span>
+					<span>{t(item.labelKey)}</span>
 				</a>
 			{/each}
 		</nav>
@@ -93,17 +94,27 @@
 
 	<div class="main">
 		<header class="topbar">
-			<button class="hamburger" aria-label="Toggle navigation" onclick={() => (mobileOpen = !mobileOpen)}>≡</button>
+			<button class="hamburger" aria-label={t('layout.toggleNav')} onclick={() => (mobileOpen = !mobileOpen)}>≡</button>
 			<div class="status">
 				<span class="dot {healthDot}" aria-hidden="true"></span>
 				<span class="status-text">
-					{systemStatus.available ? 'Updated' : 'System offline ·'}
+					{systemStatus.available ? t('layout.updated') : t('layout.offline')}
 					{updatedLabel}
 				</span>
 			</div>
+			<div class="lang" role="group" aria-label={t('layout.language')}>
+				{#each LOCALES as code (code)}
+					<button
+						type="button"
+						class:active={getLocale() === code}
+						aria-pressed={getLocale() === code}
+						onclick={() => setLocale(code)}>{code.toUpperCase()}</button
+					>
+				{/each}
+			</div>
 			<div class="pf-switch">
 				<Icon name="wallet" size={16} />
-				<select aria-label="Active portfolio" value={selectedId} onchange={onSwitch}>
+				<select aria-label={t('layout.activePortfolio')} value={selectedId} onchange={onSwitch}>
 					{#each portfolios.data ?? [] as p (p.id)}
 						<option value={p.id}>{p.name}</option>
 					{/each}
@@ -121,8 +132,8 @@
 			<div class="health-banner" role="alert">
 				<span class="banner-icon" aria-hidden="true">⚠</span>
 				<span>
-					A daily job failed — performance figures may be stale.
-					<a href="/system">View system status →</a>
+					{t('layout.bannerStale')}
+					<a href="/system">{t('layout.bannerLink')}</a>
 				</span>
 			</div>
 		{/if}
@@ -272,8 +283,34 @@
 	.health-banner a {
 		color: var(--status-warn);
 	}
-	.pf-switch {
+	.lang {
 		margin-left: auto;
+		display: inline-flex;
+		gap: 2px;
+		background: var(--color-bg-2);
+		border: 1px solid var(--color-bg-4);
+		border-radius: var(--radius-md);
+		padding: 2px;
+	}
+	.lang button {
+		background: transparent;
+		border: none;
+		color: var(--color-text-2);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		letter-spacing: 0.04em;
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+	.lang button:hover {
+		color: var(--color-text-0);
+	}
+	.lang button.active {
+		background: var(--color-accent-bg);
+		color: var(--color-accent);
+	}
+	.pf-switch {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);

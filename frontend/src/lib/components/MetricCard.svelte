@@ -36,7 +36,7 @@
 			<span class="badge {band}">{bandText[band]}</span>
 		{/if}
 	</div>
-	<div class="value" class:emphasis>{value}</div>
+	<div class="value" class:emphasis class:gain={deltaClass === 'gain'} class:loss={deltaClass === 'loss'}>{value}</div>
 	{#if delta}
 		<div class="delta {deltaClass}">{delta}</div>
 	{/if}

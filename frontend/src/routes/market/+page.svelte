@@ -5,6 +5,7 @@
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, toNum } from '$lib/utils/format';
 	import { marketPollMs } from '$lib/utils/marketHours';
+	import { t } from '$lib/i18n';
 	import type { WatchlistEntry } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -49,7 +50,7 @@
 			newSymbol = '';
 			await watchlist.refresh();
 		} catch (e) {
-			editMsg = e instanceof Error ? e.message : 'Could not add symbol.';
+			editMsg = e instanceof Error ? e.message : t('market.addFailed');
 		} finally {
 			busy = false;
 		}
@@ -63,7 +64,7 @@
 			await marketApi.removeSymbol(symbol);
 			await watchlist.refresh();
 		} catch (e) {
-			editMsg = e instanceof Error ? e.message : 'Could not remove symbol.';
+			editMsg = e instanceof Error ? e.message : t('market.removeFailed');
 		} finally {
 			busy = false;
 		}
@@ -114,17 +115,17 @@
 	}
 </script>
 
-<h1 class="page-title">Market</h1>
+<h1 class="page-title">{t('market.title')}</h1>
 
-<Card title="Watchlist" caption="Tracked universe · click a row for per-symbol detail" span="full">
+<Card title={t('market.watchlist.title')} caption={t('market.watchlist.caption')} span="full">
 	{#snippet actions()}
-		<input class="search" bind:value={search} placeholder="Search symbol or sector" />
+		<input class="search" bind:value={search} placeholder={t('market.search')} />
 		<form class="add" onsubmit={(e) => { e.preventDefault(); void addSymbol(); }}>
-			<input class="add-in" bind:value={newSymbol} placeholder="Add symbol (e.g. AAPL)" />
-			<button class="add-btn" type="submit" disabled={busy}>Add</button>
+			<input class="add-in" bind:value={newSymbol} placeholder={t('market.addPlaceholder')} />
+			<button class="add-btn" type="submit" disabled={busy}>{t('market.add')}</button>
 		</form>
 	{/snippet}
-	<Region resource={watchlist} isEmpty={(d) => d.length === 0} emptyMessage="Watchlist is empty — populate it at runtime.">
+	<Region resource={watchlist} isEmpty={(d) => d.length === 0} emptyMessage={t('market.watchlist.empty')}>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
@@ -136,24 +137,24 @@
 								tabindex="0"
 								aria-sort={sortKey === 'symbol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
 								onclick={() => setSort('symbol')}
-								onkeydown={(e) => onSortKey(e, 'symbol')}>Symbol{arrowFor('symbol')}</th>
-							<th>Sector</th>
-							<th>Asset Class</th>
+								onkeydown={(e) => onSortKey(e, 'symbol')}>{t('market.col.symbol')}{arrowFor('symbol')}</th>
+							<th>{t('market.col.sector')}</th>
+							<th>{t('market.col.assetClass')}</th>
 							<th
 								class="num sortable"
 								role="button"
 								tabindex="0"
 								aria-sort={sortKey === 'price' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
 								onclick={() => setSort('price')}
-								onkeydown={(e) => onSortKey(e, 'price')}>Last{arrowFor('price')}</th>
+								onkeydown={(e) => onSortKey(e, 'price')}>{t('market.col.last')}{arrowFor('price')}</th>
 							<th
 								class="num sortable"
 								role="button"
 								tabindex="0"
 								aria-sort={sortKey === 'score' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
 								onclick={() => setSort('score')}
-								onkeydown={(e) => onSortKey(e, 'score')}>Score{arrowFor('score')}</th>
-							<th>Action</th>
+								onkeydown={(e) => onSortKey(e, 'score')}>{t('market.col.score')}{arrowFor('score')}</th>
+							<th>{t('market.col.action')}</th>
 							<th></th>
 						</tr>
 					</thead>
@@ -179,7 +180,7 @@
 								<td>
 									<button
 										class="rm"
-										title="Remove from watchlist"
+										title={t('market.remove')}
 										disabled={busy}
 										onclick={(e) => removeSymbol(w.symbol, e)}>×</button
 									>
@@ -190,7 +191,7 @@
 				</table>
 			</div>
 			{#if rows(d).length === 0}
-				<p class="no-match">No symbols match "{search}".</p>
+				<p class="no-match">{t('market.noMatch', { q: search })}</p>
 			{/if}
 		{/snippet}
 	</Region>
@@ -198,10 +199,7 @@
 
 {#if editMsg}<p class="edit-msg">{editMsg}</p>{/if}
 
-<p class="note">
-	Daily price change is not exposed by <code>/api/market/watchlist</code> (marks are daily closes).
-	Open a symbol for its candlestick history and indicator detail.
-</p>
+<p class="note">{t('market.note')}</p>
 
 <style>
 	.page-title {
@@ -276,8 +274,5 @@
 	.note {
 		font-size: var(--text-xs);
 		color: var(--color-text-2);
-	}
-	.note code {
-		font-family: var(--font-mono);
 	}
 </style>

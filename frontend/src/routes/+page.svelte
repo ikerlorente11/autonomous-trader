@@ -2,10 +2,13 @@
 	import { onDestroy } from 'svelte';
 	import { portfolioApi, algorithmsApi, systemApi, marketApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
-	import { money, qty, toNum } from '$lib/utils/format';
-	import type { BarsRange, Position, Quote, SignalEntry } from '$lib/api/types';
+	import { money, num, percent, qty, toNum } from '$lib/utils/format';
+	import { band, percentMetrics, signedMetrics, metricTooltips } from '$lib/utils/thresholds';
+	import { t } from '$lib/i18n';
+	import type { BarsRange, NavRange, Position, Quote, SignalEntry } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
+	import MetricCard from '$lib/components/MetricCard.svelte';
 	import PriceChange from '$lib/components/PriceChange.svelte';
 	import SignalScore from '$lib/components/SignalScore.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -13,11 +16,19 @@
 	import NavChart from '$lib/charts/NavChart.svelte';
 	import CandlestickChart from '$lib/charts/CandlestickChart.svelte';
 
-	// Daily-batch backend: cards/NAV/signals refresh every 5 min (ux §3.1).
+	// Daily-batch backend: cards/signals/performance refresh every 5 min (ux §3.1).
 	const REFRESH = 300_000;
 	const summary = createResource(() => portfolioApi.summary(), { intervalMs: REFRESH });
-	const nav = createResource(() => portfolioApi.nav('90d'), { intervalMs: REFRESH });
 	const signals = createResource(() => algorithmsApi.signals(20), { intervalMs: REFRESH });
+	const performance = createResource(() => portfolioApi.performance(), { intervalMs: REFRESH });
+
+	let navRange = $state<NavRange>('90d');
+	const navRanges: readonly NavRange[] = ['7d', '30d', '90d', '1y', 'all'];
+	const nav = createResource(() => portfolioApi.nav(navRange), { immediate: false });
+	$effect(() => {
+		void navRange;
+		void nav.refresh();
+	});
 
 	// Live valuation: refresh held positions and their prices every 60s so the
 	// portfolio value tracks the market intraday (display only — trading stays daily).
@@ -36,27 +47,6 @@
 			if (p !== null) m.set(q.symbol, p);
 		}
 		return m;
-	});
-	let liveInvested = $derived.by(() => {
-		const ps = positions.data;
-		if (!ps || ps.length === 0) return null;
-		let sum = 0;
-		for (const p of ps) {
-			const q = toNum(p.qty) ?? 0;
-			const price = liveQuoteMap.get(p.symbol) ?? toNum(p.current_price) ?? 0;
-			sum += q * price;
-		}
-		return sum;
-	});
-	let liveCash = $derived(summary.data ? toNum(summary.data.cash) : null);
-	let liveTotal = $derived.by(() =>
-		liveInvested === null || liveCash === null ? null : liveCash + liveInvested
-	);
-	let liveChange = $derived.by(() => {
-		const base = summary.data ? toNum(summary.data.contributed_capital) : null;
-		if (liveTotal === null || base === null) return { val: null as number | null, pct: null as number | null };
-		const val = liveTotal - base;
-		return { val, pct: base ? (val / base) * 100 : null };
 	});
 
 	// Inline price chart: clicking an investment swaps the big card to that symbol.
@@ -79,16 +69,6 @@
 			selectInvestment(sym);
 		}
 	}
-
-	// Total change vs net contributed capital — the headline "how much up/down".
-	let totalPct = $derived.by(() => {
-		const s = summary.data;
-		if (!s) return null;
-		const base = toNum(s.contributed_capital);
-		const pnl = toNum(s.total_pnl);
-		if (base === null || pnl === null || base === 0) return null;
-		return (pnl / base) * 100;
-	});
 
 	// Per-holding figures: what was spent (qty × avg cost) vs current value
 	// (qty × live price, falling back to last stored price).
@@ -129,6 +109,26 @@
 		return { invested, value: hasValue ? value : null, pnl: g, pct };
 	});
 
+	// Headline return: total P&L over net contributed capital.
+	let totalPct = $derived.by(() => {
+		const s = summary.data;
+		if (!s) return null;
+		const base = toNum(s.contributed_capital);
+		const pnl = toNum(s.total_pnl);
+		if (base === null || pnl === null || base === 0) return null;
+		return (pnl / base) * 100;
+	});
+
+	// Performance metrics, rendered in a stable returns/risk/trades order.
+	function metricRows(group: Record<string, number> | undefined): [string, number][] {
+		if (!group) return [];
+		return Object.entries(group);
+	}
+	function fmtMetric(key: string, value: number): string {
+		if (percentMetrics.has(key)) return percent(value * 100, signedMetrics.has(key));
+		return num(value, 2);
+	}
+
 	// Manual pipeline trigger (the daily run, on demand).
 	let running = $state(false);
 	let refreshing = $state(false);
@@ -142,6 +142,7 @@
 		void summary.refresh();
 		void nav.refresh();
 		void signals.refresh();
+		void performance.refresh();
 		void positions.refresh();
 		void quotes.refresh();
 	}
@@ -162,7 +163,7 @@
 			const r = await systemApi.run();
 			runMsg = r.detail;
 		} catch (e) {
-			runMsg = e instanceof Error ? e.message : 'Could not start the run.';
+			runMsg = e instanceof Error ? e.message : t('action.runFailed');
 			running = false;
 			return;
 		}
@@ -200,44 +201,34 @@
 </script>
 
 <div class="page-head">
-	<h1 class="page-title">Dashboard</h1>
+	<h1 class="page-title">{t('home.title')}</h1>
 	<div class="run">
 		<button class="run-btn" onclick={runNow} disabled={running || refreshing}>
-			{running ? 'Starting…' : refreshing ? 'Actualizando…' : 'Run now'}
+			{running ? t('action.starting') : refreshing ? t('action.refreshing') : t('action.runNow')}
 		</button>
 		{#if runMsg}<span class="run-msg">{runMsg}</span>{/if}
 	</div>
 </div>
 
-<section class="hero">
-	<div class="hero-block">
-		<span class="hero-label">Capital aportado</span>
-		<span class="hero-sub">{summary.data ? money(summary.data.contributed_capital) : '—'}</span>
-	</div>
-	<div class="hero-block">
-		<span class="hero-label">Current value {#if liveTotal !== null}<span class="live-dot" title="Precios en vivo (cada 60s)">● en vivo</span>{/if}</span>
-		<span class="hero-value">{liveTotal !== null ? money(liveTotal) : summary.data ? money(summary.data.total) : '—'}</span>
-		{#if liveInvested !== null && liveCash !== null}
-			<span class="hero-split">Cash {money(liveCash)} · Invertido {money(liveInvested)}</span>
-		{:else if summary.data}
-			<span class="hero-split">Cash {money(summary.data.cash)} · Invertido {money(summary.data.equity)}</span>
-		{/if}
-	</div>
-	<div class="hero-block">
-		<span class="hero-label">Change</span>
-		<PriceChange
-			value={liveChange.val ?? (summary.data ? toNum(summary.data.total_pnl) : null)}
-			pct={liveChange.pct ?? totalPct}
-			size="lg"
-		/>
-	</div>
+<section class="cards">
+	<MetricCard label="NAV" value={summary.data ? money(summary.data.total) : '—'} emphasis />
+	<MetricCard label={t('home.metric.cash')} value={summary.data ? money(summary.data.cash) : '—'} />
+	<MetricCard label={t('home.metric.positionsValue')} value={summary.data ? money(summary.data.equity) : '—'} />
+	<MetricCard
+		label={t('home.metric.totalPnl')}
+		value={summary.data ? money(summary.data.total_pnl, true) : '—'}
+		deltaClass={summary.data ? ((toNum(summary.data.total_pnl) ?? 0) >= 0 ? 'gain' : 'loss') : 'flat'}
+	/>
+	<MetricCard
+		label={t('home.metric.return')}
+		value={totalPct !== null ? percent(totalPct) : '—'}
+		deltaClass={summary.data ? ((toNum(summary.data.total_pnl) ?? 0) >= 0 ? 'gain' : 'loss') : 'flat'}
+	/>
 </section>
 
 <Card
-	title={selectedSymbol ? `${selectedSymbol} · precio` : 'Value over time'}
-	caption={selectedSymbol
-		? 'Evolución del precio de tu inversión'
-		: 'Portfolio value vs SPY benchmark · last 90 days'}
+	title={selectedSymbol ? t('home.chart.priceTitle', { symbol: selectedSymbol }) : t('home.chart.navTitle')}
+	caption={selectedSymbol ? t('home.chart.priceCaption') : t('home.chart.navCaption')}
 	span="full"
 >
 	{#snippet actions()}
@@ -247,18 +238,25 @@
 				value={selRange}
 				onChange={(v) => (selRange = v as BarsRange)}
 			/>
-			<a class="preset" href={`/market/${selectedSymbol}`}>Detalle</a>
-			<button type="button" class="preset" onclick={() => (selectedSymbol = null)}>← Cartera</button>
+			<a class="preset" href={`/market/${selectedSymbol}`}>{t('home.chart.detail')}</a>
+			<button type="button" class="preset" onclick={() => (selectedSymbol = null)}>{t('home.chart.backToPortfolio')}</button>
+		{:else}
+			<RangeSelector
+				options={navRanges}
+				value={navRange}
+				labels={{ all: t('common.all') }}
+				onChange={(v) => (navRange = v as NavRange)}
+			/>
 		{/if}
 	{/snippet}
 	{#if selectedSymbol}
-		<Region resource={selBars} isEmpty={(d) => d.length === 0} emptyMessage="No price data for this symbol.">
+		<Region resource={selBars} isEmpty={(d) => d.length === 0} emptyMessage={t('symbol.noPriceData')}>
 			{#snippet children(d)}
 				<CandlestickChart bars={d} />
 			{/snippet}
 		</Region>
 	{:else}
-		<Region resource={nav} isEmpty={(d) => d.length === 0} emptyMessage="No history yet — run the pipeline to take the first NAV snapshot.">
+		<Region resource={nav} isEmpty={(d) => d.length === 0} emptyMessage={t('home.navEmpty')}>
 			{#snippet children(d)}
 				<NavChart series={d} height={320} />
 			{/snippet}
@@ -266,22 +264,18 @@
 	{/if}
 </Card>
 
-<Card
-	title="Mis inversiones"
-	caption="Lo que tienes comprado, lo invertido en cada uno y su valor actual"
-	span="full"
->
-	<Region resource={positions} isEmpty={(d) => d.length === 0} emptyMessage="Todavía no tienes inversiones — pulsa «Run now» para que el sistema empiece a invertir.">
+<Card title={t('home.positions.title')} caption={t('home.positions.caption')} span="full">
+	<Region resource={positions} isEmpty={(d) => d.length === 0} emptyMessage={t('home.positions.empty')}>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Símbolo</th>
-							<th class="num">Cantidad</th>
-							<th class="num">Invertido</th>
-							<th class="num">Valor actual</th>
-							<th class="num">Ganancia / Pérdida</th>
+							<th>{t('home.positions.symbol')}</th>
+							<th class="num">{t('home.positions.qty')}</th>
+							<th class="num">{t('home.positions.invested')}</th>
+							<th class="num">{t('home.positions.value')}</th>
+							<th class="num">{t('home.positions.pnl')}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -292,7 +286,7 @@
 								tabindex="0"
 								onclick={() => selectInvestment(p.symbol)}
 								onkeydown={(e) => onRowKey(e, p.symbol)}
-								title="Ver evolución del precio"
+								title={t('home.positions.rowHint')}
 							>
 								<td class="sym">{p.symbol}</td>
 								<td class="num">{qty(p.qty)}</td>
@@ -304,7 +298,7 @@
 					</tbody>
 					<tfoot>
 						<tr class="total-row">
-							<td>Total</td>
+							<td>{t('home.positions.total')}</td>
 							<td class="num"></td>
 							<td class="num">{money(totals.invested)}</td>
 							<td class="num">{money(totals.value)}</td>
@@ -313,21 +307,21 @@
 					</tfoot>
 				</table>
 			</div>
-			<p class="hint">Pulsa una fila para ver la evolución del precio de esa inversión.</p>
+			<p class="hint">{t('home.positions.hint')}</p>
 		{/snippet}
 	</Region>
 </Card>
 
-<Card title="Today's Top Signals" caption="Highest-scoring buy candidates">
-	<Region resource={signals} isEmpty={(d) => topBuys(d).length === 0} emptyMessage="No buy signals today.">
+<Card title={t('home.signals.title')} caption={t('home.signals.caption')}>
+	<Region resource={signals} isEmpty={(d) => topBuys(d).length === 0} emptyMessage={t('home.signals.empty')}>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Symbol</th>
-							<th>Action</th>
-							<th class="num">Score</th>
+							<th>{t('home.signals.symbol')}</th>
+							<th>{t('home.signals.action')}</th>
+							<th class="num">{t('home.signals.score')}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -346,6 +340,33 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+		{/snippet}
+	</Region>
+</Card>
+
+<Card title={t('home.perf.title')} caption={t('home.perf.caption')} span="full">
+	<Region
+		resource={performance}
+		isEmpty={(m) =>
+			metricRows(m.returns).length === 0 &&
+			metricRows(m.risk).length === 0 &&
+			metricRows(m.trades).length === 0}
+		emptyMessage={t('home.perf.empty')}
+	>
+		{#snippet children(m)}
+			<div class="metric-groups">
+				{#each [['home.perf.group.returns', m.returns], ['home.perf.group.risk', m.risk], ['home.perf.group.trades', m.trades]] as [groupKey, group] (groupKey)}
+					<div class="metric-group">
+						<h3>{t(groupKey as string)}</h3>
+						<dl>
+							{#each metricRows(group as Record<string, number>) as [key, value] (key)}
+								<dt title={metricTooltips[key] ?? ''}>{t(`metric.${key}`)}</dt>
+								<dd class={band(key, value)}>{fmtMetric(key, value)}</dd>
+							{/each}
+						</dl>
+					</div>
+				{/each}
 			</div>
 		{/snippet}
 	</Region>
@@ -391,53 +412,11 @@
 	:global(.card) {
 		margin-bottom: var(--space-4);
 	}
-	.hero {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: var(--space-6);
-		background: var(--color-bg-2);
-		border: 1px solid var(--color-bg-4);
-		border-radius: var(--radius-lg);
-		padding: var(--space-5);
+	.cards {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		gap: var(--space-4);
 		margin-bottom: var(--space-4);
-	}
-	.hero-block {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-	}
-	.hero-label {
-		font-size: var(--text-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--color-text-2);
-	}
-	.hero-value {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--text-2xl);
-		font-weight: var(--weight-semibold);
-		color: var(--color-text-0);
-	}
-	.hero-sub {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--text-lg);
-		color: var(--color-text-1);
-	}
-	.hero-split {
-		font-family: var(--font-mono);
-		font-variant-numeric: tabular-nums;
-		font-size: var(--text-sm);
-		color: var(--color-text-2);
-		margin-top: var(--space-1);
-	}
-	.live-dot {
-		text-transform: none;
-		letter-spacing: 0;
-		color: var(--color-up, #34d399);
-		margin-left: var(--space-2);
 	}
 	.preset {
 		background: var(--color-bg-1);
@@ -461,5 +440,55 @@
 		border-top: 1px solid var(--color-bg-4);
 		font-weight: var(--weight-semibold);
 		color: var(--color-text-0);
+	}
+	.metric-groups {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--space-6);
+	}
+	.metric-group h3 {
+		font-size: var(--text-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-2);
+		margin-bottom: var(--space-3);
+	}
+	dl {
+		display: grid;
+		grid-template-columns: 1fr max-content;
+		gap: var(--space-2) var(--space-4);
+	}
+	dt {
+		color: var(--color-text-1);
+		font-size: var(--text-sm);
+	}
+	dd {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--text-sm);
+		text-align: right;
+		color: var(--color-text-0);
+	}
+	dd.gain {
+		color: var(--color-gain);
+	}
+	dd.loss {
+		color: var(--color-loss);
+	}
+	dd.warn {
+		color: var(--color-warn);
+	}
+	@media (max-width: 1100px) {
+		.cards {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+	@media (max-width: 900px) {
+		.cards {
+			grid-template-columns: repeat(2, 1fr);
+		}
+		.metric-groups {
+			grid-template-columns: 1fr;
+		}
 	}
 </style>

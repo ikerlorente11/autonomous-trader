@@ -1,4 +1,10 @@
 // Formatting helpers. API money/metric values are strings; parse defensively.
+import { getLocale, t } from '$lib/i18n';
+
+// Numbers/money keep a fixed format on purpose; only textual date/time output is localized.
+function dateLocale(): string {
+	return getLocale() === 'es' ? 'es-ES' : 'en-US';
+}
 
 export function toNum(v: string | number | null | undefined): number | null {
 	if (v === null || v === undefined || v === '') return null;
@@ -54,14 +60,14 @@ export function formatDate(iso: string | null | undefined): string {
 	if (!iso) return '—';
 	const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
 	if (Number.isNaN(d.getTime())) return iso;
-	return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+	return d.toLocaleDateString(dateLocale(), { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
 	if (!iso) return '—';
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return iso;
-	return d.toLocaleString('en-US', {
+	return d.toLocaleString(dateLocale(), {
 		month: 'short',
 		day: '2-digit',
 		hour: '2-digit',
@@ -71,15 +77,15 @@ export function formatDateTime(iso: string | null | undefined): string {
 }
 
 export function relativeFromNow(iso: string | null | undefined): string {
-	if (!iso) return 'never';
+	if (!iso) return t('common.never');
 	const then = new Date(iso).getTime();
 	if (Number.isNaN(then)) return '—';
 	const diffSec = Math.max(0, Math.round((Date.now() - then) / 1000));
-	if (diffSec < 60) return `${diffSec}s ago`;
+	if (diffSec < 60) return t('time.secondsAgo', { n: diffSec });
 	const min = Math.round(diffSec / 60);
-	if (min < 60) return `${min}m ago`;
+	if (min < 60) return t('time.minutesAgo', { n: min });
 	const hr = Math.round(min / 60);
-	if (hr < 24) return `${hr}h ago`;
+	if (hr < 24) return t('time.hoursAgo', { n: hr });
 	const day = Math.round(hr / 24);
-	return `${day}d ago`;
+	return t('time.daysAgo', { n: day });
 }

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { t } from '$lib/i18n';
+
 	interface Props {
 		message?: string;
 		code?: string;
@@ -15,7 +17,7 @@
 		{#if code}<p class="code">{code}</p>{/if}
 	</div>
 	{#if onRetry}
-		<button class="retry" onclick={onRetry}>Retry</button>
+		<button class="retry" onclick={onRetry}>{t('common.retry')}</button>
 	{/if}
 </div>
 
