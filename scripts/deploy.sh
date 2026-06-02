@@ -24,7 +24,12 @@ APP_DIR="${APP_DIR:-/home/raspberry/projects/autonomous-trader}"
 # Reproduce EXACTLY how the live stack was launched: from the docker/ dir with both
 # compose files, which yields compose project name "docker" (matches the running
 # containers). Running compose from anywhere else would spawn a duplicate stack.
-dc() { ( cd "$APP_DIR/docker" && docker compose -f docker-compose.yml -f docker-compose.dev.yml "$@" ); }
+#
+# --env-file ../.env is REQUIRED: compose interpolates ${API_PORT}/${FRONTEND_PORT} in
+# the `ports:` blocks from its own env file (looked up in the project dir, docker/), NOT
+# from the services' `env_file: ../.env` (that only sets in-container vars). Without it
+# both api and frontend fall back to the 8030 default and collide on the host port.
+dc() { ( cd "$APP_DIR/docker" && docker compose --env-file ../.env -f docker-compose.yml -f docker-compose.dev.yml "$@" ); }
 
 cd "$APP_DIR"
 
