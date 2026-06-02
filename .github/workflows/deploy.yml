@@ -1,0 +1,24 @@
+name: Deploy to Pi on master
+
+# Push or merge to main -> the self-hosted runner ON the Pi pulls and redeploys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # also allow a manual run from the Actions tab
+
+# Never let two deploys overlap; queue them instead of cancelling an in-flight one.
+concurrency:
+  group: deploy-pi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Targets the runner installed on the Pi (label set during `config.sh --labels`).
+    runs-on: [self-hosted, autonomous-trader]
+    steps:
+      # No actions/checkout on purpose: the live deploy dir (with the bind-mounts the
+      # containers serve) is the source of truth, and deploy.sh fast-forwards it itself.
+      - name: Pull master and redeploy
+        env:
+          APP_DIR: /home/raspberry/projects/autonomous-trader
+        run: "$APP_DIR/scripts/deploy.sh"
