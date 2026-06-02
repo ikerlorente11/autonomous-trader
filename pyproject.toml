@@ -1,0 +1,29 @@
+# Tooling config only (test + lint). The project ships no build metadata here;
+# runtime deps live in backend/requirements*.txt and the Dockerfile.
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["frontend", ".venv-test", "backend/db/migrations/versions"]
+
+[tool.ruff.lint]
+# E/F/W are correctness-leaning; I keeps imports sorted; the new test suite is held
+# to the full set. The repo-wide selection is the subset the existing application
+# code already satisfies, so CI is a forward gate (new code cannot regress these)
+# without rewriting code outside this change's scope.
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pre-existing, reported in the test-suite handoff — not fixed here because this
+# change is scoped to tests/CI and must not touch application code.
+"backend/data_ingestion/providers/twelve_data_provider.py" = ["F401"]
+"backend/api/routers/portfolio.py" = ["I001"]
+"backend/api/routers/portfolios.py" = ["I001"]
+"backend/db/migrations/env.py" = ["I001"]
