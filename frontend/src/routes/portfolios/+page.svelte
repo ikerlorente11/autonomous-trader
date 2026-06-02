@@ -3,6 +3,7 @@
 	import { getActivePortfolioId, setActivePortfolioId } from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { formatDate } from '$lib/utils/format';
+	import { t } from '$lib/i18n';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -17,7 +18,7 @@
 	let msg = $state<string | null>(null);
 
 	function fail(e: unknown): void {
-		msg = e instanceof Error ? e.message : 'Action failed.';
+		msg = e instanceof Error ? e.message : t('common.actionFailed');
 	}
 
 	async function create() {
@@ -39,7 +40,7 @@
 	}
 
 	async function rename(id: number, current: string) {
-		const name = prompt('New portfolio name', current);
+		const name = prompt(t('portfolios.prompt.rename'), current);
 		if (!name || !name.trim()) return;
 		busy = true;
 		msg = null;
@@ -54,8 +55,7 @@
 	}
 
 	async function remove(id: number, name: string) {
-		if (!confirm(`Delete "${name}" and all its trades, positions and history? This cannot be undone.`))
-			return;
+		if (!confirm(t('portfolios.prompt.delete', { name }))) return;
 		busy = true;
 		msg = null;
 		try {
@@ -69,11 +69,11 @@
 	}
 
 	async function move(id: number, kind: 'deposit' | 'withdraw') {
-		const raw = prompt(`${kind === 'deposit' ? 'Deposit' : 'Withdraw'} amount (EUR)`);
+		const raw = prompt(t(kind === 'deposit' ? 'portfolios.prompt.deposit' : 'portfolios.prompt.withdraw'));
 		if (raw === null) return;
 		const amount = Number(raw);
 		if (!Number.isFinite(amount) || amount <= 0) {
-			msg = 'Amount must be a positive number.';
+			msg = t('portfolios.error.amount');
 			return;
 		}
 		busy = true;
@@ -90,28 +90,28 @@
 	}
 </script>
 
-<h1 class="page-title">Portfolios</h1>
+<h1 class="page-title">{t('portfolios.title')}</h1>
 
-<Card title="New portfolio" caption="Create a portfolio with an initial budget (editable later)">
+<Card title={t('portfolios.new.title')} caption={t('portfolios.new.caption')}>
 	<form class="new" onsubmit={(e) => { e.preventDefault(); void create(); }}>
-		<input class="in" bind:value={newName} placeholder="Name (e.g. Cartera 5000)" />
-		<input class="in" bind:value={newDeposit} type="number" min="0" step="any" placeholder="Initial budget €" />
-		<button class="btn" type="submit" disabled={busy}>Create</button>
+		<input class="in" bind:value={newName} placeholder={t('portfolios.new.namePlaceholder')} />
+		<input class="in" bind:value={newDeposit} type="number" min="0" step="any" placeholder={t('portfolios.new.depositPlaceholder')} />
+		<button class="btn" type="submit" disabled={busy}>{t('portfolios.new.create')}</button>
 	</form>
 </Card>
 
 {#if msg}<p class="msg">{msg}</p>{/if}
 
-<Card title="Your portfolios" caption="Switch, fund, rename or delete" span="full">
-	<Region resource={portfolios} isEmpty={(d) => d.length === 0} emptyMessage="No portfolios yet.">
+<Card title={t('portfolios.list.title')} caption={t('portfolios.list.caption')} span="full">
+	<Region resource={portfolios} isEmpty={(d) => d.length === 0} emptyMessage={t('portfolios.list.empty')}>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Name</th>
-							<th>Created</th>
-							<th>State</th>
+							<th>{t('portfolios.col.name')}</th>
+							<th>{t('portfolios.col.created')}</th>
+							<th>{t('portfolios.col.state')}</th>
 							<th></th>
 						</tr>
 					</thead>
@@ -125,12 +125,12 @@
 								</td>
 								<td class="actions">
 									{#if p.id !== activeId}
-										<button class="link" onclick={() => setActivePortfolioId(p.id)}>Select</button>
+										<button class="link" onclick={() => setActivePortfolioId(p.id)}>{t('portfolios.action.select')}</button>
 									{/if}
-									<button class="link" disabled={busy} onclick={() => move(p.id, 'deposit')}>Deposit</button>
-									<button class="link" disabled={busy} onclick={() => move(p.id, 'withdraw')}>Withdraw</button>
-									<button class="link" disabled={busy} onclick={() => rename(p.id, p.name)}>Rename</button>
-									<button class="link danger" disabled={busy} onclick={() => remove(p.id, p.name)}>Delete</button>
+									<button class="link" disabled={busy} onclick={() => move(p.id, 'deposit')}>{t('portfolios.action.deposit')}</button>
+									<button class="link" disabled={busy} onclick={() => move(p.id, 'withdraw')}>{t('portfolios.action.withdraw')}</button>
+									<button class="link" disabled={busy} onclick={() => rename(p.id, p.name)}>{t('portfolios.action.rename')}</button>
+									<button class="link danger" disabled={busy} onclick={() => remove(p.id, p.name)}>{t('portfolios.action.delete')}</button>
 								</td>
 							</tr>
 						{/each}

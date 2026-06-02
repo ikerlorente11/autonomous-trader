@@ -2,6 +2,7 @@
 	import { algorithmsApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { formatDate } from '$lib/utils/format';
+	import { t } from '$lib/i18n';
 	import type { ExperimentEntry } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -28,26 +29,26 @@
 	}
 </script>
 
-<h1 class="page-title">Experiments</h1>
+<h1 class="page-title">{t('experiments.title')}</h1>
 
-<Card title="Strategy Runs" caption="Select up to two runs to compare configurations" span="full">
+<Card title={t('experiments.runs.title')} caption={t('experiments.runs.caption')} span="full">
 	<Region
 		resource={experiments}
 		isEmpty={(d) => d.length === 0}
 		notReadyOn404
-		notReadyMessage="Experiment tracking is not wired yet."
-		emptyMessage="No experiment runs recorded yet."
+		notReadyMessage={t('experiments.runs.notReady')}
+		emptyMessage={t('experiments.runs.empty')}
 	>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Compare</th>
-							<th>Strategy Version</th>
-							<th>Started</th>
-							<th>Ended</th>
-							<th>Notes</th>
+							<th>{t('experiments.col.compare')}</th>
+							<th>{t('experiments.col.version')}</th>
+							<th>{t('experiments.col.started')}</th>
+							<th>{t('experiments.col.ended')}</th>
+							<th>{t('experiments.col.notes')}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -59,12 +60,12 @@
 										checked={selected.has(e.id)}
 										disabled={!selected.has(e.id) && selected.size >= 2}
 										onchange={() => toggle(e.id)}
-										aria-label={`Compare ${e.strategy_version}`}
+										aria-label={t('experiments.compareAria', { version: e.strategy_version })}
 									/>
 								</td>
 								<td class="sym">{e.strategy_version}</td>
 								<td>{formatDate(e.started_at)}</td>
-								<td>{e.ended_at ? formatDate(e.ended_at) : 'active'}</td>
+								<td>{e.ended_at ? formatDate(e.ended_at) : t('common.active')}</td>
 								<td class="notes">{e.notes ?? '—'}</td>
 							</tr>
 						{/each}
@@ -76,16 +77,16 @@
 </Card>
 
 {#if experiments.data && selected.size > 0}
-	<Card title="Comparison" caption="Side-by-side run configuration" span="full">
+	<Card title={t('experiments.compare.title')} caption={t('experiments.compare.caption')} span="full">
 		<div class="compare">
 			{#each chosen(experiments.data) as e (e.id)}
 				<div class="compare-col">
 					<h3>{e.strategy_version}</h3>
 					<dl>
-						<dt>Started</dt>
+						<dt>{t('experiments.compare.started')}</dt>
 						<dd>{formatDate(e.started_at)}</dd>
-						<dt>Ended</dt>
-						<dd>{e.ended_at ? formatDate(e.ended_at) : 'active'}</dd>
+						<dt>{t('experiments.compare.ended')}</dt>
+						<dd>{e.ended_at ? formatDate(e.ended_at) : t('common.active')}</dd>
 						{#each configEntries(e.config) as [k, v] (k)}
 							<dt>{k}</dt>
 							<dd>{v}</dd>
@@ -94,10 +95,7 @@
 				</div>
 			{/each}
 		</div>
-		<p class="note">
-			Performance comparison (returns, Sharpe, drawdown per version) requires the Experiment
-			Tracker metrics surface, which is not yet exposed by the API.
-		</p>
+		<p class="note">{t('experiments.compare.note')}</p>
 	</Card>
 {/if}
 

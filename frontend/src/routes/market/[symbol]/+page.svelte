@@ -3,6 +3,7 @@
 	import { marketApi, tradesApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { changeClass, formatDate, money, num, qty } from '$lib/utils/format';
+	import { t } from '$lib/i18n';
 	import type { BarsRange } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -46,7 +47,7 @@
 </script>
 
 <div class="head">
-	<a class="back" href="/market">← Watchlist</a>
+	<a class="back" href="/market">{t('symbol.backToWatchlist')}</a>
 	<h1 class="page-title">{symbol}</h1>
 	{#if entry?.sector}<span class="sector">{entry.sector}</span>{/if}
 	{#if lastClose}<span class="last">{money(lastClose)}</span>{/if}
@@ -63,7 +64,7 @@
 			onChange={(v) => (barsRange = v as BarsRange)}
 		/>
 	{/snippet}
-	<Region resource={bars} isEmpty={(d) => d.length === 0} emptyMessage="No price data for this symbol.">
+	<Region resource={bars} isEmpty={(d) => d.length === 0} emptyMessage={t('symbol.noPriceData')}>
 		{#snippet children(d)}
 			<CandlestickChart bars={d} {showMA} />
 			<div class="vol"><VolumeChart bars={d} /></div>
@@ -72,51 +73,51 @@
 </Card>
 
 <div class="grid-2">
-	<Card title="Signal" caption="Latest composite score from the watchlist">
+	<Card title={t('symbol.signal.title')} caption={t('symbol.signal.caption')}>
 		<Region resource={watchlist}>
 			{#snippet children(_)}
 				{#if entry}
 					<div class="composite">
-						<MetricCard label="Composite Score" value={num(entry.score, 1)} />
+						<MetricCard label={t('symbol.compositeScore')} value={num(entry.score, 1)} />
 					</div>
 					<div class="sig-row">
-						<span class="sig-label">Action</span>
+						<span class="sig-label">{t('symbol.action')}</span>
 						{#if entry.action}<StatusBadge status={entry.action} />{:else}<span>—</span>{/if}
 					</div>
 					<div class="sig-row">
-						<span class="sig-label">Score</span>
+						<span class="sig-label">{t('symbol.score')}</span>
 						<SignalScore score={entry.score} width="160px" />
 					</div>
-					{#if entry.ts}<p class="as-of">As of {formatDate(entry.ts)}</p>{/if}
+					{#if entry.ts}<p class="as-of">{t('symbol.asOf', { date: formatDate(entry.ts) })}</p>{/if}
 				{:else}
-					<p class="as-of">{symbol} is not on the active watchlist.</p>
+					<p class="as-of">{t('symbol.notInWatchlist', { symbol })}</p>
 				{/if}
 			{/snippet}
 		</Region>
 	</Card>
 
-	<Card title="Recent Trades" caption={`${symbol} only`}>
-		<Region resource={trades} isEmpty={(d) => d.length === 0} emptyMessage="No trades for this symbol.">
+	<Card title={t('symbol.recentTrades.title')} caption={t('symbol.recentTrades.caption', { symbol })}>
+		<Region resource={trades} isEmpty={(d) => d.length === 0} emptyMessage={t('symbol.recentTrades.empty')}>
 			{#snippet children(d)}
 				<div class="tbl-wrap">
 					<table class="tbl">
 						<thead>
 							<tr>
-								<th>Date</th>
-								<th>Side</th>
-								<th class="num">Qty</th>
-								<th class="num">Price</th>
-								<th>Status</th>
+								<th>{t('symbol.col.date')}</th>
+								<th>{t('symbol.col.side')}</th>
+								<th class="num">{t('symbol.col.qty')}</th>
+								<th class="num">{t('symbol.col.price')}</th>
+								<th>{t('symbol.col.status')}</th>
 							</tr>
 						</thead>
 						<tbody>
-							{#each d as t (t.id)}
+							{#each d as tr (tr.id)}
 								<tr>
-									<td>{formatDate(t.ts)}</td>
-									<td class={changeClass(t.side === 'buy' ? 1 : -1)}>{t.side.toUpperCase()}</td>
-									<td class="num">{qty(t.qty)}</td>
-									<td class="num">{money(t.price)}</td>
-									<td><StatusBadge status={t.status} /></td>
+									<td>{formatDate(tr.ts)}</td>
+									<td class={changeClass(tr.side === 'buy' ? 1 : -1)}>{tr.side.toUpperCase()}</td>
+									<td class="num">{qty(tr.qty)}</td>
+									<td class="num">{money(tr.price)}</td>
+									<td><StatusBadge status={tr.status} /></td>
 								</tr>
 							{/each}
 						</tbody>

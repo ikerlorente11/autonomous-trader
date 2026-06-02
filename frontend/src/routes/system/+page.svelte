@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { systemStatus, healthLevel } from '$lib/stores/systemStatus.svelte';
 	import { formatDateTime, relativeFromNow } from '$lib/utils/format';
+	import { t } from '$lib/i18n';
 	import type { JobStatus } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -12,13 +13,6 @@
 	let s = $derived(systemStatus.value);
 	let level = $derived(healthLevel(s));
 
-	const levelLabel: Record<string, string> = {
-		ok: 'OK',
-		degraded: 'DEGRADED',
-		broken: 'BROKEN',
-		unknown: 'UNKNOWN'
-	};
-
 	function jobLabel(j: JobStatus): string {
 		return j.job.replace(/_/g, ' ');
 	}
@@ -28,35 +22,35 @@
 	}
 </script>
 
-<h1 class="page-title">System</h1>
+<h1 class="page-title">{t('system.title')}</h1>
 
 {#if !systemStatus.available}
 	<ErrorState
-		message="System status is unavailable. The /api/system/status endpoint did not respond."
+		message={t('system.unavailable')}
 		code="SYSTEM_OFFLINE"
 		onRetry={systemStatus.refresh}
 	/>
 {:else if !s}
-	<EmptyState message="Loading system status…" icon="⏳" />
+	<EmptyState message={t('system.loading')} icon="⏳" />
 {:else}
 	<section class="rollup status-{level}">
 		<div>
-			<span class="rollup-label">Simulation Health</span>
-			<span class="rollup-value">{levelLabel[level]}</span>
+			<span class="rollup-label">{t('system.health')}</span>
+			<span class="rollup-value">{t(`system.level.${level}`)}</span>
 		</div>
-		<span class="server-time">Server time {formatDateTime(s.server_time)}</span>
+		<span class="server-time">{t('system.serverTime', { time: formatDateTime(s.server_time) })}</span>
 	</section>
 
-	<Card title="Daily Jobs" caption="Scheduler status per job" span="full">
+	<Card title={t('system.jobs.title')} caption={t('system.jobs.caption')} span="full">
 		<div class="tbl-wrap">
 			<table class="tbl">
 				<thead>
 					<tr>
-						<th>Job</th>
-						<th>Status</th>
-						<th>Last Run</th>
-						<th class="num">Duration</th>
-						<th>Next Run</th>
+						<th>{t('system.col.job')}</th>
+						<th>{t('system.col.status')}</th>
+						<th>{t('system.col.lastRun')}</th>
+						<th class="num">{t('system.col.duration')}</th>
+						<th>{t('system.col.nextRun')}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -68,7 +62,7 @@
 								{#if j.last_run_at}
 									{formatDateTime(j.last_run_at)}
 									<span class="rel">({relativeFromNow(j.last_run_at)})</span>
-								{:else}never{/if}
+								{:else}{t('common.never')}{/if}
 							</td>
 							<td class="num">{durMs(j.duration_ms)}</td>
 							<td>{j.next_run_at ? formatDateTime(j.next_run_at) : '—'}</td>
@@ -79,9 +73,9 @@
 		</div>
 	</Card>
 
-	<Card title="Recent Errors" caption="Failed or degraded job runs" span="full">
+	<Card title={t('system.errors.title')} caption={t('system.errors.caption')} span="full">
 		{#if s.recent_errors.length === 0}
-			<EmptyState message="No recent errors. All jobs healthy." icon="✓" />
+			<EmptyState message={t('system.errors.empty')} icon="✓" />
 		{:else}
 			<ul class="errors">
 				{#each s.recent_errors as e (`${e.job}:${e.last_run_at ?? ''}`)}
@@ -98,10 +92,7 @@
 		{/if}
 	</Card>
 
-	<p class="note">
-		Data-freshness per symbol (last bar timestamp) and NAV-continuity checks are not yet exposed by
-		the API; this page reflects what /api/system/status currently returns.
-	</p>
+	<p class="note">{t('system.note')}</p>
 {/if}
 
 <style>

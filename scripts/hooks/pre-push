@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
-# Pre-push guard: run the fast, DB-free suites (unit + regression) before any push.
+# Pre-push guard:
+#   1) Block direct pushes to the protected branch (main) — changes must go via PR.
+#   2) Run the fast, DB-free suites (unit + regression) before any push.
 # Install with `make install-hooks`. The full DB-backed suite runs via `make test`.
+# Note: local-only guardrail; `git push --no-verify` bypasses it. Real enforcement
+# needs server-side branch protection (e.g. GitHub branch protection rules / required checks).
 set -euo pipefail
+
+PROTECTED_BRANCH="main"
+
+# stdin lines: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	if [ "$remote_ref" = "refs/heads/$PROTECTED_BRANCH" ]; then
+		echo "pre-push: direct pushes to '$PROTECTED_BRANCH' are blocked." >&2
+		echo "          Create a branch and open a Pull Request instead." >&2
+		exit 1
+	fi
+done
 
 echo "pre-push: running unit + regression tests..."
 exec "$(git rev-parse --show-toplevel)/scripts/test.sh" "unit or regression"

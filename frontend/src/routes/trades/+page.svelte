@@ -2,6 +2,7 @@
 	import { tradesApi, type TradeFilters } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { changeClass, formatDateTime, money, qty } from '$lib/utils/format';
+	import { t } from '$lib/i18n';
 	import type { TradeRecord } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
@@ -52,81 +53,81 @@
 	}
 </script>
 
-<h1 class="page-title">Trades</h1>
+<h1 class="page-title">{t('trades.title')}</h1>
 
-<Card title="Filters" span="full">
+<Card title={t('trades.filters.title')} span="full">
 	<form class="filters" onsubmit={(e) => { e.preventDefault(); apply(); }}>
 		<label>
-			<span>Symbol</span>
-			<input bind:value={symbolInput} placeholder="e.g. AAPL" />
+			<span>{t('trades.filters.symbol')}</span>
+			<input bind:value={symbolInput} placeholder={t('trades.filters.symbolPlaceholder')} />
 		</label>
 		<label>
-			<span>From</span>
+			<span>{t('trades.filters.from')}</span>
 			<input type="date" bind:value={startInput} />
 		</label>
 		<label>
-			<span>To</span>
+			<span>{t('trades.filters.to')}</span>
 			<input type="date" bind:value={endInput} />
 		</label>
 		<label>
-			<span>Side</span>
+			<span>{t('trades.filters.side')}</span>
 			<select bind:value={sideFilter}>
-				<option value="">All</option>
-				<option value="buy">Buy</option>
-				<option value="sell">Sell</option>
+				<option value="">{t('common.all')}</option>
+				<option value="buy">{t('trades.side.buy')}</option>
+				<option value="sell">{t('trades.side.sell')}</option>
 			</select>
 		</label>
 		<div class="filter-actions">
-			<button type="submit" class="btn primary">Apply</button>
-			<button type="button" class="btn" onclick={reset}>Reset</button>
+			<button type="submit" class="btn primary">{t('trades.filters.apply')}</button>
+			<button type="button" class="btn" onclick={reset}>{t('trades.filters.reset')}</button>
 		</div>
 	</form>
 </Card>
 
-<Card title="Trade Ledger" caption="Click a row to see the signal that triggered it" span="full">
-	<Region resource={trades} isEmpty={(d) => rows(d).length === 0} emptyMessage="No trades match these filters.">
+<Card title={t('trades.ledger.title')} caption={t('trades.ledger.caption')} span="full">
+	<Region resource={trades} isEmpty={(d) => rows(d).length === 0} emptyMessage={t('trades.ledger.empty')}>
 		{#snippet children(d)}
 			<div class="tbl-wrap">
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th>Timestamp</th>
-							<th>Symbol</th>
-							<th>Side</th>
-							<th class="num">Qty</th>
-							<th class="num">Price</th>
-							<th class="num">Total</th>
-							<th>Status</th>
-							<th>Strategy</th>
+							<th>{t('trades.col.timestamp')}</th>
+							<th>{t('trades.col.symbol')}</th>
+							<th>{t('trades.col.side')}</th>
+							<th class="num">{t('trades.col.qty')}</th>
+							<th class="num">{t('trades.col.price')}</th>
+							<th class="num">{t('trades.col.total')}</th>
+							<th>{t('trades.col.status')}</th>
+							<th>{t('trades.col.strategy')}</th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each rows(d) as t (t.id)}
+						{#each rows(d) as tr (tr.id)}
 							<tr
 								class="clickable"
 								role="button"
 								tabindex="0"
-								aria-expanded={expanded === t.id}
-								onclick={() => toggle(t.id)}
-								onkeydown={(e) => onRowKey(e, t.id)}
+								aria-expanded={expanded === tr.id}
+								onclick={() => toggle(tr.id)}
+								onkeydown={(e) => onRowKey(e, tr.id)}
 							>
-								<td>{formatDateTime(t.ts)}</td>
-								<td class="sym">{t.symbol}</td>
-								<td class={changeClass(t.side === 'buy' ? 1 : -1)}>{t.side.toUpperCase()}</td>
-								<td class="num">{qty(t.qty)}</td>
-								<td class="num">{money(t.price)}</td>
+								<td>{formatDateTime(tr.ts)}</td>
+								<td class="sym">{tr.symbol}</td>
+								<td class={changeClass(tr.side === 'buy' ? 1 : -1)}>{tr.side.toUpperCase()}</td>
+								<td class="num">{qty(tr.qty)}</td>
+								<td class="num">{money(tr.price)}</td>
 								<td class="num">
-									{#if t.price}{money(Number(t.qty) * Number(t.price))}{:else}—{/if}
+									{#if tr.price}{money(Number(tr.qty) * Number(tr.price))}{:else}—{/if}
 								</td>
-								<td><StatusBadge status={t.status} /></td>
-								<td class="strategy">{t.strategy_version ?? '—'}</td>
+								<td><StatusBadge status={tr.status} /></td>
+								<td class="strategy">{tr.strategy_version ?? '—'}</td>
 							</tr>
-							{#if expanded === t.id}
+							{#if expanded === tr.id}
 								<tr class="detail-row">
 									<td colspan="8">
 										<div class="detail">
-											<span class="detail-label">Order #{t.id} — triggering reason</span>
-											<p class="reason">{t.reason ?? 'No reason recorded for this order.'}</p>
+											<span class="detail-label">{t('trades.detail.label', { id: tr.id })}</span>
+											<p class="reason">{tr.reason ?? t('trades.detail.noReason')}</p>
 										</div>
 									</td>
 								</tr>

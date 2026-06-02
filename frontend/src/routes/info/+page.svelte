@@ -1,110 +1,88 @@
 <script lang="ts">
 	import Card from '$lib/components/Card.svelte';
+	import { t } from '$lib/i18n';
 
 	// Página estática (sin llamadas a la API). Describe lo que el sistema hace HOY,
 	// no el objetivo a futuro: análisis solo técnico, paper trading, sin dinero real.
-	const flow = [
-		{ step: '1', title: 'Datos', text: 'Precios diarios (OHLCV) de yfinance' },
-		{ step: '2', title: 'Indicadores', text: 'RSI · Tendencia · Volatilidad' },
-		{ step: '3', title: 'Score', text: 'Puntuación compuesta 0–100' },
-		{ step: '4', title: 'Ranking', text: 'Mejores candidatos de compra' },
-		{ step: '5', title: 'Tamaño', text: 'Según el presupuesto de la cartera' },
-		{ step: '6', title: 'Órdenes', text: 'Compra simulada (paper)' },
-		{ step: '7', title: 'NAV', text: 'Foto del valor de la cartera' }
-	];
+	// Copy with inline markup lives in the i18n dictionary and is rendered with {@html}.
+	const flowSteps = [1, 2, 3, 4, 5, 6, 7];
 </script>
 
-<h1 class="page-title">Cómo funciona</h1>
+<h1 class="page-title">{t('info.title')}</h1>
 
 <Card span="full">
-	<p class="lead">
-		Soy un sistema autónomo de <strong>paper trading</strong>: analizo el mercado cada día,
-		simulo inversiones en carteras virtuales y muestro el resultado en este panel.
-		<strong>No se mueve dinero real</strong> — es una simulación para probar la estrategia.
-	</p>
+	<p class="lead">{@html t('info.lead')}</p>
 </Card>
 
-<Card title="El recorrido de un día" caption="De los datos a la inversión, paso a paso" span="full">
+<Card title={t('info.flow.title')} caption={t('info.flow.caption')} span="full">
 	<div class="flow">
-		{#each flow as f, i (f.step)}
+		{#each flowSteps as step, i (step)}
 			<div class="node">
-				<span class="num">{f.step}</span>
-				<span class="node-title">{f.title}</span>
-				<span class="node-text">{f.text}</span>
+				<span class="num">{step}</span>
+				<span class="node-title">{t(`info.flow.${step}.title`)}</span>
+				<span class="node-text">{t(`info.flow.${step}.text`)}</span>
 			</div>
-			{#if i < flow.length - 1}<span class="arrow" aria-hidden="true">→</span>{/if}
+			{#if i < flowSteps.length - 1}<span class="arrow" aria-hidden="true">→</span>{/if}
 		{/each}
 	</div>
 </Card>
 
-<Card title="1 · De dónde saco la información" span="full">
+<Card title={t('info.s1.title')} span="full">
 	<ul class="list">
-		<li><strong>Precios de mercado (OHLCV diario):</strong> apertura, máximo, mínimo, cierre y volumen, vía <code>yfinance</code> (gratis, sin clave). Si falla, hay un proveedor de respaldo (<code>Twelve Data</code>).</li>
-		<li><strong>Qué activos miro:</strong> solo los símbolos de tu <strong>watchlist</strong>, que defines tú en la página <a href="/market">Market</a>. Sin símbolos, no hago nada.</li>
-		<li><strong>Frecuencia:</strong> una vela por día y por símbolo. No opero intradía.</li>
+		<li>{@html t('info.s1.li1')}</li>
+		<li>{@html t('info.s1.li2')}</li>
+		<li>{@html t('info.s1.li3')}</li>
 	</ul>
-	<p class="note">
-		Hoy trabajo <strong>solo con el precio</strong>. Las señales de fundamentales, macro, noticias
-		y sentimiento están previstas en el diseño pero <strong>aún no están activas</strong>.
-	</p>
+	<p class="note">{@html t('info.s1.note')}</p>
 </Card>
 
-<Card title="2 · Cómo uso esa información (análisis)" span="full">
-	<p>Para cada símbolo calculo tres <strong>indicadores técnicos</strong>, cada uno con una sub-puntuación de 0 a 100:</p>
+<Card title={t('info.s2.title')} span="full">
+	<p>{@html t('info.s2.p1')}</p>
 	<ul class="list">
-		<li><strong>Momento (RSI, 14 días):</strong> si el valor viene subiendo con fuerza o está agotado.</li>
-		<li><strong>Tendencia (media móvil EMA, 20 días):</strong> cuánto se separa el precio de su media — arriba es alcista.</li>
-		<li><strong>Volatilidad (ATR, 14 días):</strong> cuánto se mueve el precio, como medida de riesgo.</li>
+		<li>{@html t('info.s2.li1')}</li>
+		<li>{@html t('info.s2.li2')}</li>
+		<li>{@html t('info.s2.li3')}</li>
 	</ul>
-	<p>
-		Combino las tres en una <strong>puntuación compuesta 0–100</strong> con pesos configurables
-		(por defecto: RSI 50 %, tendencia 30 %, volatilidad 20 %). Si falta algún indicador, reparto su
-		peso entre los presentes — nunca lo cuento como cero. Todos los pesos y umbrales viven en
-		<code>config/strategy.yaml</code>, no en el código.
-	</p>
+	<p>{@html t('info.s2.p2')}</p>
 </Card>
 
-<Card title="3 · Cómo decido" span="full">
+<Card title={t('info.s3.title')} span="full">
 	<ul class="list">
-		<li><strong>Ordeno</strong> los símbolos por puntuación, de mayor a menor.</li>
-		<li><strong>Umbral mínimo:</strong> solo considero comprar si la puntuación llega al mínimo (por defecto 60). Por debajo, la acción es «mantener» (HOLD).</li>
-		<li><strong>Calidad de datos:</strong> descarto símbolos con datos insuficientes o sospechosos.</li>
-		<li><strong>Hoy solo abro compras.</strong> No genero ventas automáticas: las posiciones se mantienen y se revalorizan con el precio.</li>
+		<li>{@html t('info.s3.li1')}</li>
+		<li>{@html t('info.s3.li2')}</li>
+		<li>{@html t('info.s3.li3')}</li>
+		<li>{@html t('info.s3.li4')}</li>
 	</ul>
 </Card>
 
-<Card title="4 · Cómo invierto" span="full">
+<Card title={t('info.s4.title')} span="full">
 	<ul class="list">
-		<li><strong>Dimensionado por presupuesto:</strong> destino un % del valor de la cartera a cada posición (por defecto 5 %), con un máximo de posiciones simultáneas (10) y una <strong>reserva de caja</strong> mínima (20 %).</li>
-		<li><strong>Acciones fraccionadas:</strong> puedo comprar fracciones, así un presupuesto pequeño también invierte en valores caros. Ignoro importes minúsculos (suelo configurable).</li>
-		<li><strong>Ejecución simulada:</strong> el «PaperBroker» rellena las órdenes al último cierre conocido, aplicando un pequeño deslizamiento (slippage, 0,1 %) para parecerse a la realidad.</li>
-		<li><strong>Listo para real:</strong> cambiar de simulación a un bróker real sería cambiar una sola variable de entorno — sin tocar la lógica.</li>
+		<li>{@html t('info.s4.li1')}</li>
+		<li>{@html t('info.s4.li2')}</li>
+		<li>{@html t('info.s4.li3')}</li>
+		<li>{@html t('info.s4.li4')}</li>
 	</ul>
 </Card>
 
-<Card title="5 · Carteras y dinero" span="full">
+<Card title={t('info.s5.title')} span="full">
 	<ul class="list">
-		<li><strong>Varias carteras</strong> con presupuestos distintos; cambias entre ellas con el selector de arriba. Cada una opera de forma independiente según su efectivo.</li>
-		<li><strong>Presupuesto editable:</strong> simulas ingresos y retiradas con Deposit / Withdraw en la página <a href="/portfolios">Portfolios</a>.</li>
-		<li><strong>Efectivo</strong> = depósitos − retiradas − compras + ventas.</li>
-		<li><strong>Rendimiento</strong> = valor actual − capital aportado neto. Meter dinero no cuenta como ganancia.</li>
+		<li>{@html t('info.s5.li1')}</li>
+		<li>{@html t('info.s5.li2')}</li>
+		<li>{@html t('info.s5.li3')}</li>
+		<li>{@html t('info.s5.li4')}</li>
 	</ul>
 </Card>
 
-<Card title="6 · Cuándo se ejecuta" span="full">
+<Card title={t('info.s6.title')} span="full">
 	<ul class="list">
-		<li><strong>Automático cada día</strong> (horas UTC): 06:30 descargo precios → 07:30 analizo → 08:00 ejecuto operaciones → 08:15 guardo el valor de cada cartera.</li>
-		<li><strong>Manual:</strong> el botón <strong>Run now</strong> del panel lanza toda la secuencia al instante. Es idempotente: repetirlo el mismo día no duplica operaciones.</li>
-		<li>Solo opero en <strong>días de mercado</strong> (calendario NYSE).</li>
+		<li>{@html t('info.s6.li1')}</li>
+		<li>{@html t('info.s6.li2')}</li>
+		<li>{@html t('info.s6.li3')}</li>
 	</ul>
 </Card>
 
-<Card title="Límites y aviso" span="full">
-	<p class="warn">
-		Esto es una <strong>simulación educativa</strong>, no asesoramiento financiero. El análisis actual
-		es puramente técnico y deliberadamente simple; los resultados simulados no garantizan resultados
-		reales. Antes de invertir dinero real, valida la estrategia y asume tu propio criterio.
-	</p>
+<Card title={t('info.limits.title')} span="full">
+	<p class="warn">{@html t('info.limits.text')}</p>
 </Card>
 
 <style>
@@ -136,7 +114,12 @@
 		line-height: 1.6;
 		color: var(--color-text-1);
 	}
-	code {
+	/* Code chips arrive via {@html} from the i18n dictionary, so they carry no
+	   scope class — target them globally but only within this page's lists/paragraphs. */
+	.list :global(code),
+	.lead :global(code),
+	.note :global(code),
+	p :global(code) {
 		font-family: var(--font-mono);
 		font-size: 0.9em;
 		background: var(--color-bg-2);

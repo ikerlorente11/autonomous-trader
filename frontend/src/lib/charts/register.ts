@@ -1,7 +1,7 @@
 // Chart.js + financial plugin are loaded lazily (browser-only). A static top-level
 // import breaks SSR/prerender: chartjs-chart-financial touches Chart internals at
-// module-eval time and throws under Node. Pages that prerender (/, /portfolio) import
-// chart components, so the heavy libs must only evaluate in the browser via loadChart().
+// module-eval time and throws under Node. Pages that prerender (/) import chart components,
+// so the heavy libs must only evaluate in the browser via loadChart().
 type ChartCtor = (typeof import('chart.js'))['Chart'];
 
 let registered = false;
