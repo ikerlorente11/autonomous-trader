@@ -44,6 +44,12 @@
 	function toggle(id: number) {
 		expanded = expanded === id ? null : id;
 	}
+	function onRowKey(ev: KeyboardEvent, id: number) {
+		if (ev.key === 'Enter' || ev.key === ' ') {
+			ev.preventDefault();
+			toggle(id);
+		}
+	}
 </script>
 
 <h1 class="page-title">Trades</h1>
@@ -96,7 +102,14 @@
 					</thead>
 					<tbody>
 						{#each rows(d) as t (t.id)}
-							<tr class="clickable" onclick={() => toggle(t.id)}>
+							<tr
+								class="clickable"
+								role="button"
+								tabindex="0"
+								aria-expanded={expanded === t.id}
+								onclick={() => toggle(t.id)}
+								onkeydown={(e) => onRowKey(e, t.id)}
+							>
 								<td>{formatDateTime(t.ts)}</td>
 								<td class="sym">{t.symbol}</td>
 								<td class={changeClass(t.side === 'buy' ? 1 : -1)}>{t.side.toUpperCase()}</td>

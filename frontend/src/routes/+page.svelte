@@ -1,8 +1,9 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { portfolioApi, algorithmsApi, systemApi, marketApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, qty, toNum } from '$lib/utils/format';
-	import type { BarsRange, Position, SignalEntry } from '$lib/api/types';
+	import type { BarsRange, Position, Quote, SignalEntry } from '$lib/api/types';
 	import Card from '$lib/components/Card.svelte';
 	import Region from '$lib/components/Region.svelte';
 	import PriceChange from '$lib/components/PriceChange.svelte';
@@ -23,13 +24,10 @@
 	const LIVE_REFRESH = 60_000;
 	const positions = createResource(() => portfolioApi.positions(), { intervalMs: LIVE_REFRESH });
 	let posSymbols = $derived((positions.data ?? []).map((p) => p.symbol));
-	const quotes = createResource(() => marketApi.quotes(posSymbols), {
-		immediate: false,
-		intervalMs: LIVE_REFRESH
-	});
-	$effect(() => {
-		if (posSymbols.length) void quotes.refresh();
-	});
+	const quotes = createResource(
+		() => (posSymbols.length ? marketApi.quotes(posSymbols) : Promise.resolve([] as Quote[])),
+		{ intervalMs: LIVE_REFRESH }
+	);
 
 	let liveQuoteMap = $derived.by(() => {
 		const m = new Map<string, number>();
@@ -74,6 +72,12 @@
 	function selectInvestment(sym: string): void {
 		selectedSymbol = sym;
 		if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+	function onRowKey(ev: KeyboardEvent, sym: string): void {
+		if (ev.key === 'Enter' || ev.key === ' ') {
+			ev.preventDefault();
+			selectInvestment(sym);
+		}
 	}
 
 	// Total change vs net contributed capital — the headline "how much up/down".
@@ -129,6 +133,10 @@
 	let running = $state(false);
 	let refreshing = $state(false);
 	let runMsg = $state<string | null>(null);
+	let destroyed = false;
+	onDestroy(() => {
+		destroyed = true;
+	});
 
 	function refreshAll(): void {
 		void summary.refresh();
@@ -165,6 +173,7 @@
 		refreshing = true;
 		for (let i = 0; i < 20; i++) {
 			await new Promise((res) => setTimeout(res, 3000));
+			if (destroyed) return;
 			try {
 				const st = await systemApi.status();
 				const navNow =
@@ -277,7 +286,14 @@
 					</thead>
 					<tbody>
 						{#each d as p (p.symbol)}
-							<tr class="clickable" onclick={() => selectInvestment(p.symbol)} title="Ver evolución del precio">
+							<tr
+								class="clickable"
+								role="button"
+								tabindex="0"
+								onclick={() => selectInvestment(p.symbol)}
+								onkeydown={(e) => onRowKey(e, p.symbol)}
+								title="Ver evolución del precio"
+							>
 								<td class="sym">{p.symbol}</td>
 								<td class="num">{qty(p.qty)}</td>
 								<td class="num">{money(investedOf(p))}</td>
@@ -316,7 +332,13 @@
 					</thead>
 					<tbody>
 						{#each topBuys(d) as s (s.symbol)}
-							<tr class="clickable" onclick={() => selectInvestment(s.symbol)}>
+							<tr
+								class="clickable"
+								role="button"
+								tabindex="0"
+								onclick={() => selectInvestment(s.symbol)}
+								onkeydown={(e) => onRowKey(e, s.symbol)}
+							>
 								<td class="sym">{s.symbol}</td>
 								<td><StatusBadge status={s.action} /></td>
 								<td class="num"><SignalScore score={s.score} width="90px" /></td>

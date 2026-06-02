@@ -109,6 +109,26 @@ export interface TradeRecord {
 	ts: string;
 }
 
+// backend/contracts.py::TradeRoundTrip — GET /api/trades/round-trips
+export interface TradeRoundTrip {
+	symbol: string;
+	entry_ts: string;
+	exit_ts: string;
+	qty: number;
+	entry_price: number;
+	exit_price: number;
+	pnl: number;
+	return_pct: number | null;
+	holding_days: number;
+}
+
+// backend/api/schemas.py::SignalAccuracySummary — GET /api/algorithms/accuracy
+export interface SignalAccuracySummary {
+	accuracy: number | null;
+	signal_count: number;
+	correct_count: number;
+}
+
 // backend/api/schemas.py::SignalEntry
 export interface SignalEntry {
 	symbol: string;

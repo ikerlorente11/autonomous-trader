@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { portfolioApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, num, percent, qty, toNum } from '$lib/utils/format';
@@ -44,6 +45,15 @@
 		const q = toNum(p.qty);
 		if (cur === null || q === null) return null;
 		return cur * q;
+	}
+	function openSymbol(symbol: string) {
+		void goto(`/market/${symbol}`);
+	}
+	function onRowKey(ev: KeyboardEvent, symbol: string) {
+		if (ev.key === 'Enter' || ev.key === ' ') {
+			ev.preventDefault();
+			openSymbol(symbol);
+		}
 	}
 
 	// Render the three metric dicts (returns/risk/trades) in a stable order.
@@ -104,7 +114,13 @@
 					</thead>
 					<tbody>
 						{#each d as p (p.symbol)}
-							<tr class="clickable" onclick={() => (location.href = `/market/${p.symbol}`)}>
+							<tr
+								class="clickable"
+								role="button"
+								tabindex="0"
+								onclick={() => openSymbol(p.symbol)}
+								onkeydown={(e) => onRowKey(e, p.symbol)}
+							>
 								<td class="sym">{p.symbol}</td>
 								<td class="num">{qty(p.qty)}</td>
 								<td class="num">{money(p.avg_cost)}</td>
@@ -122,7 +138,14 @@
 </Card>
 
 <Card title="Performance Metrics" caption="Returns, risk, and trade statistics" span="full">
-	<Region resource={performance}>
+	<Region
+		resource={performance}
+		isEmpty={(m) =>
+			metricRows(m.returns).length === 0 &&
+			metricRows(m.risk).length === 0 &&
+			metricRows(m.trades).length === 0}
+		emptyMessage="No performance data yet — run the pipeline to take the first NAV snapshots."
+	>
 		{#snippet children(m)}
 			<div class="metric-groups">
 				{#each [['Returns', m.returns], ['Risk', m.risk], ['Trades', m.trades]] as [groupName, group] (groupName)}

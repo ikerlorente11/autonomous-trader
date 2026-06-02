@@ -12,6 +12,7 @@ export class ApiError extends Error {
 }
 
 const BASE = '/api';
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 function buildQuery(params?: Record<string, string | number | undefined | null>): string {
 	if (!params) return '';
@@ -30,6 +31,7 @@ async function request<T>(
 		params?: Record<string, string | number | undefined | null>;
 		body?: unknown;
 		fetcher?: typeof fetch;
+		timeoutMs?: number;
 	} = {}
 ): Promise<T> {
 	const f = opts.fetcher ?? fetch;
@@ -40,11 +42,20 @@ async function request<T>(
 		headers['Content-Type'] = 'application/json';
 		init.body = JSON.stringify(opts.body);
 	}
+	const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const controller = new AbortController();
+	init.signal = controller.signal;
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	let res: Response;
 	try {
 		res = await f(url, init);
 	} catch (e) {
+		if (controller.signal.aborted) {
+			throw new ApiError('TIMEOUT', `Request timed out after ${timeoutMs} ms`, 0);
+		}
 		throw new ApiError('NETWORK', e instanceof Error ? e.message : 'Network request failed', 0);
+	} finally {
+		clearTimeout(timer);
 	}
 
 	if (!res.ok) {

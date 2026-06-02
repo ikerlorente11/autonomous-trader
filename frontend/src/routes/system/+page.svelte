@@ -84,7 +84,7 @@
 			<EmptyState message="No recent errors. All jobs healthy." icon="✓" />
 		{:else}
 			<ul class="errors">
-				{#each s.recent_errors as e, i (i)}
+				{#each s.recent_errors as e (`${e.job}:${e.last_run_at ?? ''}`)}
 					<li>
 						<div class="err-head">
 							<StatusBadge status={e.status ?? 'failed'} />

@@ -26,13 +26,6 @@ export function percent(v: string | number | null | undefined, withSign = true):
 	return `${sign}${Math.abs(n).toFixed(2)}%`;
 }
 
-// Value is a FRACTION (e.g. 0.0124 -> "1.24%"). Used for backend metric dicts.
-export function percentFrac(v: string | number | null | undefined, withSign = true): string {
-	const n = toNum(v);
-	if (n === null || Number.isNaN(n)) return '—';
-	return percent(n * 100, withSign);
-}
-
 export function num(v: string | number | null | undefined, dp = 2): string {
 	const n = toNum(v);
 	if (n === null || Number.isNaN(n)) return '—';
@@ -42,15 +35,7 @@ export function num(v: string | number | null | undefined, dp = 2): string {
 export function qty(v: string | number | null | undefined): string {
 	const n = toNum(v);
 	if (n === null) return '—';
-	return Number.isInteger(n) ? String(n) : n.toString();
-}
-
-const intFmt = new Intl.NumberFormat('en-US');
-
-export function compactInt(v: string | number | null | undefined): string {
-	const n = toNum(v);
-	if (n === null) return '—';
-	return intFmt.format(Math.round(n));
+	return String(n);
 }
 
 export function changeClass(v: string | number | null | undefined): 'gain' | 'loss' | 'flat' {

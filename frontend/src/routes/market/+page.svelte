@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { marketApi } from '$lib/api/endpoints';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, toNum } from '$lib/utils/format';
@@ -10,7 +12,24 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 
 	// Marks are daily closes; poll 60s during the US session, 5 min off-hours (ux §3.3).
-	const watchlist = createResource(() => marketApi.watchlist(), { intervalMs: marketPollMs() });
+	// Self-scheduling tick so the cadence re-evaluates each cycle and adapts across the
+	// session open/close boundary (a fixed intervalMs would freeze at the mount-time value).
+	const watchlist = createResource(() => marketApi.watchlist(), { immediate: false });
+	onMount(() => {
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		let stopped = false;
+		async function tick() {
+			if (stopped) return;
+			if (typeof document === 'undefined' || !document.hidden) await watchlist.refresh();
+			if (stopped) return;
+			timer = setTimeout(tick, marketPollMs());
+		}
+		void tick();
+		return () => {
+			stopped = true;
+			if (timer) clearTimeout(timer);
+		};
+	});
 
 	let search = $state('');
 	let sortKey = $state<'score' | 'symbol' | 'price'>('score');
@@ -57,6 +76,21 @@
 			sortDir = key === 'symbol' ? 'asc' : 'desc';
 		}
 	}
+	function onSortKey(ev: KeyboardEvent, key: 'score' | 'symbol' | 'price') {
+		if (ev.key === 'Enter' || ev.key === ' ') {
+			ev.preventDefault();
+			setSort(key);
+		}
+	}
+	function openSymbol(symbol: string) {
+		void goto(`/market/${symbol}`);
+	}
+	function onRowKey(ev: KeyboardEvent, symbol: string) {
+		if (ev.key === 'Enter' || ev.key === ' ') {
+			ev.preventDefault();
+			openSymbol(symbol);
+		}
+	}
 
 	function rows(d: WatchlistEntry[]): WatchlistEntry[] {
 		const q = search.trim().toUpperCase();
@@ -96,18 +130,42 @@
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th class="sortable" onclick={() => setSort('symbol')}>Symbol{arrowFor('symbol')}</th>
+							<th
+								class="sortable"
+								role="button"
+								tabindex="0"
+								aria-sort={sortKey === 'symbol' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+								onclick={() => setSort('symbol')}
+								onkeydown={(e) => onSortKey(e, 'symbol')}>Symbol{arrowFor('symbol')}</th>
 							<th>Sector</th>
 							<th>Asset Class</th>
-							<th class="num sortable" onclick={() => setSort('price')}>Last{arrowFor('price')}</th>
-							<th class="num sortable" onclick={() => setSort('score')}>Score{arrowFor('score')}</th>
+							<th
+								class="num sortable"
+								role="button"
+								tabindex="0"
+								aria-sort={sortKey === 'price' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+								onclick={() => setSort('price')}
+								onkeydown={(e) => onSortKey(e, 'price')}>Last{arrowFor('price')}</th>
+							<th
+								class="num sortable"
+								role="button"
+								tabindex="0"
+								aria-sort={sortKey === 'score' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+								onclick={() => setSort('score')}
+								onkeydown={(e) => onSortKey(e, 'score')}>Score{arrowFor('score')}</th>
 							<th>Action</th>
 							<th></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each rows(d) as w (w.symbol)}
-							<tr class="clickable" onclick={() => (location.href = `/market/${w.symbol}`)}>
+							<tr
+								class="clickable"
+								role="button"
+								tabindex="0"
+								onclick={() => openSymbol(w.symbol)}
+								onkeydown={(e) => onRowKey(e, w.symbol)}
+							>
 								<td class="sym">{w.symbol}</td>
 								<td>{w.sector ?? '—'}</td>
 								<td class="muted">{w.asset_class ?? '—'}</td>
