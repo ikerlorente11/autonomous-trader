@@ -58,6 +58,7 @@ async def persist_algorithm_signals(
             "reason": s.reason,
             "indicator_snapshot": s.indicator_snapshot,
             "strategy_version": strategy_version,
+            "data_completeness": s.data_completeness,
         }
         for s in scores
     ]
@@ -70,6 +71,7 @@ async def persist_algorithm_signals(
             "reason": stmt.excluded.reason,
             "indicator_snapshot": stmt.excluded.indicator_snapshot,
             "strategy_version": stmt.excluded.strategy_version,
+            "data_completeness": stmt.excluded.data_completeness,
         },
     )
     await session.execute(stmt)

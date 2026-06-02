@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-import math
 import os
 from collections.abc import Mapping, Sequence
 from decimal import Decimal, InvalidOperation

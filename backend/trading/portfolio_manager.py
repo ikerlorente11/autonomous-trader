@@ -9,6 +9,7 @@ The caller owns the transaction (the scheduler job commits once per batch).
 from __future__ import annotations
 
 import datetime as dt
+import os
 from collections.abc import Sequence
 from decimal import Decimal
 
@@ -17,13 +18,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.contracts import AccountBalance, Order, RankedSymbol, SignalAction
 from backend.db.models import PortfolioNav
-from backend.db.queries.market_queries import get_latest_bars
+from backend.db.queries.market_queries import get_close_asof, get_latest_bars
 from backend.db.queries.portfolio_queries import (
     compute_cash,
+    get_first_nav,
     get_open_positions,
 )
 from backend.trading.broker_adapter import BrokerAdapter
 from backend.trading.risk_manager import make_risk_manager
+
+_BENCHMARK_SYMBOL = os.environ.get("BENCHMARK_SYMBOL", "SPY")
 
 
 class PortfolioManager:
@@ -41,10 +45,24 @@ class PortfolioManager:
         return {bar.symbol: bar.close for bar in bars}
 
     async def _account_balance(self) -> AccountBalance:
+        # Cash, equity and total all come from the broker — never the DB ledger directly
+        # — so the balance reconciles for any adapter, including the in-memory MockRealBroker.
         total = await self._broker.get_account_balance()
-        cash = await compute_cash(self._session, self._portfolio_id)
+        cash = await self._broker.get_cash()
         equity = total - cash
         return AccountBalance(cash=cash, equity=equity, total=total)
+
+    @staticmethod
+    def _mark(position, prices: dict[str, Decimal]) -> Decimal:
+        # Mark to the latest bar; if absent, fall back to the last persisted current_price,
+        # only then to avg_cost. Falling straight to avg_cost would silently freeze a
+        # stale position at break-even and hide the missing-price gap (CR3).
+        price = prices.get(position.symbol)
+        if price is not None:
+            return price
+        if position.current_price is not None:
+            return position.current_price
+        return position.avg_cost
 
     async def execute_signals(
         self, signals: Sequence[RankedSymbol]
@@ -80,23 +98,27 @@ class PortfolioManager:
 
         return orders
 
-    async def update_positions(self) -> int:
+    async def update_positions(self) -> tuple[int, list[str]]:
+        """Refresh marks. Returns (updated_count, stale_symbols) — stale symbols have
+        no fresh bar and keep their last mark; the caller can surface the gap."""
         positions = await get_open_positions(self._session, self._portfolio_id)
         if not positions:
-            return 0
+            return 0, []
         prices = await self._latest_prices([p.symbol for p in positions])
         now = dt.datetime.now(dt.timezone.utc)
         updated = 0
+        stale: list[str] = []
         for position in positions:
             price = prices.get(position.symbol)
             if price is None:
+                stale.append(position.symbol)
                 continue
             position.current_price = price
             position.unrealized_pnl = (price - position.avg_cost) * position.qty
             position.updated_at = now
             updated += 1
         await self._session.flush()
-        return updated
+        return updated, stale
 
     async def snapshot_nav(
         self, ts: dt.datetime | None = None
@@ -108,21 +130,28 @@ class PortfolioManager:
         positions = await get_open_positions(self._session, self._portfolio_id)
         prices = await self._latest_prices([p.symbol for p in positions])
         equity = sum(
-            (p.qty * prices.get(p.symbol, p.avg_cost) for p in positions),
+            (p.qty * self._mark(p, prices) for p in positions),
             Decimal(0),
         )
         total = cash + equity
+        benchmark = await self._benchmark_value(as_of, total)
         row = {
             "portfolio_id": self._portfolio_id,
             "ts": as_of,
             "cash": cash,
             "equity": equity,
             "total": total,
+            "benchmark_value": benchmark,
         }
         stmt = insert(PortfolioNav).values(row)
         stmt = stmt.on_conflict_do_update(
             index_elements=[PortfolioNav.portfolio_id, PortfolioNav.ts],
-            set_={"cash": cash, "equity": equity, "total": total},
+            set_={
+                "cash": cash,
+                "equity": equity,
+                "total": total,
+                "benchmark_value": benchmark,
+            },
         )
         await self._session.execute(stmt)
         return PortfolioNav(
@@ -131,4 +160,25 @@ class PortfolioManager:
             cash=cash,
             equity=equity,
             total=total,
+            benchmark_value=benchmark,
         )
+
+    async def _benchmark_value(
+        self, as_of: dt.datetime, total: Decimal
+    ) -> Decimal | None:
+        """A buy-and-hold benchmark line, rebased so it starts at the portfolio's first
+        NAV. Value = first_nav.total · (benchmark_close_now / benchmark_close_at_start).
+        Return-based, so alpha/beta are correct; on the first snapshot it equals NAV so
+        the two curves start together. None when the benchmark has no stored bar."""
+        now_bar = await get_close_asof(self._session, _BENCHMARK_SYMBOL, as_of)
+        if now_bar is None or now_bar.close <= 0:
+            return None
+        first_nav = await get_first_nav(self._session, self._portfolio_id)
+        if first_nav is None:
+            return total
+        start_bar = await get_close_asof(
+            self._session, _BENCHMARK_SYMBOL, first_nav.ts
+        )
+        if start_bar is None or start_bar.close <= 0:
+            return total
+        return first_nav.total * (now_bar.close / start_bar.close)

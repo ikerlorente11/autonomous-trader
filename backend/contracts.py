@@ -166,6 +166,20 @@ class TradeRecord(_Frozen):
     ts: dt.datetime
 
 
+class TradeRoundTrip(_Frozen):
+    """A closed FIFO round trip (entry matched to a later exit) with realized P&L."""
+
+    symbol: str
+    entry_ts: dt.datetime
+    exit_ts: dt.datetime
+    qty: float
+    entry_price: float
+    exit_price: float
+    pnl: float
+    return_pct: float | None = None
+    holding_days: int
+
+
 class PerformanceMetrics(_Frozen):
     """Headline performance bundle.
 

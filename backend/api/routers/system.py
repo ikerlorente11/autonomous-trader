@@ -19,27 +19,37 @@ router = APIRouter(prefix="/api/system", tags=["system"])
 # Single-flight guard for the manual trigger within this API process. Set
 # synchronously in the handler before the background task is scheduled, so two
 # rapid POSTs cannot both start a run. Cross-process overlap with the scheduler is
-# already neutralized by each job's idempotency guards.
-_pipeline_running = False
+# already neutralized by each job's idempotency guards. The guard self-heals: if a
+# run's flag is left set (e.g. a dropped background task), a later request past the
+# max-runtime window treats it as stale and starts a fresh run rather than wedging.
+_MAX_PIPELINE_SECONDS = 1800
+_pipeline_started_at: dt.datetime | None = None
+
+
+def _pipeline_in_progress(now: dt.datetime) -> bool:
+    if _pipeline_started_at is None:
+        return False
+    return (now - _pipeline_started_at).total_seconds() < _MAX_PIPELINE_SECONDS
 
 
 async def _run_pipeline_guarded() -> None:
-    global _pipeline_running
+    global _pipeline_started_at
     try:
         await run_pipeline()
     finally:
-        _pipeline_running = False
+        _pipeline_started_at = None
 
 
 @router.post("/run", response_model=RunTrigger)
 async def run_pipeline_now(background: BackgroundTasks) -> RunTrigger:
-    global _pipeline_running
-    if _pipeline_running:
+    global _pipeline_started_at
+    now = dt.datetime.now(dt.timezone.utc)
+    if _pipeline_in_progress(now):
         return RunTrigger(
             status="already_running",
             detail="A pipeline run is already in progress.",
         )
-    _pipeline_running = True
+    _pipeline_started_at = now
     background.add_task(_run_pipeline_guarded)
     return RunTrigger(
         status="started",

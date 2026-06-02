@@ -185,8 +185,11 @@ class PaperBroker:
             for r in rows
         ]
 
+    async def get_cash(self) -> Decimal:
+        return await compute_cash(self._session, self._portfolio_id)
+
     async def get_account_balance(self) -> Decimal:
-        cash = await compute_cash(self._session, self._portfolio_id)
+        cash = await self.get_cash()
         positions = await get_open_positions(self._session, self._portfolio_id)
         symbols = [p.symbol for p in positions]
         prices: dict[str, Decimal] = {}

@@ -111,13 +111,16 @@ class MockRealBroker:
             )
         return out
 
+    async def get_cash(self) -> Decimal:
+        return self._cash
+
     async def get_account_balance(self) -> Decimal:
         equity = Decimal(0)
         for symbol, qty in self._qty.items():
             if qty == 0:
                 continue
             price = await self._latest_close(symbol)
-            equity += qty * (price if price is not None else self._avg_cost[symbol])
+            equity += qty * (price if price is not None else self._avg_cost.get(symbol, Decimal(0)))
         return self._cash + equity
 
     async def get_order_status(self, order_id: str) -> OrderStatus:

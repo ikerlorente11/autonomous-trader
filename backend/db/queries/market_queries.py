@@ -41,6 +41,32 @@ async def get_bars_range(
     return (await session.scalars(stmt)).all()
 
 
+async def get_close_asof(
+    session: AsyncSession, symbol: str, asof: dt.datetime
+) -> MarketBar | None:
+    """Most recent bar for ``symbol`` at or before ``asof`` (benchmark valuation)."""
+    stmt: Select[tuple[MarketBar]] = (
+        select(MarketBar)
+        .where(MarketBar.symbol == symbol, MarketBar.ts <= asof)
+        .order_by(MarketBar.ts.desc())
+        .limit(1)
+    )
+    return (await session.scalars(stmt)).one_or_none()
+
+
+async def get_close_after(
+    session: AsyncSession, symbol: str, asof: dt.datetime
+) -> MarketBar | None:
+    """First bar for ``symbol`` at or after ``asof`` (signal forward-return horizon)."""
+    stmt: Select[tuple[MarketBar]] = (
+        select(MarketBar)
+        .where(MarketBar.symbol == symbol, MarketBar.ts >= asof)
+        .order_by(MarketBar.ts)
+        .limit(1)
+    )
+    return (await session.scalars(stmt)).one_or_none()
+
+
 async def get_latest_bars(
     session: AsyncSession, symbols: Sequence[str]
 ) -> Sequence[MarketBar]:

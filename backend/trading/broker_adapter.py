@@ -31,4 +31,10 @@ class BrokerAdapter(Protocol):
 
     async def get_account_balance(self) -> Decimal: ...
 
+    # Cash component of the balance, broker-authoritative. PortfolioManager builds its
+    # AccountBalance (cash/equity/total) purely from broker calls — it must not reach
+    # into the DB ledger directly, or an in-memory adapter (MockRealBroker) would report
+    # a cash that doesn't reconcile with its own total.
+    async def get_cash(self) -> Decimal: ...
+
     async def get_order_status(self, order_id: str) -> OrderStatus: ...

@@ -40,6 +40,10 @@ def _to_decimal(value: object) -> Decimal | None:
 
 
 def _session_midnight_utc(epoch: int) -> dt.datetime:
+    # Key a daily bar by its UTC calendar date. For US-session daily bars (the watchlist
+    # universe) the bar epoch falls mid-UTC-day, so this equals the session date and
+    # matches Twelve Data's date-string parsing — both providers upsert on the same
+    # (symbol, ts), keeping the fallback idempotent. Revisit if non-US symbols are added.
     date = dt.datetime.fromtimestamp(epoch, dt.timezone.utc).date()
     return dt.datetime(date.year, date.month, date.day, tzinfo=dt.timezone.utc)
 

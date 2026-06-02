@@ -11,6 +11,9 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 
 _SYMBOL_RE = re.compile(r"[A-Z0-9.\-]{1,16}")
+# Upper bound on a single cash movement / initial budget — guards against a typo or
+# abuse injecting an absurd Decimal into NAV / contributed-capital math.
+_MAX_CASH = Decimal("1e12")
 
 
 class QuoteEntry(BaseModel):
@@ -39,7 +42,7 @@ class Portfolio(BaseModel):
 
 class PortfolioCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)
-    initial_deposit: Decimal = Field(default=Decimal(0), ge=0)
+    initial_deposit: Decimal = Field(default=Decimal(0), ge=0, le=_MAX_CASH)
 
     @field_validator("name")
     @classmethod
@@ -63,7 +66,7 @@ class PortfolioRename(BaseModel):
 
 
 class CashMovementCreate(BaseModel):
-    amount: Decimal = Field(gt=0)
+    amount: Decimal = Field(gt=0, le=_MAX_CASH)
     note: str | None = Field(default=None, max_length=256)
 
 
@@ -113,6 +116,12 @@ class SignalEntry(BaseModel):
     reason: str | None = None
     indicator_snapshot: dict | None = None
     strategy_version: str | None = None
+
+
+class SignalAccuracySummary(BaseModel):
+    accuracy: float | None = None
+    signal_count: int
+    correct_count: int
 
 
 class ExperimentEntry(BaseModel):

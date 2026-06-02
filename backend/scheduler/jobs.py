@@ -22,6 +22,7 @@ from typing import Any
 import pandas as pd
 
 from backend.analysis.engine import DefaultAnalysisEngine
+from backend.analysis.performance.settle import settle_due_signals
 from backend.analysis.scoring.persistence import (
     persist_algorithm_signals,
     persist_signal_values,
@@ -32,7 +33,7 @@ from backend.data_ingestion.ingest import ingest_daily_bars
 from backend.db.models import JobRun
 from backend.db.queries.market_queries import count_bars_per_symbol, get_bars_range
 from backend.db.queries.portfolio_queries import (
-    count_orders_since,
+    count_filled_orders_since,
     get_active_watchlist,
     get_latest_analysis_ts,
     get_top_ranked_signals,
@@ -204,10 +205,12 @@ async def run_analysis() -> None:
                 return
             await persist_signal_values(session, indicators)
             await persist_algorithm_signals(session, scores, engine.strategy_version)
+            settled = await settle_due_signals(session, asof)
             await session.commit()
             outcome.detail = {
                 "symbols_scored": len(scores),
                 "strategy_version": engine.strategy_version,
+                "signals_settled": settled,
             }
 
 
@@ -240,6 +243,7 @@ async def execute_paper_trades() -> None:
                         action=SignalAction(s.action),
                         reason=s.reason,
                         indicator_snapshot=s.indicator_snapshot,
+                        data_completeness=s.data_completeness,
                     ),
                 )
                 for i, s in enumerate(signals)
@@ -249,23 +253,35 @@ async def execute_paper_trades() -> None:
             total_orders = 0
             per_portfolio: dict[str, int] = {}
             skipped: list[int] = []
+            failed: dict[str, str] = {}
             for portfolio in portfolios:
                 # Per-portfolio idempotency: don't double-trade one already traded today.
-                if await count_orders_since(session, portfolio.id, midnight) > 0:
+                if await count_filled_orders_since(session, portfolio.id, midnight) > 0:
                     skipped.append(portfolio.id)
                     continue
-                broker = make_broker(
-                    session, portfolio.id, strategy_version=engine.strategy_version
-                )
-                manager = PortfolioManager(broker, session, portfolio.id)
-                orders = await manager.execute_signals(ranked)
-                per_portfolio[str(portfolio.id)] = len(orders)
-                total_orders += len(orders)
+                # Each portfolio runs in its own savepoint so one failure rolls back only
+                # that portfolio, never the fills already booked for the others (H3).
+                try:
+                    async with session.begin_nested():
+                        broker = make_broker(
+                            session, portfolio.id,
+                            strategy_version=engine.strategy_version,
+                        )
+                        manager = PortfolioManager(broker, session, portfolio.id)
+                        orders = await manager.execute_signals(ranked)
+                    per_portfolio[str(portfolio.id)] = len(orders)
+                    total_orders += len(orders)
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception("execute_paper_trades failed for portfolio %s", portfolio.id)
             await session.commit()
+            if failed:
+                outcome.status = "degraded"
             outcome.detail = {
                 "orders": total_orders,
                 "per_portfolio": per_portfolio,
                 "skipped_already_traded": skipped,
+                "failed": failed,
             }
 
 
@@ -278,14 +294,29 @@ async def update_portfolio_nav() -> None:
                 outcome.detail = {"reason": "no_active_portfolios"}
                 return
             navs: dict[str, str] = {}
+            stale_marks: dict[str, list[str]] = {}
+            failed: dict[str, str] = {}
             for portfolio in portfolios:
-                broker = make_broker(session, portfolio.id)
-                manager = PortfolioManager(broker, session, portfolio.id)
-                await manager.update_positions()
-                snapshot = await manager.snapshot_nav()
-                navs[str(portfolio.id)] = str(snapshot.total)
+                try:
+                    async with session.begin_nested():
+                        broker = make_broker(session, portfolio.id)
+                        manager = PortfolioManager(broker, session, portfolio.id)
+                        _, stale = await manager.update_positions()
+                        snapshot = await manager.snapshot_nav()
+                    navs[str(portfolio.id)] = str(snapshot.total)
+                    if stale:
+                        stale_marks[str(portfolio.id)] = stale
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception("update_portfolio_nav failed for portfolio %s", portfolio.id)
             await session.commit()
-            outcome.detail = {"nav_total_by_portfolio": navs}
+            if failed:
+                outcome.status = "degraded"
+            outcome.detail = {
+                "nav_total_by_portfolio": navs,
+                "stale_marks": stale_marks,
+                "failed": failed,
+            }
 
 
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {

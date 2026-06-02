@@ -65,6 +65,11 @@ class WeightedCompositeScorer:
             action = SignalAction.SELL
         else:
             action = SignalAction.HOLD
+        # Bake the low-coverage gate into the persisted action so it holds wherever the
+        # signal is later read (the action is authoritative; the ranker is not always in
+        # the path). Only entries are suppressed — a held low-coverage name may still exit.
+        if action is SignalAction.BUY and completeness < self._config.ranker.min_data_completeness:
+            action = SignalAction.HOLD
         return SymbolScore(
             symbol=symbol,
             ts=asof,

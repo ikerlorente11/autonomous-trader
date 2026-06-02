@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_session
-from backend.api.schemas import QuoteEntry, WatchlistCreate, WatchlistEntry
+from backend.api.schemas import _SYMBOL_RE, QuoteEntry, WatchlistCreate, WatchlistEntry
 from backend.contracts import OHLCVBar
 from backend.data_ingestion.providers.yfinance_provider import YFinanceProvider
 from backend.db.queries.market_queries import get_bars_range, get_latest_bars
@@ -21,12 +21,30 @@ from backend.db.queries.portfolio_queries import (
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
+# Each requested symbol becomes a sequential outbound HTTP call; cap the batch so a
+# single request cannot fan out into a long-running outbound storm (H5).
+_MAX_QUOTE_SYMBOLS = 50
+
+
+def _validate_symbol(symbol: str) -> str:
+    """Normalize and validate a symbol before it reaches an outbound URL path or query.
+    Rejects anything outside the watchlist charset to block path injection / SSRF (H4)."""
+    normalized = symbol.strip().upper()
+    if not _SYMBOL_RE.fullmatch(normalized):
+        raise HTTPException(status_code=422, detail=f"invalid symbol: {symbol!r}")
+    return normalized
+
 
 @router.get("/quotes", response_model=list[QuoteEntry])
 async def market_quotes(symbols: str = Query(...)) -> list[QuoteEntry]:
-    requested = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    requested = list(dict.fromkeys(_validate_symbol(s) for s in symbols.split(",") if s.strip()))
     if not requested:
         return []
+    if len(requested) > _MAX_QUOTE_SYMBOLS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"too many symbols (max {_MAX_QUOTE_SYMBOLS})",
+        )
     prices = await YFinanceProvider().fetch_live_prices(requested)
     return [QuoteEntry(symbol=s, price=prices[s]) for s in requested if s in prices]
 
@@ -38,6 +56,7 @@ async def market_bars(
     end: dt.datetime | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> list[OHLCVBar]:
+    symbol = _validate_symbol(symbol)
     end = end or dt.datetime.now(dt.timezone.utc)
     start = start or (end - dt.timedelta(days=180))
     rows = await get_bars_range(session, symbol, start, end)

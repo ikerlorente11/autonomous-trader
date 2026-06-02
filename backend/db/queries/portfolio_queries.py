@@ -139,14 +139,20 @@ async def compute_contributed_capital(
     return Decimal((await session.scalar(stmt)) or 0)
 
 
-async def count_orders_since(
+async def count_filled_orders_since(
     session: AsyncSession, portfolio_id: int, since: dt.datetime
 ) -> int:
-    """How many orders this portfolio wrote at/after ``since`` (idempotency guard)."""
+    """How many *filled* orders this portfolio wrote at/after ``since`` (idempotency
+    guard). Rejected orders are excluded: a run that only produced rejections (e.g. no
+    price yet, all-HOLD) must be retryable, not locked out for the day (H2)."""
     stmt = (
         select(func.count())
         .select_from(TradeOrder)
-        .where(TradeOrder.portfolio_id == portfolio_id, TradeOrder.ts >= since)
+        .where(
+            TradeOrder.portfolio_id == portfolio_id,
+            TradeOrder.ts >= since,
+            func.lower(TradeOrder.status) == "filled",
+        )
     )
     return int((await session.scalar(stmt)) or 0)
 
@@ -159,6 +165,19 @@ async def get_latest_nav(
         select(PortfolioNav)
         .where(PortfolioNav.portfolio_id == portfolio_id)
         .order_by(PortfolioNav.ts.desc())
+        .limit(1)
+    )
+    return (await session.scalars(stmt)).one_or_none()
+
+
+async def get_first_nav(
+    session: AsyncSession, portfolio_id: int
+) -> PortfolioNav | None:
+    """Earliest NAV snapshot for one portfolio — the benchmark rebasing anchor."""
+    stmt = (
+        select(PortfolioNav)
+        .where(PortfolioNav.portfolio_id == portfolio_id)
+        .order_by(PortfolioNav.ts)
         .limit(1)
     )
     return (await session.scalars(stmt)).one_or_none()
@@ -181,6 +200,39 @@ async def get_latest_analysis_ts(session: AsyncSession) -> dt.datetime | None:
     """Timestamp of the most recent analysis run (max algorithm_signals.ts)."""
     stmt = select(func.max(AlgorithmSignal.ts))
     return await session.scalar(stmt)
+
+
+async def get_unsettled_signals(
+    session: AsyncSession, cutoff: dt.datetime, limit: int = 2000
+) -> Sequence[AlgorithmSignal]:
+    """Actionable signals old enough to evaluate but not yet settled (outcome IS NULL,
+    ts <= cutoff). The forward-return settle step fills realized_return / outcome."""
+    stmt: Select[tuple[AlgorithmSignal]] = (
+        select(AlgorithmSignal)
+        .where(
+            AlgorithmSignal.ts <= cutoff,
+            AlgorithmSignal.outcome.is_(None),
+            func.lower(AlgorithmSignal.action).in_(("buy", "sell")),
+        )
+        .order_by(AlgorithmSignal.ts)
+        .limit(limit)
+    )
+    return (await session.scalars(stmt)).all()
+
+
+async def get_settled_signals(
+    session: AsyncSession, *, actionable: tuple[str, ...] = ("buy", "sell")
+) -> Sequence[AlgorithmSignal]:
+    """Signals with a recorded outcome — input to the signal-accuracy report."""
+    stmt: Select[tuple[AlgorithmSignal]] = (
+        select(AlgorithmSignal)
+        .where(
+            AlgorithmSignal.outcome.is_not(None),
+            func.lower(AlgorithmSignal.action).in_(actionable),
+        )
+        .order_by(AlgorithmSignal.ts)
+    )
+    return (await session.scalars(stmt)).all()
 
 
 async def get_active_watchlist(session: AsyncSession) -> Sequence[Watchlist]:
@@ -246,6 +298,15 @@ async def get_portfolio(
     session: AsyncSession, portfolio_id: int
 ) -> Portfolio | None:
     return await session.get(Portfolio, portfolio_id)
+
+
+async def get_portfolio_for_update(
+    session: AsyncSession, portfolio_id: int
+) -> Portfolio | None:
+    """Lock the portfolio row (``FOR UPDATE``) so a cash-balance check and the movement
+    it authorizes are serialized — two concurrent withdrawals can't both pass the check."""
+    stmt = select(Portfolio).where(Portfolio.id == portfolio_id).with_for_update()
+    return (await session.scalars(stmt)).one_or_none()
 
 
 async def count_portfolios(session: AsyncSession) -> int:

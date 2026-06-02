@@ -71,6 +71,9 @@ _WEEKLY_POLICY = (
     "schedule_interval => INTERVAL '7 days')"
 )
 
+# Materialize the whole history immediately after (re)creating the WITH NO DATA cagg.
+_WEEKLY_REFRESH = "CALL refresh_continuous_aggregate('weekly_performance', NULL, NULL)"
+
 
 def upgrade() -> None:
     # Drop the dependent cagg before touching the base hypertable's PK.
@@ -163,9 +166,12 @@ def upgrade() -> None:
         "ix_trade_orders_portfolio_ts", "trade_orders", ["portfolio_id", "ts"]
     )
 
-    # Recreate the cagg grouped by portfolio_id.
+    # Recreate the cagg grouped by portfolio_id. Created WITH NO DATA, so materialize
+    # it once now — otherwise weekly_performance stays empty until the first scheduled
+    # policy run (up to 7 days later) and drops any NAV history beyond the policy window.
     with op.get_context().autocommit_block():
         op.execute(WEEKLY_PERFORMANCE_V2)
+        op.execute(_WEEKLY_REFRESH)
         op.execute(_WEEKLY_POLICY)
 
 
@@ -189,4 +195,5 @@ def downgrade() -> None:
 
     with op.get_context().autocommit_block():
         op.execute(WEEKLY_PERFORMANCE_V1)
+        op.execute(_WEEKLY_REFRESH)
         op.execute(_WEEKLY_POLICY)

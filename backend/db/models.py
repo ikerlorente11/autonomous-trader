@@ -135,6 +135,13 @@ class TradeOrder(Base):
     __table_args__ = (
         Index("ix_trade_orders_ts", text("ts DESC")),
         Index("ix_trade_orders_portfolio_ts", "portfolio_id", "ts"),
+        # Partial index for the filled-order reads (cash, round-trips, idempotency guard).
+        Index(
+            "ix_trade_orders_filled",
+            "portfolio_id",
+            "ts",
+            postgresql_where=text("lower(status) = 'filled'"),
+        ),
     )
 
 
@@ -147,7 +154,8 @@ class AlgorithmSignal(Base):
     action: Mapped[str] = mapped_column(String(8))
     reason: Mapped[str | None] = mapped_column(Text)
     indicator_snapshot: Mapped[dict | None] = mapped_column(JSONB)
-    strategy_version: Mapped[str | None] = mapped_column(String(48))
+    strategy_version: Mapped[str | None] = mapped_column(String(64))
+    data_completeness: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     realized_return: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
     outcome: Mapped[str | None] = mapped_column(String(16))
 
@@ -184,6 +192,7 @@ class JobRun(Base):
 
     __table_args__ = (
         Index("ix_job_runs_job_started", "job", text("started_at DESC")),
+        Index("ix_job_runs_started", text("started_at DESC")),
     )
 
 

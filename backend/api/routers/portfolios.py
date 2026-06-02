@@ -20,6 +20,7 @@ from backend.db.queries.portfolio_queries import (
     delete_portfolio,
     get_cash_movements,
     get_portfolio,
+    get_portfolio_for_update,
     list_portfolios,
     rename_portfolio,
 )
@@ -132,7 +133,7 @@ async def withdraw(
     portfolio_id: int = Path(...),
     session: AsyncSession = Depends(get_session),
 ) -> CashMovementSchema:
-    if await get_portfolio(session, portfolio_id) is None:
+    if await get_portfolio_for_update(session, portfolio_id) is None:
         raise HTTPException(status_code=404, detail="portfolio not found")
     cash = await compute_cash(session, portfolio_id)
     if payload.amount > cash:
