@@ -1,4 +1,4 @@
-name: Deploy to Pi on master
+name: Deploy to Pi on main
 
 # Push or merge to main -> the self-hosted runner ON the Pi pulls and redeploys.
 on:
