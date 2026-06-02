@@ -14,44 +14,64 @@ values" (all parameters are env/config).
 | Area | Files |
 |---|---|
 | Trading | `backend/trading/paper_broker.py`, `portfolio_manager.py`, `risk_manager.py` (filled), `broker_factory.py` |
-| API | `backend/api/main.py`, `deps.py`, `schemas.py`, `routers/{portfolio,market,trades,algorithms,system}.py` |
+| API | `backend/api/main.py`, `deps.py`, `schemas.py`, `routers/{portfolio,portfolios,market,trades,algorithms,system}.py` |
 | Scheduler | `backend/scheduler/{jobs.py,main.py,schedule.py}` |
 | DB | `db/models.py` (+`JobRun`), `db/migrations/versions/0004_job_runs.py`, query helpers in `db/queries/{portfolio,market,system}_queries.py` |
 | Deps | `backend/requirements-api.txt` |
 
-## 2. API surface (the launch-prompt's 10 endpoints)
+## 2. API surface
 
-All read-only `GET`, no auth, JSON. Prefix `/api`.
+No auth, JSON, prefix `/api`. Mostly read-only `GET`; the multi-portfolio +
+on-demand-run features (post-Phase-5) add writing endpoints (portfolio CRUD, cash
+movements, watchlist edits, manual run). Verified against `backend/api/routers/`.
 
-| Path | Response | Backing query |
+| Method · Path | Response | Backing |
 |---|---|---|
-| `/portfolio/summary` | `PortfolioSummary` | cash ledger + positions + latest bars |
-| `/portfolio/positions` | `list[Position]` | `get_open_positions` |
-| `/portfolio/nav?start&end` | `list[PortfolioSnapshot]` | `get_nav_history` |
-| `/portfolio/performance?start&end` | `PerformanceMetrics` | `get_nav_history` + `get_filled_orders` → `summarize_performance` |
-| `/trades?symbol&start&end&limit` | `list[TradeRecord]` | `get_filtered_orders` |
-| `/market/bars/{symbol}?start&end` | `list[OHLCVBar]` | `get_bars_range` |
-| `/market/watchlist` | `list[WatchlistEntry]` | `get_active_watchlist` + latest bars + latest signals |
-| `/algorithms/signals?asof&limit` | `list[SignalEntry]` | `get_top_ranked_signals` |
-| `/algorithms/experiments` | `list[ExperimentEntry]` | `ExperimentComparator.list_runs` |
-| `/system/status` | `SystemStatus` | `get_last_run_per_job` + static `JOB_SCHEDULE` for next-run |
-| `/health` | `{"status":"ok"}` | — |
+| `GET /portfolio/summary` | `PortfolioSummary` | `compute_cash` + `compute_contributed_capital` + positions + latest bars |
+| `GET /portfolio/positions` | `list[Position]` | `get_open_positions` |
+| `GET /portfolio/nav?start&end` | `list[PortfolioSnapshot]` | `get_nav_history` |
+| `GET /portfolio/performance?start&end` | `PerformanceMetrics` | `get_nav_history` + `get_filled_orders` → `summarize_performance` |
+| `GET /portfolios` | `list[PortfolioSchema]` | `list_portfolios` |
+| `POST /portfolios` | `PortfolioSchema` (201) | `create_portfolio` (seeds initial deposit) |
+| `PATCH /portfolios/{id}` | `PortfolioSchema` | `rename_portfolio` |
+| `DELETE /portfolios/{id}` | `{status, id}` | `delete_portfolio` (guards last portfolio) |
+| `POST /portfolios/{id}/deposit` | `CashMovementSchema` (201) | `add_cash_movement("deposit")` |
+| `POST /portfolios/{id}/withdraw` | `CashMovementSchema` (201) | `add_cash_movement("withdrawal")` (cash-check under row lock) |
+| `GET /portfolios/{id}/movements` | `list[CashMovementSchema]` | `get_cash_movements` |
+| `GET /market/quotes?symbols` | `list[QuoteEntry]` | live `YFinanceProvider.fetch_live_prices` |
+| `GET /market/bars/{symbol}?start&end` | `list[OHLCVBar]` | `get_bars_range` |
+| `GET /market/watchlist` | `list[WatchlistEntry]` | `get_active_watchlist` + latest bars + latest signals |
+| `POST /market/watchlist` | `WatchlistEntry` (201) | `upsert_watchlist_symbol` |
+| `DELETE /market/watchlist/{symbol}` | `WatchlistEntry` | `deactivate_watchlist_symbol` |
+| `GET /trades?symbol&start&end&limit` | `list[TradeRecord]` | `get_filtered_orders` |
+| `GET /trades/round-trips` | `list[TradeRoundTrip]` | `get_filled_orders` → `build_round_trips` |
+| `GET /algorithms/signals?asof&limit` | `list[SignalEntry]` | `get_top_ranked_signals` |
+| `GET /algorithms/accuracy` | `SignalAccuracySummary` | `get_settled_signals` → `signal_accuracy` |
+| `GET /algorithms/experiments` | `list[ExperimentEntry]` | `ExperimentComparator.list_runs` |
+| `POST /system/run` | `RunTrigger` | runs the 4-job pipeline in background (single-flight guarded) |
+| `GET /system/status` | `SystemStatus` | `get_last_run_per_job` + static `JOB_SCHEDULE` for next-run |
+| `GET /health` | `{"status":"ok"}` | — |
 
-> Divergence from `module-contracts.md` §4: I implemented the **launch-prompt** path
-> set (the activation mission), which uses `/market/bars/{symbol}` (path param),
-> `/algorithms/signals` (vs `/ranked`), and adds `/portfolio/summary`,
-> `/algorithms/experiments`, `/system/status`. The architect's query-aligned set is a
-> subset; the Frontend Developer should target the table above.
+> Path-style choices vs `module-contracts.md` §4: `/market/bars/{symbol}` (path param),
+> `/algorithms/signals` (vs `/ranked`). Read-only portfolio reads accept an optional
+> `portfolio_id` query param (`resolve_portfolio`) — the active portfolio is chosen
+> client-side. Both docs are now aligned on the same endpoint set.
 
 ## 3. Key design decisions
 
-- **Cash is ledger-derived, never stored.** `cash = STARTING_CASH − Σ(buy)·+Σ(sell)`
-  over filled `trade_orders` (`compute_cash_from_ledger`). No mutable cash row;
-  reconstructable after any restart. `portfolio_nav` is a daily snapshot only.
-- **`PaperBroker` methods are `async`; the `BrokerAdapter` Protocol stays
-  byte-for-byte sacred (sync shape, untouched).** The whole stack is async SQLAlchemy
-  and a real adapter would be network-bound/async too. `runtime_checkable` isinstance
-  still passes. This is the one deliberate accommodation — flagged for the Reality Checker.
+- **Cash is ledger-derived, never stored.** `cash = Σ deposits − Σ withdrawals −
+  Σ(buy price·qty) + Σ(sell price·qty)` over the `cash_movements` and filled
+  `trade_orders` ledgers (`compute_cash`, per-portfolio). `STARTING_CASH` does **not**
+  drive paper cash — real budgets live in `cash_movements` (CLAUDE.md multi-portfolio
+  note). No mutable cash row; reconstructable after any restart. `portfolio_nav` is a
+  daily snapshot only.
+- **The `BrokerAdapter` Protocol is `async` with `qty: Decimal`** (and an added
+  `async get_cash() -> Decimal`), matching every adapter — CLAUDE.md blesses async +
+  Decimal. The whole stack is async SQLAlchemy and a real adapter would be
+  network-bound/async too. `PortfolioManager` builds its `AccountBalance` from
+  `get_account_balance()` (total) + `get_cash()` (cash), never the DB ledger directly,
+  so it reconciles even for the in-memory `MockRealBroker`. `runtime_checkable`
+  isinstance still passes.
 - **`order_type` is accepted but not persisted** (Phase 1 is market-only; the
   `trade_orders` table has no `order_type` column — module-contracts open-Q3). Slippage
   applies to every fill regardless.
@@ -72,7 +92,7 @@ These extend module-contracts §5. All have safe defaults; none is a secret.
 | Var | Default | Used by |
 |---|---|---|
 | `SLIPPAGE_PCT` | `0.001` | PaperBroker fill price |
-| `STARTING_CASH` | `100000` | cash ledger base |
+| `STARTING_CASH` | `500` | `MockRealBroker` in-memory starting cash only (paper cash is `cash_movements`-derived) |
 | `MAX_POSITION_PCT` | `0.05` | RiskManager sizing |
 | `MAX_OPEN_POSITIONS` | `10` | RiskManager cap |
 | `MIN_CASH_PCT` | `0.20` | RiskManager dry-powder reserve |
@@ -97,8 +117,17 @@ These extend module-contracts §5. All have safe defaults; none is a secret.
 - `/market/watchlist` already joins latest price + latest score/action per symbol; `/algorithms/signals` carries `reason` and `indicator_snapshot` for the signal-breakdown view.
 - The API serves the built SvelteKit site from `frontend/build` at `/` when that dir exists (single container). Same-origin by default; set `CORS_ALLOW_ORIGINS` only for a separate dev origin.
 
+---
+
+## Update notes
+
+**2026-06-02** — reconciled this doc with the real code (verified against `backend/trading/*` and `backend/api/routers/*`):
+- **§3** — the `BrokerAdapter` Protocol is **async with `qty: Decimal`** (plus `async get_cash()`), not "sync shape, byte-for-byte"; CLAUDE.md blesses async + Decimal. `PortfolioManager` assembles `AccountBalance` from `get_account_balance()` + `get_cash()`, never the DB ledger directly (keeps `MockRealBroker` consistent). Cash is derived from the `cash_movements` ledger (`compute_cash`), not `STARTING_CASH`.
+- **§2 / §1** — refreshed the endpoint table to the real routers (`portfolio`, `portfolios`, `market`, `trades`, `algorithms`, `system`): added portfolio CRUD + deposit/withdraw/movements, `system/run`, `market/quotes`, `trades/round-trips`, `algorithms/accuracy`.
+- **§4 / handoff** — `STARTING_CASH` only seeds `MockRealBroker`. `mock_real` is **registered** in `broker_factory.py`, so the env-only swap gate is satisfied (was previously noted as not registered).
+
 **Open items / deferred**
-- **`mock_real` broker** for the Reality Checker's env-swap gate is not registered (Phase 2 / out of scope). The seam is ready: add one line to `_REGISTRY` in `broker_factory.py`.
+- **`mock_real` broker** is **registered** in `broker_factory.py` (`_REGISTRY = {"paper": PaperBroker, "mock_real": MockRealBroker}`), so the Reality Checker's env-only swap gate (`BROKER_ADAPTER=mock_real`) is satisfied. A real `alpaca` adapter remains Phase 2.
 - **Benchmark NAV** (`portfolio_nav.benchmark_value`) is left `None`; alpha/beta need a benchmark series — wire a benchmark symbol into `snapshot_nav` when desired.
 - **`get_market_sentiment`** query was added (module-contracts open-Q1) but no `/market/sentiment` endpoint is in the prompt's 10 — exposed query is ready if the dashboard wants it.
 - Runtime import of the pydantic/pandas/fastapi layers needs the Python 3.12 image (current `.venv-db` is DB-only on 3.10 — `StrEnum`/pydantic absent). DB query layer was runtime-validated; the rest is byte-compiled. DevOps must install `requirements-api.txt`.

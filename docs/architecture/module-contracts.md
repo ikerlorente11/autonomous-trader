@@ -43,7 +43,7 @@ module can import them freely without risking a cycle.
                   │                       │ AsyncSession (db.session)
    db.session ────┘                       │
                                           │
- backend.api.main ──► api.routers.{portfolio,market,trades,algorithms}
+ backend.api.main ──► api.routers.{portfolio,portfolios,market,trades,algorithms,system}
                           │  depend on: db.queries.*, db.session, backend.contracts
                           ▼
                   (response models = backend.contracts.*)
@@ -63,7 +63,7 @@ module can import them freely without risking a cycle.
 - **Analysis never imports a concrete provider** and **never opens a session / calls an external API** — `run_analysis` reads from the DB via `db.queries` and computes (synthesis §6).
 - **Providers never import analysis or trading** — they only produce `backend.contracts` DTOs.
 - **API routers depend on `db.queries` + `backend.contracts` only** — no provider, no scheduler imports.
-- The `analysis/signals/*` and `analysis/scoring/*` and `trading/risk_manager.py` modules are **stubs** (Protocol/ABC interfaces); concrete logic arrives in Phase 4.
+- The `analysis/signals/*` and `analysis/scoring/*` modules are **stubs** (Protocol/ABC interfaces); concrete logic arrives later. `trading/risk_manager.py` is **implemented in Phase 4** (`FixedFractionalRiskManager`), not a stub.
 
 ### Where data contracts live (and why)
 DTOs live in a single leaf module **`backend/contracts.py`**, not per-domain files.
@@ -84,19 +84,29 @@ All Protocols are `typing.Protocol`, `@runtime_checkable` where a runtime
 `isinstance` check is useful for dependency injection. Real files are written to disk;
 the canonical source is the path noted under each block.
 
-### 2.1 `BrokerAdapter` — `backend/trading/broker_adapter.py` (SACRED, unchanged)
+### 2.1 `BrokerAdapter` — `backend/trading/broker_adapter.py` (SACRED)
 
 ```python
 @runtime_checkable
 class BrokerAdapter(Protocol):
-    def place_order(self, symbol: str, side: str, qty: int, order_type: str) -> Order: ...
-    def get_positions(self) -> list[Position]: ...
-    def get_account_balance(self) -> Decimal: ...
-    def get_order_status(self, order_id: str) -> OrderStatus: ...
+    async def place_order(self, symbol: str, side: str, qty: Decimal, order_type: str) -> Order: ...
+    async def get_positions(self) -> list[Position]: ...
+    async def get_account_balance(self) -> Decimal: ...
+    async def get_cash(self) -> Decimal: ...
+    async def get_order_status(self, order_id: str) -> OrderStatus: ...
 ```
 
-Interface byte-for-byte as CLAUDE.md mandates. Supporting types (`Order`,
-`Position`, `OrderStatus`) are re-exported from `backend.contracts`.
+The seam is **`async` with `qty: Decimal`** as CLAUDE.md blesses: the whole stack is
+async SQLAlchemy and the real-broker swap target is network-bound, so every adapter
+(`PaperBroker`, `MockRealBroker`, a future real one) is async; `Decimal` `qty`
+supports fractional shares so a small budget can take a position in a high-priced
+symbol. `get_account_balance()` returns the **total** (cash + equity) as a bare
+`Decimal`. `get_cash()` is the cash component, broker-authoritative: `PortfolioManager`
+assembles its `AccountBalance` (cash / equity / total) purely from `get_account_balance()`
++ `get_cash()` and must **not** read the DB cash ledger directly — otherwise an
+in-memory adapter (`MockRealBroker`) would report a cash that does not reconcile with
+its own total. Supporting types (`Order`, `Position`, `OrderStatus`) are re-exported
+from `backend.contracts`.
 
 ### 2.2 `MarketDataProvider` (+ sub-protocols) — `backend/data_ingestion/protocols.py`
 
@@ -134,7 +144,9 @@ class AnalysisEngine(Protocol):
 `CompositeScorer` (`analysis/scoring/composite_scorer.py`) and `SymbolRanker`
 (`analysis/scoring/symbol_ranker.py`) are **separate injectable Protocols** so the
 Experiment Tracker can swap scorer versions (synthesis §6). `RiskManager`
-(`trading/risk_manager.py`) is a Protocol stub for ATR-based sizing.
+(`trading/risk_manager.py`) is a Protocol; its `FixedFractionalRiskManager`
+implementation (fixed-fractional sizing) is **filled in Phase 4** — see
+`backend-services.md` §3/§4.
 
 ### 2.4 `Indicator` base — `backend/analysis/indicators/base.py`
 
@@ -164,7 +176,7 @@ All in `backend/contracts.py`, Pydantic v2, `frozen=True`, `extra="forbid"`. The
 | `RankedSymbol` | (ranker output, not persisted) | `rank: int`, `score: SymbolScore` |
 | `Order` | `trade_orders` (`TradeOrder`) | `id, symbol, side, qty, price, status, reason, strategy_version, ts` — exact (`id` optional pre-insert; DB `BIGSERIAL`) |
 | `Position` | `portfolio_positions` (`PortfolioPosition`) | `symbol, qty, avg_cost, current_price, unrealized_pnl, updated_at` — exact |
-| `AccountBalance` | derived from `portfolio_nav` | `cash, equity, total` |
+| `AccountBalance` | assembled by `PortfolioManager` (not returned by the broker) | `cash, equity, total` — `total = broker.get_account_balance()`, `cash = broker.get_cash()`, `equity = total − cash` |
 | `OrderStatus` | broker lifecycle (paper) | `order_id, status, filled_qty, avg_fill_price` |
 | `PortfolioSnapshot` | `portfolio_nav` (`PortfolioNav`) | `ts, cash, equity, total, benchmark_value` — exact |
 | `TradeRecord` | view over `trade_orders` | same as `Order` with non-optional `id` (dashboard reads filled rows) |
@@ -182,32 +194,48 @@ authoritative on column width (e.g. `side String(8)`).
 
 ## 4. API contract
 
-Single-user dashboard — **no auth** (CLAUDE.md). All endpoints are read-only `GET`
-(the scheduler writes; the API serves). JSON only. Responses use the
-`backend.contracts.*` models above. Each row maps to an **existing** query in
-`backend/db/queries/` — verified against `market_queries.py` and
-`portfolio_queries.py`.
+Single-user dashboard — **no auth** (CLAUDE.md). JSON only. Responses use the
+`backend.contracts.*` / `api.schemas.*` models. The API is mostly read-only, but the
+multi-portfolio + on-demand-run features (post-Phase-5) add a small set of writing
+endpoints (portfolio CRUD, cash movements, watchlist edits, manual run). The list
+below is **verified against the router source** in `backend/api/routers/`.
 
-| Method · Path | Request params | Response model | DB query |
-|---|---|---|---|
-| `GET /api/portfolio/positions` | — | `list[Position]` | `get_open_positions` |
-| `GET /api/portfolio/nav` | `start`, `end` (ISO datetime) | `list[PortfolioSnapshot]` | `get_nav_history` |
-| `GET /api/portfolio/performance` | `start`, `end` | `PerformanceMetrics` | `get_nav_history` + `get_recent_orders` → `metrics.summarize_performance` |
-| `GET /api/market/bars` | `symbol`, `start`, `end` | `list[OHLCVBar]` | `get_bars_range` |
-| `GET /api/market/latest` | `symbols` (csv) | `list[OHLCVBar]` | `get_latest_bars` |
-| `GET /api/market/signal` | `symbol`, `signal_id`, `start`, `end` | `list[IndicatorResult]` | `get_signal_series` |
-| `GET /api/market/sentiment` | `asof` (date) | `dict[str, Decimal]` | *(needs `market_sentiment` query — see open Q)* |
-| `GET /api/trades` | `limit` (default 50) | `list[TradeRecord]` | `get_recent_orders` |
-| `GET /api/algorithms/ranked` | `asof` (datetime), `limit` (default 20) | `list[SymbolScore]` | `get_top_ranked_signals` |
-| `GET /api/algorithms/snapshot` | `asof` (datetime) | `list[IndicatorResult]` | `get_latest_signal_snapshot` |
-| `GET /api/market/watchlist` | — | `list[Watchlist-DTO]` | `get_active_watchlist` |
+| Method · Path | Request | Response model |
+|---|---|---|
+| `GET /api/portfolio/summary` | `portfolio_id?` | `PortfolioSummary` |
+| `GET /api/portfolio/positions` | `portfolio_id?` | `list[Position]` |
+| `GET /api/portfolio/nav` | `portfolio_id?`, `start`, `end` | `list[PortfolioSnapshot]` |
+| `GET /api/portfolio/performance` | `portfolio_id?`, `start`, `end` | `PerformanceMetrics` |
+| `GET /api/portfolios` | — | `list[PortfolioSchema]` |
+| `POST /api/portfolios` | `PortfolioCreate` (`name`, `initial_deposit`) | `PortfolioSchema` (201) |
+| `PATCH /api/portfolios/{id}` | `PortfolioRename` (`name`) | `PortfolioSchema` |
+| `DELETE /api/portfolios/{id}` | — | `{status, id}` (guards last portfolio) |
+| `POST /api/portfolios/{id}/deposit` | `CashMovementCreate` (`amount`, `note?`) | `CashMovementSchema` (201) |
+| `POST /api/portfolios/{id}/withdraw` | `CashMovementCreate` (`amount`, `note?`) | `CashMovementSchema` (201) |
+| `GET /api/portfolios/{id}/movements` | `limit?` | `list[CashMovementSchema]` |
+| `GET /api/market/quotes` | `symbols` (csv) | `list[QuoteEntry]` (live yfinance) |
+| `GET /api/market/bars/{symbol}` | `start?`, `end?` | `list[OHLCVBar]` |
+| `GET /api/market/watchlist` | — | `list[WatchlistEntry]` (+ latest price/score/action) |
+| `POST /api/market/watchlist` | `WatchlistCreate` (`symbol`, `sector?`, `asset_class?`) | `WatchlistEntry` (201) |
+| `DELETE /api/market/watchlist/{symbol}` | — | `WatchlistEntry` (soft-deactivate) |
+| `GET /api/trades` | `portfolio_id?`, `symbol?`, `start?`, `end?`, `limit?` | `list[TradeRecord]` |
+| `GET /api/trades/round-trips` | `portfolio_id?` | `list[TradeRoundTrip]` |
+| `GET /api/algorithms/signals` | `asof?`, `limit?` | `list[SignalEntry]` |
+| `GET /api/algorithms/accuracy` | — | `SignalAccuracySummary` (market-wide hit rate) |
+| `GET /api/algorithms/experiments` | — | `list[ExperimentEntry]` |
+| `POST /api/system/run` | — | `RunTrigger` (single-flight guarded) |
+| `GET /api/system/status` | — | `SystemStatus` (per-job last/next run) |
+| `GET /health` | — | `{"status":"ok"}` |
 
-Router layout (CLAUDE.md tree): `portfolio.py` (positions, nav, performance),
-`market.py` (bars, latest, signal, sentiment, watchlist), `trades.py` (trades),
-`algorithms.py` (ranked, snapshot). Routers take `AsyncSession` via a FastAPI
-dependency yielding from `async_session` (`backend/db/session.py`, per schema.md
-handoff). `get_macro_regime_inputs` exists in `market_queries.py` but is an internal
-analysis input, not a dashboard endpoint — left unexposed.
+Router layout (real, `backend/api/routers/`): `portfolio.py` (summary, positions, nav,
+performance), `portfolios.py` (CRUD + deposit/withdraw/movements), `market.py` (quotes,
+bars, watchlist), `trades.py` (trades, round-trips), `algorithms.py` (signals, accuracy,
+experiments), `system.py` (run, status). Routers take `AsyncSession` via a FastAPI
+dependency yielding from `async_session` (`backend/db/session.py`). The active
+portfolio is selected client-side via the optional `portfolio_id` query param
+(`resolve_portfolio`); the `BrokerAdapter` seam is unaffected — `portfolio_id` is a
+constructor arg to the broker, not part of `place_order` (CLAUDE.md multi-portfolio
+note).
 
 ---
 
@@ -219,11 +247,11 @@ weights/thresholds are **not** here; they live in `config/strategy.yaml` (synthe
 
 | Env var | Type | Default | Description |
 |---|---|---|---|
-| `BROKER_ADAPTER` | str | `paper` | Selects the `BrokerAdapter` impl. `paper` only in Phase 1; the sacred swap (`alpaca`/`mock_real`) is env-only. |
+| `BROKER_ADAPTER` | str | `paper` | Selects the `BrokerAdapter` impl. Both `paper` and `mock_real` are registered in `broker_factory.py` (the env-only swap gate is satisfied); a real `alpaca` adapter is Phase 2. |
 | `DATABASE_URL` | str | *(required)* | asyncpg URL, e.g. `postgresql+asyncpg://user:pass@db/trader`. Read by `db/session.py` (no default — fails fast). |
 | `STRATEGY_CONFIG_PATH` | str | `config/strategy.yaml` | Path to the strategy weights/thresholds YAML the engine validates at startup. |
 | `RISK_FREE_RATE` | float | `0.045` | Annual risk-free rate for Sharpe/Sortino/alpha (already read by `metrics.risk_free_rate_from_env`). |
-| `STARTING_CASH` | Decimal | `100000` | Initial paper-portfolio cash for the `PaperBroker`. |
+| `STARTING_CASH` | Decimal | `500` | **Only** seeds the in-memory `MockRealBroker`'s starting cash. It does **not** drive the paper portfolio: paper cash is derived from the `cash_movements` ledger (`compute_cash`), so real budgets live in `cash_movements` (CLAUDE.md multi-portfolio note). |
 | `SCHEDULER_TIMEZONE` | str | `UTC` | APScheduler timezone; daily jobs are specified in UTC (CLAUDE.md sequence). |
 | `MISFIRE_GRACE_TIME` | int | `3600` | Seconds a missed job may still run (CLAUDE.md). |
 | `API_HOST` | str | `0.0.0.0` | FastAPI bind host. |
@@ -266,3 +294,14 @@ Security Engineer gate). No real secret appears in this document.
 2. **`Watchlist` DTO:** I did not add a `Watchlist` contract (it is config-like metadata, not inter-module flow). If the dashboard needs a typed response, add a small `WatchlistEntry` DTO in `contracts.py` mirroring the `watchlist` columns.
 3. **`order_type` is on `place_order` but absent from the `trade_orders` table.** The DB does not persist order type (Phase 1 is market-only). Confirm whether to add the column or keep it transient.
 4. **`pydantic` and `pandas` are not yet in the active environment** (`.venv-db` is DB-only). DevOps must add `pydantic>=2`, `pandas`, `fastapi`, `apscheduler` to the API/scheduler image requirements; files compile but won't import until then.
+
+---
+
+## Update notes
+
+**2026-06-02** — reconciled this doc with the real code (verified against the sources cited):
+- **§2.1 `BrokerAdapter`** — corrected to the real **`async` + `qty: Decimal`** shape and added the **`async get_cash() -> Decimal`** method; explained the `get_cash` rationale (PortfolioManager builds `AccountBalance` from broker calls only, keeping the in-memory `MockRealBroker` self-consistent). CLAUDE.md already blesses async+Decimal.
+- **§2.3 / dependency rules** — `trading/risk_manager.py` is **implemented in Phase 4** (`FixedFractionalRiskManager`, fixed-fractional sizing), not a stub.
+- **§3** — `AccountBalance` is **assembled by PortfolioManager** (`total = get_account_balance()`, `cash = get_cash()`, `equity = total − cash`), not returned by the broker.
+- **§4** — replaced the stale endpoint table with the real routers (`portfolio`, `portfolios`, `market`, `trades`, `algorithms`, `system`), including portfolio CRUD + deposit/withdraw/movements, `system/run`+`status`, `market/quotes`, `trades/round-trips`, `algorithms/accuracy`.
+- **§5** — `BROKER_ADAPTER`: `mock_real` is **registered** in `broker_factory.py` (env-only swap gate satisfied). `STARTING_CASH` only seeds `MockRealBroker`; paper cash is `cash_movements`-derived (`compute_cash`).
