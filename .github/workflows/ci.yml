@@ -9,6 +9,26 @@ jobs:
   backend:
     name: Backend lint + tests
     runs-on: ubuntu-latest
+    # The suite has DB-backed integration tests; provision the same TimescaleDB the Pi
+    # runs, then create + migrate the isolated test database (scripts/setup-test-db.sh).
+    services:
+      db:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: trader
+          POSTGRES_PASSWORD: trader
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trader -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # setup-test-db.sh connects to the maintenance "postgres" DB to create
+      # autonomous_trader_test; the root conftest repoints this URL at that test DB.
+      DATABASE_URL: postgresql+asyncpg://trader:trader@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +45,9 @@ jobs:
 
       - name: Ruff
         run: ruff check backend
+
+      - name: Create + migrate the test database
+        run: bash scripts/setup-test-db.sh
 
       - name: Pytest
         run: pytest
