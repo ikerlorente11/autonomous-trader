@@ -1,12 +1,16 @@
 import { api } from './client';
 import { getActivePortfolioId } from '$lib/stores/activePortfolio';
 import type {
+	AttributionAxis,
+	AttributionReport,
 	BarsRange,
 	CashMovement,
 	ExperimentEntry,
+	FpaPeriod,
 	NavRange,
 	OHLCVBar,
 	PerformanceMetrics,
+	PeriodPerformance,
 	Portfolio,
 	PortfolioSnapshot,
 	PortfolioSummary,
@@ -58,6 +62,16 @@ export const portfolioApi = {
 	performance: (f?: F) =>
 		api.get<PerformanceMetrics>('/portfolio/performance', {
 			params: portfolioParam(),
+			fetcher: f
+		}),
+	performancePeriods: (f?: F) =>
+		api.get<PeriodPerformance[]>('/portfolio/performance/periods', {
+			params: portfolioParam(),
+			fetcher: f
+		}),
+	attribution: (period: FpaPeriod, by: AttributionAxis, f?: F) =>
+		api.get<AttributionReport>('/portfolio/attribution', {
+			params: { period, by, ...portfolioParam() },
 			fetcher: f
 		})
 };

@@ -37,6 +37,7 @@ const es: Dict = {
 	'nav.portfolios': 'Carteras',
 	'nav.market': 'Mercado',
 	'nav.trades': 'Operaciones',
+	'nav.reports': 'Informes',
 	'nav.experiments': 'Experimentos',
 	'nav.system': 'Sistema',
 	'nav.info': 'Cómo funciona',
@@ -285,7 +286,29 @@ const es: Dict = {
 	'metric.profit_factor': 'Profit Factor',
 	'metric.avg_win': 'Ganancia media',
 	'metric.avg_loss': 'Pérdida media',
-	'metric.win_loss_ratio': 'Ratio ganancia/pérdida'
+	'metric.win_loss_ratio': 'Ratio ganancia/pérdida',
+
+	// Reports (FP&A periods + attribution)
+	'reports.title': 'Informes P&L',
+	'reports.periods.title': 'P&L por período',
+	'reports.periods.caption': 'Ganancia/pérdida por ventana temporal frente al cierre anterior.',
+	'reports.period.wtd': 'Semana (WTD)',
+	'reports.period.mtd': 'Mes (MTD)',
+	'reports.period.ytd': 'Año (YTD)',
+	'reports.period.inception': 'Desde inicio',
+	'reports.attribution.title': 'Atribución de P&L',
+	'reports.attribution.caption': 'Contribución de cada posición al P&L del período seleccionado.',
+	'reports.axis.symbol': 'Por símbolo',
+	'reports.axis.sector': 'Por sector',
+	'reports.col.symbol': 'Símbolo',
+	'reports.col.sector': 'Sector',
+	'reports.col.realized': 'Realizado',
+	'reports.col.unrealized': 'No realizado',
+	'reports.col.total': 'Total',
+	'reports.col.contribution': 'Contribución',
+	'reports.total': 'P&L total del período',
+	'reports.empty': 'Sin datos de atribución todavía.',
+	'reports.note': 'El P&L realizado se acota al período; el no realizado es la marca actual de las posiciones abiertas.'
 };
 
 const en: Dict = {
@@ -313,6 +336,7 @@ const en: Dict = {
 	'nav.portfolios': 'Portfolios',
 	'nav.market': 'Market',
 	'nav.trades': 'Trades',
+	'nav.reports': 'Reports',
 	'nav.experiments': 'Experiments',
 	'nav.system': 'System',
 	'nav.info': 'How it works',
@@ -551,7 +575,29 @@ const en: Dict = {
 	'metric.profit_factor': 'Profit Factor',
 	'metric.avg_win': 'Avg Win',
 	'metric.avg_loss': 'Avg Loss',
-	'metric.win_loss_ratio': 'Win/Loss Ratio'
+	'metric.win_loss_ratio': 'Win/Loss Ratio',
+
+	// Reports (FP&A periods + attribution)
+	'reports.title': 'P&L Reports',
+	'reports.periods.title': 'P&L by period',
+	'reports.periods.caption': 'Profit/loss per time window versus the prior close.',
+	'reports.period.wtd': 'Week (WTD)',
+	'reports.period.mtd': 'Month (MTD)',
+	'reports.period.ytd': 'Year (YTD)',
+	'reports.period.inception': 'Since inception',
+	'reports.attribution.title': 'P&L attribution',
+	'reports.attribution.caption': 'Each holding’s contribution to the selected period’s P&L.',
+	'reports.axis.symbol': 'By symbol',
+	'reports.axis.sector': 'By sector',
+	'reports.col.symbol': 'Symbol',
+	'reports.col.sector': 'Sector',
+	'reports.col.realized': 'Realized',
+	'reports.col.unrealized': 'Unrealized',
+	'reports.col.total': 'Total',
+	'reports.col.contribution': 'Contribution',
+	'reports.total': 'Period total P&L',
+	'reports.empty': 'No attribution data yet.',
+	'reports.note': 'Realized P&L is windowed to the period; unrealized is the current mark on open positions.'
 };
 
 export const messages: Record<Locale, Dict> = { es, en };

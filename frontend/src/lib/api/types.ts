@@ -69,6 +69,49 @@ export interface PerformanceMetrics {
 	trades: Record<string, number>;
 }
 
+// FP&A period & attribution (backend/contracts.py). Floats here serialize as
+// JSON numbers (not Decimal strings); contribution/return can be null (NaN-safe).
+export type FpaPeriod = 'wtd' | 'mtd' | 'ytd' | 'inception';
+export type AttributionAxis = 'symbol' | 'sector';
+
+// backend/contracts.py::PeriodPerformance
+export interface PeriodPerformance {
+	period: FpaPeriod;
+	start_ts: string | null;
+	end_ts: string | null;
+	start_value: number;
+	end_value: number;
+	pnl: number;
+	return_pct: number | null;
+}
+
+// backend/contracts.py::SymbolAttributionItem
+export interface SymbolAttributionItem {
+	symbol: string;
+	realized_pnl: number;
+	unrealized_pnl: number;
+	total_pnl: number;
+	contribution_pct: number | null;
+}
+
+// backend/contracts.py::SectorAttributionItem
+export interface SectorAttributionItem {
+	sector: string;
+	realized_pnl: number;
+	unrealized_pnl: number;
+	total_pnl: number;
+	contribution_pct: number | null;
+}
+
+// backend/contracts.py::AttributionReport
+export interface AttributionReport {
+	period: FpaPeriod;
+	axis: AttributionAxis;
+	total_pnl: number;
+	symbols: SymbolAttributionItem[];
+	sectors: SectorAttributionItem[];
+}
+
 // backend/api/schemas.py::WatchlistEntry
 export interface WatchlistEntry {
 	symbol: string;

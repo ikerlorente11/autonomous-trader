@@ -17,7 +17,9 @@ Two input shapes recur:
 
 from __future__ import annotations
 
+import datetime as dt
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -26,6 +28,10 @@ import pandas as pd
 
 TRADING_DAYS_PER_YEAR = 252
 DEFAULT_RISK_FREE_RATE = 0.045  # annual; overridable via RISK_FREE_RATE env var
+
+FPA_PERIODS = ("wtd", "mtd", "ytd", "inception")
+UNCLASSIFIED_SECTOR = "Unclassified"
+_PNL_EPSILON = 1e-9  # below this a P&L sum is "flat" → contribution % is undefined
 
 
 def risk_free_rate_from_env() -> float:
@@ -327,6 +333,181 @@ def avg_win_loss(trips: pd.DataFrame) -> WinLossStats:
     avg_loss = float(losses.mean()) if len(losses) else 0.0
     ratio = float(avg_win / abs(avg_loss)) if avg_loss != 0 else float("nan")
     return WinLossStats(avg_win, avg_loss, ratio, len(wins), len(losses))
+
+
+# --------------------------------------------------------------------------- #
+# 3. FP&A periods & P&L attribution (reporting-structure.md §1.2–1.3)
+# --------------------------------------------------------------------------- #
+class PeriodPnl(NamedTuple):
+    period: str  # one of FPA_PERIODS
+    start_ts: pd.Timestamp | None
+    end_ts: pd.Timestamp | None
+    start_value: float
+    end_value: float
+    pnl: float
+    return_pct: float
+
+
+class SymbolAttribution(NamedTuple):
+    symbol: str
+    realized_pnl: float  # FIFO-closed lots exiting inside the period window
+    unrealized_pnl: float  # current open-position mark (point-in-time)
+    total_pnl: float
+    contribution_pct: float  # share of the summed total across symbols
+
+
+class SectorAttribution(NamedTuple):
+    sector: str
+    realized_pnl: float
+    unrealized_pnl: float
+    total_pnl: float
+    contribution_pct: float
+
+
+def _to_naive_utc(ts: dt.datetime | pd.Timestamp) -> pd.Timestamp:
+    """Normalize a timestamp to tz-naive UTC so it compares against a naive index."""
+    t = pd.Timestamp(ts)
+    if t.tz is not None:
+        t = t.tz_convert("UTC").tz_localize(None)
+    return t
+
+
+def _naive_utc_index(s: pd.Series) -> pd.Series:
+    if isinstance(s.index, pd.DatetimeIndex) and s.index.tz is not None:
+        s = s.copy()
+        s.index = s.index.tz_convert("UTC").tz_localize(None)
+    return s
+
+
+def period_start(asof: dt.datetime | pd.Timestamp, period: str) -> pd.Timestamp | None:
+    """The window-open boundary for a period (tz-naive UTC midnight).
+
+    ``None`` for ``inception`` (the window opens at the first NAV). The baseline NAV
+    for a period is the last close *before* this boundary (§1.2: "vs last Friday's
+    close" / "vs prior month-end"); realized trips are those exiting at/after it.
+    """
+    a = _to_naive_utc(asof).normalize()
+    if period == "wtd":
+        return a - pd.Timedelta(days=int(a.weekday()))  # Monday 00:00
+    if period == "mtd":
+        return a.replace(day=1)
+    if period == "ytd":
+        return a.replace(month=1, day=1)
+    if period == "inception":
+        return None
+    raise ValueError(f"unknown period {period!r}; expected one of {FPA_PERIODS}")
+
+
+def period_pnl(
+    nav: pd.DataFrame, period: str, asof: dt.datetime | pd.Timestamp
+) -> PeriodPnl:
+    """Period P&L from the daily NAV series: ``end − baseline`` / ``end/baseline − 1``.
+
+    Baseline is the last NAV strictly before the period boundary (the prior close);
+    if the boundary predates inception it falls back to the first NAV (§1.2 "or
+    inception if first year"). Pure: ``asof`` is passed in, never read from a clock.
+    """
+    s = _naive_utc_index(_nav_series(nav))
+    asof_ts = _to_naive_utc(asof)
+    s = s[s.index <= asof_ts]
+    if s.empty:
+        return PeriodPnl(period, None, None, 0.0, 0.0, 0.0, float("nan"))
+
+    end_ts, end_value = s.index[-1], float(s.iloc[-1])
+    boundary = period_start(asof_ts, period)
+    prior = s[s.index < boundary] if boundary is not None else s.iloc[:0]
+    if len(prior):
+        start_ts, start_value = prior.index[-1], float(prior.iloc[-1])
+    else:
+        start_ts, start_value = s.index[0], float(s.iloc[0])  # inception anchor
+
+    pnl = end_value - start_value
+    return_pct = (end_value / start_value - 1.0) if start_value != 0 else float("nan")
+    return PeriodPnl(period, start_ts, end_ts, start_value, end_value, pnl, return_pct)
+
+
+def attribution_by_symbol(
+    trips: pd.DataFrame,
+    unrealized: Mapping[str, float] | None = None,
+    *,
+    start: dt.datetime | pd.Timestamp | None = None,
+    end: dt.datetime | pd.Timestamp | None = None,
+) -> list[SymbolAttribution]:
+    """Per-symbol P&L = period-realized closed lots + current unrealized mark (§1.3).
+
+    Realized is summed from ``trips`` whose ``exit_ts`` falls in ``[start, end]``
+    (``start=None`` → inception). ``unrealized`` is the point-in-time open mark
+    ``{symbol: pnl}`` (period-independent by construction). ``contribution_pct`` is
+    each symbol's share of the summed total; undefined (NaN) when the total nets flat.
+    Sorted best → worst contributor.
+    """
+    marks = dict(unrealized or {})
+    realized: dict[str, float] = {}
+    if trips is not None and not trips.empty and "exit_ts" in trips.columns:
+        df = trips.copy()
+        exit_ts = pd.to_datetime(df["exit_ts"])
+        if getattr(exit_ts.dt, "tz", None) is not None:
+            exit_ts = exit_ts.dt.tz_convert("UTC").dt.tz_localize(None)
+        df = df.assign(exit_ts=exit_ts, pnl=pd.to_numeric(df["pnl"], errors="coerce"))
+        if start is not None:
+            df = df[df["exit_ts"] >= _to_naive_utc(start)]
+        if end is not None:
+            df = df[df["exit_ts"] <= _to_naive_utc(end)]
+        df = df.dropna(subset=["pnl"])
+        if not df.empty:
+            realized = df.groupby("symbol")["pnl"].sum().to_dict()
+
+    rows = [
+        (sym, float(realized.get(sym, 0.0)), float(marks.get(sym, 0.0)))
+        for sym in set(realized) | set(marks)
+    ]
+    grand = sum(r + u for _, r, u in rows)
+    out = [
+        SymbolAttribution(
+            symbol=sym,
+            realized_pnl=r,
+            unrealized_pnl=u,
+            total_pnl=r + u,
+            contribution_pct=(
+                (r + u) / grand * 100.0 if abs(grand) > _PNL_EPSILON else float("nan")
+            ),
+        )
+        for sym, r, u in rows
+    ]
+    out.sort(key=lambda a: a.total_pnl, reverse=True)
+    return out
+
+
+def attribution_by_sector(
+    symbol_attr: Sequence[SymbolAttribution],
+    sector_map: Mapping[str, str],
+) -> list[SectorAttribution]:
+    """Roll per-symbol attribution up to sectors via ``{symbol: sector}`` (§1.3).
+
+    Symbols absent from the map (held but un-watchlisted) fall into
+    ``UNCLASSIFIED_SECTOR``; sector is joined at read time, never persisted.
+    """
+    agg: dict[str, list[float]] = {}
+    for sa in symbol_attr:
+        sector = sector_map.get(sa.symbol) or UNCLASSIFIED_SECTOR
+        acc = agg.setdefault(sector, [0.0, 0.0])
+        acc[0] += sa.realized_pnl
+        acc[1] += sa.unrealized_pnl
+    grand = sum(r + u for r, u in agg.values())
+    out = [
+        SectorAttribution(
+            sector=sector,
+            realized_pnl=r,
+            unrealized_pnl=u,
+            total_pnl=r + u,
+            contribution_pct=(
+                (r + u) / grand * 100.0 if abs(grand) > _PNL_EPSILON else float("nan")
+            ),
+        )
+        for sector, (r, u) in agg.items()
+    ]
+    out.sort(key=lambda a: a.total_pnl, reverse=True)
+    return out
 
 
 # --------------------------------------------------------------------------- #

@@ -191,3 +191,49 @@ class PerformanceMetrics(_Frozen):
     returns: dict[str, float] = Field(default_factory=dict)
     risk: dict[str, float] = Field(default_factory=dict)
     trades: dict[str, float] = Field(default_factory=dict)
+
+
+# --------------------------------------------------------------------------- #
+# FP&A periods & P&L attribution (reporting-structure.md §1.2–1.3). Floats, to
+# match the float-based metric math in backend.analysis.performance.metrics.
+# --------------------------------------------------------------------------- #
+class PeriodPerformance(_Frozen):
+    """One period's P&L tile (WTD/MTD/YTD/inception)."""
+
+    period: str
+    start_ts: dt.datetime | None = None
+    end_ts: dt.datetime | None = None
+    start_value: float
+    end_value: float
+    pnl: float
+    return_pct: float | None = None
+
+
+class SymbolAttributionItem(_Frozen):
+    """One symbol's contribution to a period's P&L."""
+
+    symbol: str
+    realized_pnl: float
+    unrealized_pnl: float
+    total_pnl: float
+    contribution_pct: float | None = None
+
+
+class SectorAttributionItem(_Frozen):
+    """One sector's contribution to a period's P&L (watchlist sector, read-time join)."""
+
+    sector: str
+    realized_pnl: float
+    unrealized_pnl: float
+    total_pnl: float
+    contribution_pct: float | None = None
+
+
+class AttributionReport(_Frozen):
+    """P&L attribution for a period along one axis (symbol or sector)."""
+
+    period: str
+    axis: str  # 'symbol' | 'sector'
+    total_pnl: float
+    symbols: list[SymbolAttributionItem] = Field(default_factory=list)
+    sectors: list[SectorAttributionItem] = Field(default_factory=list)

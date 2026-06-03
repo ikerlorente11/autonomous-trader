@@ -34,6 +34,7 @@
 		{ href: '/portfolios', labelKey: 'nav.portfolios', icon: 'wallet' },
 		{ href: '/market', labelKey: 'nav.market', icon: 'chart' },
 		{ href: '/trades', labelKey: 'nav.trades', icon: 'swap' },
+		{ href: '/reports', labelKey: 'nav.reports', icon: 'briefcase' },
 		{ href: '/experiments', labelKey: 'nav.experiments', icon: 'flask' },
 		{ href: '/system', labelKey: 'nav.system', icon: 'activity' },
 		{ href: '/info', labelKey: 'nav.info', icon: 'info' }
