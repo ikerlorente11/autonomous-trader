@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ from backend.api.routers import (
     system,
     trades,
 )
+from backend.db.session import warm_pool
 
 _FRONTEND_BUILD = Path(__file__).resolve().parents[2] / "frontend" / "build"
 
@@ -76,11 +79,20 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Warm the DB pool so the dashboard's first concurrent burst hits ready
+    # connections instead of paying TimescaleDB's cold connect latency.
+    await warm_pool()
+    yield
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Autonomous Trader API",
         version="1.0",
         default_response_class=SafeJSONResponse,
+        lifespan=_lifespan,
     )
 
     origins = _cors_origins()
