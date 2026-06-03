@@ -72,3 +72,52 @@ duplicates. The whole `ingest_daily_bars` path is safe to re-run.
 - Twelve Data has no split-adjusted column on `/time_series`, so `adj_close` mirrors
   `close` there. yfinance provides real `Adj Close`. Acceptable while yfinance is
   primary; flag if Twelve Data becomes primary.
+
+---
+
+## Post-Phase-5: macro / news / fundamentals ingestion + observation signals
+
+The three remaining daily ingestion jobs are now built, completing the 7-job sequence.
+Each mirrors the OHLCV pattern (Protocol-backed provider → idempotent upsert → job that
+is market-day-gated, records a `job_runs` row, and **skips cleanly without its API key**
+rather than failing). **No schema migration was needed** — every target table already
+existed from migration `0001`.
+
+| Job (UTC) | Provider (Protocol) | Upsert → table | Key |
+|---|---|---|---|
+| `fetch_macro_data` (06:00) | `FredProvider` (`MacroProvider`) | `upsert_macro_series` → `macro_series` (`series_id, ts`) | `FRED_API_KEY` |
+| `fetch_news_sentiment` (06:15) | `FinnhubNewsProvider` (`NewsProvider`) | `upsert_news_sentiment` → `news_sentiment.article_count` (`symbol, ts`) | `FINNHUB_API_KEY` |
+| `fetch_fundamentals` (06:45) | `FinnhubFundamentalsProvider` (`FundamentalsProvider`) | `upsert_fundamentals_quarterly` → `fundamentals_quarterly.line_items` (`symbol, period_end`) | `FINNHUB_API_KEY` |
+
+Orchestrators: `macro_ingest.py`, `news_ingest.py`, `fundamentals_ingest.py` (each with a
+provider factory + `*_data_configured()` so the job can skip on a missing key). Provider
+selection via `MACRO_DATA_PROVIDER` / `NEWS_DATA_PROVIDER` / `FUNDAMENTALS_DATA_PROVIDER`.
+
+### Observation-mode signals (computed in `run_analysis`, NOT yet traded on)
+
+`run_analysis` reads the ingested data from the DB and records derived sub-scores to
+`signal_values`. They are **not** passed to `WeightedCompositeScorer`, so the composite
+score and BUY/SELL/HOLD action are unchanged — purely observed for later calibration.
+
+| `signal_id` | Source | Module |
+|---|---|---|
+| `macro_regime` | `macro_series` (curve `T10Y2Y`, `VIXCLS`, credit `BAMLH0A0HYM2`) | `analysis/signals/macro/regime.py` |
+| `revenue_accel`, `earnings_accel`, `quality` | `fundamentals_quarterly.line_items` | `analysis/signals/fundamental/signals.py` |
+| `news_buzz` | `news_sentiment.article_count` | `analysis/signals/sentiment/news.py` |
+
+All thresholds/temperatures are env-configurable (see `.env.example`). **Activation** —
+turning an observed signal into a real weight (additive) or a regime multiplier — is a
+deliberate `strategy.yaml` change gated by the Experiment Tracker; deferred on purpose.
+
+### Caveats (need live verification)
+
+- The two **Finnhub** parsers are built to the documented response shapes and covered by
+  `respx`-mocked tests, but have not been run against the live API here. The
+  fundamentals **US-GAAP concept → line-item map** (`finnhub_fundamentals_provider.py`)
+  in particular may need tuning per filer (different revenue tags, IFRS, restatements);
+  unmapped items are omitted and the signals degrade gracefully.
+- News ingestion captures **flow** (daily article counts); polarity scoring is a later
+  addition (`news_sentiment.mean_score` left null for now). Fundamentals source is
+  **Finnhub** (not yfinance) for reliability — sources stay swappable via the Protocol.
+- `fetch_earnings_calendar` returns empty for now (separate/premium endpoint); the
+  current fundamental signals do not depend on it.

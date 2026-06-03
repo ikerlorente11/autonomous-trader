@@ -372,15 +372,20 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 08:15 UTC  →  update_portfolio_nav()      ← Snapshot portfolio value
 ```
 
-> **Implementation status (as of Phase 4).** The 7-job sequence above is the
-> **target**. What is actually built is the 4-job subset
-> `fetch_market_data → run_analysis → execute_paper_trades → update_portfolio_nav`
-> (06:30/07:30/08:00/08:15 UTC), the same set the Reality Checker gates on. The
-> `fetch_macro_data` / `fetch_news_sentiment` / `fetch_fundamentals` jobs and their
-> providers (FRED, Finnhub, fundamentals) are **not yet implemented**; only OHLCV
-> providers exist and analysis runs on technical indicators only (RSI/MA/ATR). The
-> fundamental/macro/sentiment signal modules remain clean stubs. Adding the missing
-> ingestion is post-Phase-5 work and does not block Frontend or DevOps.
+> **Implementation status.** The Reality Checker still gates on the original 4-job
+> subset (`fetch_market_data → run_analysis → execute_paper_trades → update_portfolio_nav`,
+> 06:30/07:30/08:00/08:15 UTC). **Post-Phase-5, the three remaining ingestion jobs are now
+> built** and the full 7-job sequence runs: `fetch_macro_data` (06:00, FRED →
+> `macro_series`), `fetch_news_sentiment` (06:15, Finnhub `/company-news` → `news_sentiment`
+> article counts) and `fetch_fundamentals` (06:45, Finnhub `/stock/financials-reported` →
+> `fundamentals_quarterly`). Each is market-day-gated, idempotent, and **skips cleanly
+> when its provider key is absent** (`FRED_API_KEY` / `FINNHUB_API_KEY`), so the pipeline
+> degrades rather than fails. `run_analysis` still **trades on technical indicators only**
+> (RSI/MA/ATR): the new macro/fundamental/sentiment signals are computed and persisted to
+> `signal_values` in **observation mode** (`macro_regime`, `revenue_accel`, `earnings_accel`,
+> `quality`, `news_buzz`) but are **not** fed to the composite scorer — they change no trade
+> until a deliberate **activation** (adding weights / a regime multiplier in `strategy.yaml`,
+> gated by the Experiment Tracker). Full detail: `docs/architecture/data-ingestion.md`.
 
 > **Post-Phase-5 additions.** The 4-job pipeline can also be launched **on demand**:
 > `POST /api/system/run` runs the same sequence in order (single-flight guarded in the API

@@ -21,7 +21,10 @@ async def test_system_status_lists_all_jobs(api_client) -> None:
     body = r.json()
     jobs = {j["job"] for j in body["jobs"]}
     assert jobs == {
+        "fetch_macro_data",
+        "fetch_news_sentiment",
         "fetch_market_data",
+        "fetch_fundamentals",
         "run_analysis",
         "execute_paper_trades",
         "update_portfolio_nav",

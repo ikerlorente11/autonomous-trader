@@ -53,7 +53,8 @@ async def run_pipeline_now(background: BackgroundTasks) -> RunTrigger:
     background.add_task(_run_pipeline_guarded)
     return RunTrigger(
         status="started",
-        detail="Daily pipeline started: market data, analysis, trades, NAV snapshot.",
+        detail="Daily pipeline started: macro, news, market data, fundamentals, "
+        "analysis, trades, NAV snapshot.",
     )
 
 

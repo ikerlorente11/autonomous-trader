@@ -30,16 +30,51 @@ from backend.analysis.scoring.persistence import (
     persist_algorithm_signals,
     persist_signal_values,
 )
-from backend.contracts import OHLCVBar, OrderState, RankedSymbol, SignalAction, SymbolScore
+from backend.analysis.signals.fundamental.signals import compute_fundamental_signals
+from backend.analysis.signals.macro.regime import (
+    MACRO_REGIME_SIGNAL_ID,
+    classify_from_macro,
+    regime_series_ids,
+)
+from backend.analysis.signals.sentiment.news import (
+    NEWS_BUZZ_SIGNAL_ID,
+    news_buzz_score,
+)
+from backend.contracts import (
+    IndicatorResult,
+    OHLCVBar,
+    OrderState,
+    RankedSymbol,
+    SignalAction,
+    SymbolScore,
+)
 from backend.data_ingestion.calendar import is_market_open_now, is_trading_day
+from backend.data_ingestion.fundamentals_ingest import (
+    fundamentals_data_configured,
+    ingest_fundamentals,
+)
 from backend.data_ingestion.ingest import ingest_daily_bars, upsert_bars
+from backend.data_ingestion.macro_ingest import (
+    ingest_macro_series,
+    macro_data_configured,
+    macro_lookback_days,
+    macro_series_ids,
+)
+from backend.data_ingestion.news_ingest import (
+    ingest_news_sentiment,
+    news_data_configured,
+    news_lookback_days,
+)
 from backend.data_ingestion.providers.yfinance_provider import YFinanceProvider
 from backend.db.models import JobRun
+from backend.db.queries.fundamentals_queries import get_recent_fundamentals
+from backend.db.queries.macro_queries import get_latest_macro_values
 from backend.db.queries.market_queries import (
     count_bars_per_symbol,
     get_bars_range,
     get_latest_bars,
 )
+from backend.db.queries.news_queries import get_recent_news_counts
 from backend.db.queries.portfolio_queries import (
     count_filled_orders_since,
     get_active_watchlist,
@@ -176,6 +211,64 @@ def _latest_atr(rows) -> Decimal | None:
 # --------------------------------------------------------------------------- #
 # Ingestion job (external calls)
 # --------------------------------------------------------------------------- #
+async def fetch_macro_data() -> None:
+    async with _job_context("fetch_macro_data") as outcome:
+        today = dt.date.today()
+        if not is_trading_day(today):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            _log_event("fetch_macro_data", "MARKET_CLOSED", day=today.isoformat())
+            return
+        if not macro_data_configured():
+            # Optional provider key absent — skip cleanly, don't record a hard failure.
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "no_api_key"}
+            _log_event("fetch_macro_data", "NO_API_KEY")
+            return
+        series = macro_series_ids()
+        start = today - dt.timedelta(days=macro_lookback_days())
+        async with async_session() as session:
+            written = await ingest_macro_series(session, series, start, today)
+        empty = [sid for sid, n in written.items() if n == 0]
+        outcome.status = "degraded" if empty else "success"
+        outcome.detail = {
+            "series_requested": len(series),
+            "rows_written": sum(written.values()),
+            "series_empty": empty,
+        }
+
+
+async def fetch_news_sentiment() -> None:
+    async with _job_context("fetch_news_sentiment") as outcome:
+        today = dt.date.today()
+        if not is_trading_day(today):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            _log_event("fetch_news_sentiment", "MARKET_CLOSED", day=today.isoformat())
+            return
+        if not news_data_configured():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "no_api_key"}
+            _log_event("fetch_news_sentiment", "NO_API_KEY")
+            return
+        since = _today_utc_midnight() - dt.timedelta(days=news_lookback_days())
+        async with async_session() as session:
+            watchlist = await get_active_watchlist(session)
+            symbols = [w.symbol for w in watchlist]
+            if not symbols:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "empty_watchlist"}
+                return
+            written = await ingest_news_sentiment(session, symbols, since)
+        empty = [s for s, n in written.items() if n == 0]
+        outcome.status = "degraded" if empty else "success"
+        outcome.detail = {
+            "symbols_requested": len(symbols),
+            "rows_written": sum(written.values()),
+            "symbols_empty": empty,
+        }
+
+
 async def fetch_market_data() -> None:
     async with _job_context("fetch_market_data") as outcome:
         today = dt.date.today()
@@ -218,6 +311,36 @@ async def fetch_market_data() -> None:
             }
 
 
+async def fetch_fundamentals() -> None:
+    async with _job_context("fetch_fundamentals") as outcome:
+        today = dt.date.today()
+        if not is_trading_day(today):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            _log_event("fetch_fundamentals", "MARKET_CLOSED", day=today.isoformat())
+            return
+        if not fundamentals_data_configured():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "no_api_key"}
+            _log_event("fetch_fundamentals", "NO_API_KEY")
+            return
+        async with async_session() as session:
+            watchlist = await get_active_watchlist(session)
+            symbols = [w.symbol for w in watchlist]
+            if not symbols:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "empty_watchlist"}
+                return
+            written = await ingest_fundamentals(session, symbols)
+        empty = [s for s, n in written.items() if n == 0]
+        outcome.status = "degraded" if empty else "success"
+        outcome.detail = {
+            "symbols_requested": len(symbols),
+            "rows_written": sum(written.values()),
+            "symbols_empty": empty,
+        }
+
+
 # --------------------------------------------------------------------------- #
 # Compute jobs (DB-only, no network)
 # --------------------------------------------------------------------------- #
@@ -244,11 +367,59 @@ async def run_analysis() -> None:
                     engine.compute_indicators({entry.symbol: frame}, asof)
                 )
                 scores.append(engine.score_symbol(entry.symbol, frame, asof))
+                # Fundamental signals (OBSERVATION ONLY): recorded as signal_values,
+                # not fed to the scorer, so the action is unchanged. Empty until the
+                # fundamentals ingestion job (C3b) populates fundamentals_quarterly.
+                fundamentals = await get_recent_fundamentals(session, entry.symbol)
+                if fundamentals:
+                    fund_scores = compute_fundamental_signals(
+                        [fr.line_items for fr in fundamentals]
+                    )
+                    indicators.extend(
+                        IndicatorResult(
+                            symbol=entry.symbol,
+                            ts=asof,
+                            signal_id=signal_id,
+                            value=Decimal(str(round(value, 8))),
+                        )
+                        for signal_id, value in fund_scores.items()
+                    )
+                # News buzz (OBSERVATION ONLY): abnormal news flow, recorded but not
+                # scored. Empty until the news job populates news_sentiment.
+                buzz = news_buzz_score(
+                    await get_recent_news_counts(session, entry.symbol)
+                )
+                if buzz is not None:
+                    indicators.append(
+                        IndicatorResult(
+                            symbol=entry.symbol,
+                            ts=asof,
+                            signal_id=NEWS_BUZZ_SIGNAL_ID,
+                            value=Decimal(str(round(buzz, 8))),
+                        )
+                    )
             if not scores:
                 outcome.status = "degraded"
                 outcome.detail = {"reason": "NO_SIGNALS", "symbols_scored": 0}
                 _log_event("run_analysis", "NO_SIGNALS")
                 return
+            # Macro regime (OBSERVATION ONLY): record a market-wide regime score as a
+            # per-symbol signal_value. It is NOT passed to the scorer, so scores and
+            # actions are unchanged; activating it later is a deliberate config change.
+            regime = classify_from_macro(
+                await get_latest_macro_values(session, regime_series_ids(), asof)
+            )
+            if regime.score is not None:
+                regime_value = Decimal(str(round(regime.score, 8)))
+                indicators.extend(
+                    IndicatorResult(
+                        symbol=s.symbol,
+                        ts=asof,
+                        signal_id=MACRO_REGIME_SIGNAL_ID,
+                        value=regime_value,
+                    )
+                    for s in scores
+                )
             await persist_signal_values(session, indicators)
             await persist_algorithm_signals(session, scores, engine.strategy_version)
             settled = await settle_due_signals(session, asof)
@@ -257,6 +428,10 @@ async def run_analysis() -> None:
                 "symbols_scored": len(scores),
                 "strategy_version": engine.strategy_version,
                 "signals_settled": settled,
+                "macro_regime": regime.regime,
+                "macro_regime_score": (
+                    round(regime.score, 2) if regime.score is not None else None
+                ),
             }
 
 
@@ -489,7 +664,10 @@ async def protective_sell() -> None:
 
 
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {
+    "fetch_macro_data": fetch_macro_data,
+    "fetch_news_sentiment": fetch_news_sentiment,
     "fetch_market_data": fetch_market_data,
+    "fetch_fundamentals": fetch_fundamentals,
     "run_analysis": run_analysis,
     "execute_paper_trades": execute_paper_trades,
     "update_portfolio_nav": update_portfolio_nav,
