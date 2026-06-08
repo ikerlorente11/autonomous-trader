@@ -122,6 +122,12 @@ class PaperBroker:
         if existing is None:
             return
         existing.qty = existing.qty - qty
+        if existing.qty <= 0:
+            # Flat: clear the stale mark so a closed row doesn't carry a phantom
+            # unrealized P&L into direct/analytics reads (diagnostics P8). The app
+            # already filters qty != 0, so NAV/equity were correct; this fixes the
+            # raw column for anyone summing it without the filter.
+            existing.unrealized_pnl = Decimal(0)
 
     async def place_order(
         self, symbol: str, side: str, qty: Decimal, order_type: str

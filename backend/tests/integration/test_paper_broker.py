@@ -61,3 +61,21 @@ async def test_buy_then_partial_sell_reduces_position(db_session) -> None:
     assert sell.status is OrderState.FILLED
     pos = await get_position(db_session, pid, "AAPL")
     assert pos.qty == Decimal("3.000000")
+
+
+async def test_full_sell_clears_unrealized_pnl(db_session) -> None:
+    # A closed (qty=0) row must not retain a stale unrealized P&L (diagnostics P8):
+    # the app filters qty != 0, but raw/analytics sums over portfolio_positions would
+    # otherwise count a phantom mark on a position that no longer exists.
+    broker, pid = await _broker(db_session)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    pos = await get_position(db_session, pid, "AAPL")
+    pos.unrealized_pnl = Decimal("123.45")  # simulate a prior mark from update_positions
+    await db_session.flush()
+
+    sell = await broker.place_order("AAPL", "sell", Decimal("5"), "market")
+    assert sell.status is OrderState.FILLED
+    pos = await get_position(db_session, pid, "AAPL")
+    assert pos.qty == Decimal("0.000000")
+    assert pos.unrealized_pnl == Decimal("0")
