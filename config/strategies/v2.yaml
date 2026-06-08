@@ -1,10 +1,26 @@
-# Strategy version "v2" — diagnostics fix P1: take ATR out of the score.
-#
-# Overlay merged onto config/strategy.yaml. ATR's sub-score was monotonic in
-# volatility (avg 76, never <50 over 196 obs, corr 0.14 with the composite) — a near
-# constant floor that rewarded the noisiest names. ATR is reserved for sizing/stops
-# (synthesis §1, §3.1), not selection. Weight 0 drops it; the scorer renormalizes
-# rsi/ma over the remaining 0.8 and data_completeness stays 1.0.
+# Strategy version "v2" — diagnostics fixes overlaid on config/strategy.yaml.
+# Each key here is the ONLY difference from the base ("v1"); everything else is inherited.
+# See docs/diagnostics/02-plan-mejora.md for the rationale (P1–P6).
+
 scoring:
   weights:
+    # P1: take ATR out of the score (it was a near-constant volatility floor, corr 0.14
+    # with the composite). ATR still feeds sizing/stops. rsi/ma renormalize over 0.8.
     atr: 0.0
+
+indicators:
+  rsi:
+    # P4 (biggest lever): contrarian RSI — oversold scores high — instead of buying
+    # overbought strength (the root cause of the -5.5/-6 pp alpha bleed).
+    mode: mean_reversion
+  ma_trend:
+    # P5: cap the "how far above the MA" reward at +2% — a trend gate, not a chase.
+    extension_cap: 0.02
+
+trading:
+  # P2: don't re-buy a name sold within 3 days (kills the protective-sell -> rebuy whipsaw).
+  stop_reentry_cooldown_days: 3
+  # P3: minimum stop distance 5% of the peak so calm ETFs aren't stopped on 1–2% noise.
+  stop_min_distance_pct: 0.05
+  # P6: no pyramiding — don't add to a name already held (AMD was 56% of the realized loss).
+  allow_pyramiding: false

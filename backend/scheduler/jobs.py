@@ -434,16 +434,18 @@ async def run_analysis() -> None:
             }
 
 
-def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
-    """Build the analysis engine for a portfolio's strategy version. Falls back to the
-    base config if the variant file is missing so a portfolio never stops trading on a
-    typo'd / removed label."""
+def _config_for_label(label: str | None):
+    """Resolve a portfolio's strategy version to a config. Falls back to the base config
+    if the variant file is missing so a portfolio never stops trading on a typo'd label."""
     try:
-        config = load_strategy_config(label=label) if label else load_strategy_config()
+        return load_strategy_config(label=label) if label else load_strategy_config()
     except FileNotFoundError:
         logger.warning("strategy version %r not found; using base config", label)
-        config = load_strategy_config()
-    return DefaultAnalysisEngine(config)
+        return load_strategy_config()
+
+
+def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
+    return DefaultAnalysisEngine(_config_for_label(label))
 
 
 async def _ranked_for_engine(
@@ -512,7 +514,10 @@ async def execute_paper_trades() -> None:
                             session, portfolio.id,
                             strategy_version=engine.strategy_version,
                         )
-                        manager = PortfolioManager(broker, session, portfolio.id)
+                        manager = PortfolioManager(
+                            broker, session, portfolio.id,
+                            config=_config_for_label(portfolio.strategy_label),
+                        )
                         orders = await manager.execute_signals(ranked)
                     per_portfolio[str(portfolio.id)] = len(orders)
                     total_orders += len(orders)
@@ -533,6 +538,12 @@ async def execute_paper_trades() -> None:
 
 async def update_portfolio_nav() -> None:
     async with _job_context("update_portfolio_nav") as outcome:
+        # P9: don't stamp a NAV/benchmark point on non-session days — it carried stale
+        # weekend marks forward and skewed the day-by-day benchmark. Market days only.
+        if not is_trading_day(dt.date.today()):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            return
         async with async_session() as session:
             portfolios = await list_portfolios(session, active_only=True)
             if not portfolios:
@@ -628,6 +639,19 @@ async def protective_sell() -> None:
                 positions = await get_open_positions(session, portfolio.id)
                 if not positions:
                     continue
+                # Per-version stop tuning (P3): a wider ATR multiple and/or a minimum
+                # distance floor so calm names aren't stopped out by 1–2% noise.
+                trading = _config_for_label(portfolio.strategy_label).trading
+                p_atr_mult = (
+                    Decimal(str(trading.stop_atr_multiple))
+                    if trading.stop_atr_multiple is not None
+                    else atr_mult
+                )
+                p_min_dist = (
+                    Decimal(str(trading.stop_min_distance_pct))
+                    if trading.stop_min_distance_pct is not None
+                    else Decimal(0)
+                )
                 symbols = [p.symbol for p in positions]
                 live = await provider.fetch_live_prices(symbols)
                 # Feed fallback: if the live quote is missing (Yahoo 429), fall back to the
@@ -649,8 +673,9 @@ async def protective_sell() -> None:
                     )
                     new_hwm, hit = evaluate_trailing_stop(
                         position.avg_cost, position.high_water_mark, price,
-                        pct=pct, atr=atr, atr_multiple=atr_mult,
+                        pct=pct, atr=atr, atr_multiple=p_atr_mult,
                         distance_factor=distance_factor,
+                        min_distance_pct=p_min_dist,
                     )
                     position.high_water_mark = new_hwm  # ratchet up, persisted on commit
                     if not hit or panic_hold:

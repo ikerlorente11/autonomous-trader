@@ -29,6 +29,24 @@ def test_v1_overlay_equals_base() -> None:
     assert load_strategy_config(label="v1").strategy_version == load_strategy_config().strategy_version
 
 
+def test_v2_applies_all_diagnostics_fixes() -> None:
+    v2 = load_strategy_config(label="v2")
+    assert v2.indicators.rsi.mode == "mean_reversion"  # P4
+    assert v2.indicators.ma_trend.extension_cap == 0.02  # P5
+    assert v2.trading.stop_reentry_cooldown_days == 3  # P2
+    assert v2.trading.stop_min_distance_pct == 0.05  # P3
+    assert v2.trading.allow_pyramiding is False  # P6
+
+
+def test_base_trading_defaults_are_unset() -> None:
+    # Base ("v1") leaves execution untouched: every trading knob falls back to env/default.
+    base = load_strategy_config()
+    assert base.indicators.rsi.mode == "passthrough"
+    assert base.indicators.ma_trend.extension_cap is None
+    assert base.trading.stop_reentry_cooldown_days is None
+    assert base.trading.allow_pyramiding is None
+
+
 def test_unknown_label_raises() -> None:
     with pytest.raises(FileNotFoundError):
         load_strategy_config(label="does-not-exist")

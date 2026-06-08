@@ -98,13 +98,20 @@ def stop_distance(
     atr: Decimal | None = None,
     atr_multiple: Decimal | None = None,
     distance_factor: Decimal = Decimal(1),
+    min_distance_pct: Decimal = Decimal(0),
 ) -> Decimal:
-    """Price distance below ``peak`` that triggers the stop (ATR-based if available)."""
+    """Price distance below ``peak`` that triggers the stop (ATR-based if available).
+
+    ``min_distance_pct`` (P3) is a floor as a fraction of ``peak``: it stops calm names
+    (tiny ATR) from being knocked out by ordinary 1–2% noise. 0 disables the floor.
+    """
     if atr is not None and atr_multiple is not None and atr_multiple > 0:
         base = atr_multiple * atr
     else:
         base = peak * pct
-    return base * distance_factor
+    base = base * distance_factor
+    floor = peak * min_distance_pct
+    return max(base, floor)
 
 
 def evaluate_trailing_stop(
@@ -116,6 +123,7 @@ def evaluate_trailing_stop(
     atr: Decimal | None = None,
     atr_multiple: Decimal | None = None,
     distance_factor: Decimal = Decimal(1),
+    min_distance_pct: Decimal = Decimal(0),
 ) -> tuple[Decimal, bool]:
     """Return ``(new_high_water_mark, triggered)``.
 
@@ -124,6 +132,11 @@ def evaluate_trailing_stop(
     """
     peak = max(high_water_mark if high_water_mark is not None else avg_cost, live_price)
     distance = stop_distance(
-        peak, pct=pct, atr=atr, atr_multiple=atr_multiple, distance_factor=distance_factor
+        peak,
+        pct=pct,
+        atr=atr,
+        atr_multiple=atr_multiple,
+        distance_factor=distance_factor,
+        min_distance_pct=min_distance_pct,
     )
     return peak, live_price <= peak - distance

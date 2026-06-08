@@ -50,11 +50,16 @@ def _build_indicators(config: StrategyConfig) -> list[Indicator]:
     rsi_cfg = config.indicators.rsi
     atr_cfg = config.indicators.atr
     return [
-        ma_cls(period=ma_cfg.period, sensitivity=ma_cfg.sensitivity),
+        ma_cls(
+            period=ma_cfg.period,
+            sensitivity=ma_cfg.sensitivity,
+            extension_cap=ma_cfg.extension_cap,
+        ),
         RelativeStrengthIndex(
             period=rsi_cfg.period,
             overbought=rsi_cfg.overbought,
             oversold=rsi_cfg.oversold,
+            mode=rsi_cfg.mode,
         ),
         AverageTrueRangeIndicator(period=atr_cfg.period, sensitivity=atr_cfg.sensitivity),
     ]

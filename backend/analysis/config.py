@@ -59,12 +59,18 @@ class MaTrendParams(_Frozen):
     kind: Literal["sma", "ema"]
     period: int
     sensitivity: float
+    # Diagnostics P5: cap how far above the MA still adds score (a trend gate, not a
+    # "how extended" reward). None = uncapped (current behaviour).
+    extension_cap: float | None = None
 
 
 class RsiParams(_Frozen):
     period: int
     overbought: float
     oversold: float
+    # Diagnostics P4: "passthrough" = raw RSI (high RSI -> high score, buys strength);
+    # "mean_reversion" = 100 - RSI (oversold scores high, contrarian).
+    mode: Literal["passthrough", "mean_reversion"] = "passthrough"
 
 
 class AtrParams(_Frozen):
@@ -78,11 +84,24 @@ class IndicatorParams(_Frozen):
     atr: AtrParams
 
 
+class TradingConfig(_Frozen):
+    """Per-version trading knobs. Every field defaults to None, meaning "fall back to
+    the env/default the code already uses" — so the base config (no ``trading`` block)
+    leaves execution byte-for-byte unchanged, and a version overlay only changes what
+    it explicitly sets. Diagnostics: P2 (cooldown), P3 (stop floor), P6 (pyramiding)."""
+
+    stop_reentry_cooldown_days: int | None = None
+    stop_min_distance_pct: float | None = None
+    stop_atr_multiple: float | None = None
+    allow_pyramiding: bool | None = None
+
+
 class StrategyConfig(_Frozen):
     version: str
     ranker: RankerConfig
     scoring: ScoringConfig
     indicators: IndicatorParams
+    trading: TradingConfig = TradingConfig()
 
     @property
     def config_hash(self) -> str:
