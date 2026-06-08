@@ -23,6 +23,7 @@ from typing import Any
 
 import pandas as pd
 
+from backend.analysis.config import load_strategy_config
 from backend.analysis.engine import DefaultAnalysisEngine
 from backend.analysis.indicators.volatility import AverageTrueRangeIndicator
 from backend.analysis.performance.settle import settle_due_signals
@@ -80,7 +81,6 @@ from backend.db.queries.portfolio_queries import (
     get_active_watchlist,
     get_latest_analysis_ts,
     get_open_positions,
-    get_top_ranked_signals,
     list_portfolios,
 )
 from backend.db.session import async_session
@@ -435,6 +435,36 @@ async def run_analysis() -> None:
             }
 
 
+def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
+    """Build the analysis engine for a portfolio's strategy version. Falls back to the
+    base config if the variant file is missing so a portfolio never stops trading on a
+    typo'd / removed label."""
+    try:
+        config = load_strategy_config(label=label) if label else load_strategy_config()
+    except FileNotFoundError:
+        logger.warning("strategy version %r not found; using base config", label)
+        config = load_strategy_config()
+    return DefaultAnalysisEngine(config)
+
+
+async def _ranked_for_engine(
+    session, engine: DefaultAnalysisEngine, asof: dt.datetime
+) -> list[RankedSymbol]:
+    """Score the watchlist under one engine's config and return the top signals by
+    score (mirrors get_top_ranked_signals, but per strategy version, scored in memory
+    from the stored bars instead of the single persisted base set)."""
+    start = asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
+    watchlist = await get_active_watchlist(session)
+    scores: list[SymbolScore] = []
+    for entry in watchlist:
+        rows = await get_bars_range(session, entry.symbol, start, asof)
+        if not rows:
+            continue
+        scores.append(engine.score_symbol(entry.symbol, _bars_to_frame(rows), asof))
+    scores.sort(key=lambda s: s.score, reverse=True)
+    return [RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores[:_RANK_LIMIT])]
+
+
 async def execute_paper_trades() -> None:
     async with _job_context("execute_paper_trades") as outcome:
         today = dt.date.today()
@@ -453,26 +483,18 @@ async def execute_paper_trades() -> None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "no_active_portfolios"}
                 return
-            signals = await get_top_ranked_signals(session, asof, limit=_RANK_LIMIT)
-            ranked = [
-                RankedSymbol(
-                    rank=i + 1,
-                    score=SymbolScore(
-                        symbol=s.symbol,
-                        ts=s.ts,
-                        score=s.score,
-                        action=SignalAction(s.action),
-                        reason=s.reason,
-                        indicator_snapshot=s.indicator_snapshot,
-                        data_completeness=s.data_completeness,
-                    ),
-                )
-                for i, s in enumerate(signals)
-            ]
-            engine = DefaultAnalysisEngine()
+            # Each distinct strategy version is scored once; portfolios on the same
+            # version share its ranked set. v1 vs v2 thus trade different decisions.
+            engines: dict[str | None, DefaultAnalysisEngine] = {}
+            ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
+            for label in {p.strategy_label for p in portfolios}:
+                engine = _engine_for_label(label)
+                engines[label] = engine
+                ranked_by_label[label] = await _ranked_for_engine(session, engine, asof)
             midnight = _today_utc_midnight()
             total_orders = 0
             per_portfolio: dict[str, int] = {}
+            versions: dict[str, str] = {}
             skipped: list[int] = []
             failed: dict[str, str] = {}
             for portfolio in portfolios:
@@ -480,6 +502,9 @@ async def execute_paper_trades() -> None:
                 if await count_filled_orders_since(session, portfolio.id, midnight) > 0:
                     skipped.append(portfolio.id)
                     continue
+                engine = engines[portfolio.strategy_label]
+                ranked = ranked_by_label[portfolio.strategy_label]
+                versions[str(portfolio.id)] = engine.strategy_version
                 # Each portfolio runs in its own savepoint so one failure rolls back only
                 # that portfolio, never the fills already booked for the others (H3).
                 try:
@@ -501,6 +526,7 @@ async def execute_paper_trades() -> None:
             outcome.detail = {
                 "orders": total_orders,
                 "per_portfolio": per_portfolio,
+                "versions": versions,
                 "skipped_already_traded": skipped,
                 "failed": failed,
             }

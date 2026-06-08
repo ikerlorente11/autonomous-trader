@@ -1,0 +1,10 @@
+# Strategy version "v2" — diagnostics fix P1: take ATR out of the score.
+#
+# Overlay merged onto config/strategy.yaml. ATR's sub-score was monotonic in
+# volatility (avg 76, never <50 over 196 obs, corr 0.14 with the composite) — a near
+# constant floor that rewarded the noisiest names. ATR is reserved for sizing/stops
+# (synthesis §1, §3.1), not selection. Weight 0 drops it; the scorer renormalizes
+# rsi/ma over the remaining 0.8 and data_completeness stays 1.0.
+scoring:
+  weights:
+    atr: 0.0

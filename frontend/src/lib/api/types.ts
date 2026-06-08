@@ -25,7 +25,14 @@ export interface Portfolio {
 	id: number;
 	name: string;
 	active: boolean;
+	strategy_label: string | null;
 	created_at: string;
+}
+
+// backend/api/schemas.py::StrategyVersion
+export interface StrategyVersion {
+	label: string;
+	strategy_version: string;
 }
 
 // backend/api/schemas.py::CashMovement

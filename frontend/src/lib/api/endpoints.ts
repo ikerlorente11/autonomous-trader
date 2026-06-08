@@ -18,6 +18,7 @@ import type {
 	Quote,
 	RunTrigger,
 	SignalEntry,
+	StrategyVersion,
 	SystemStatus,
 	TradeRecord,
 	WatchlistEntry
@@ -85,6 +86,8 @@ export const portfoliosApi = {
 	list: (f?: F) => api.get<Portfolio[]>('/portfolios', { fetcher: f }),
 	create: (input: NewPortfolio) => api.post<Portfolio>('/portfolios', input),
 	rename: (id: number, name: string) => api.patch<Portfolio>(`/portfolios/${id}`, { name }),
+	setStrategy: (id: number, strategy_label: string | null) =>
+		api.patch<Portfolio>(`/portfolios/${id}`, { strategy_label }),
 	remove: (id: number) => api.del<void>(`/portfolios/${id}`),
 	deposit: (id: number, amount: number, note?: string) =>
 		api.post<CashMovement>(`/portfolios/${id}/deposit`, { amount, note }),
@@ -92,6 +95,10 @@ export const portfoliosApi = {
 		api.post<CashMovement>(`/portfolios/${id}/withdraw`, { amount, note }),
 	movements: (id: number, f?: F) =>
 		api.get<CashMovement[]>(`/portfolios/${id}/movements`, { fetcher: f })
+};
+
+export const strategiesApi = {
+	list: (f?: F) => api.get<StrategyVersion[]>('/strategies', { fetcher: f })
 };
 
 export const marketApi = {

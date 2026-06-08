@@ -350,6 +350,18 @@ async def rename_portfolio(
     return portfolio
 
 
+async def set_portfolio_strategy_label(
+    session: AsyncSession, portfolio_id: int, label: str | None
+) -> Portfolio | None:
+    """Set which strategy version a portfolio trades (None = base config). Caller commits."""
+    portfolio = await session.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        return None
+    portfolio.strategy_label = label
+    await session.flush()
+    return portfolio
+
+
 async def delete_portfolio(session: AsyncSession, portfolio_id: int) -> bool:
     """Hard-delete a portfolio; FK cascade removes its trades/positions/NAV/movements.
     Returns False if it does not exist. Caller enforces the last-portfolio guard."""

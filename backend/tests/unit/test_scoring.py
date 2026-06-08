@@ -36,18 +36,16 @@ def test_all_signals_equal_gives_that_value_and_full_completeness(scorer) -> Non
 
 
 def test_missing_signal_renormalizes_weights(scorer) -> None:
-    # atr weight is 0 (diagnostics P1) so total weight is 0.8; only rsi (0.5) present
-    # -> completeness 0.5/0.8 = 0.625, score = rsi value.
+    # only rsi (weight 0.5 of 1.0 total) present -> completeness 0.5, score = rsi value
     s = scorer.score("AAPL", [indicator("rsi", 80)], ASOF)
     assert s.score == Decimal("80.0000")
-    assert s.data_completeness == Decimal("0.6250")
+    assert s.data_completeness == Decimal("0.5000")
 
 
 def test_weighted_average_lands_in_hold_band(scorer) -> None:
-    # atr weight is 0 (diagnostics P1): (rsi70*.5 + ma40*.3)/0.8 = 47/0.8 = 58.75
-    # -> between exit(45) and act(60) -> HOLD. atr value is snapshotted but unweighted.
+    # rsi70*.5 + ma40*.3 + atr10*.2 = 35+12+2 = 49 -> between exit(45) and act(60) -> HOLD
     s = scorer.score("AAPL", [indicator("rsi", 70), indicator("ma_trend", 40), indicator("atr", 10)], ASOF)
-    assert s.score == Decimal("58.7500")
+    assert s.score == Decimal("49.0000")
     assert s.action == SignalAction.HOLD
 
 

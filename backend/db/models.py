@@ -70,6 +70,7 @@ class Portfolio(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), unique=True)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    strategy_label: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

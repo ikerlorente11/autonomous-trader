@@ -2,10 +2,11 @@
 
 # Plan de mejora — Autonomous Trader (corrección del sangrado de alfa)
 
-> **Estado de implementación (rama `fix/diagnostico-p1-p8-p9`, 2026-06-08):**
-> - **P1 — hecho.** `config/strategy.yaml`: `weights.atr 0.20 → 0.0`. El scorer renormaliza
->   rsi/ma sobre 0.8 y `completeness` sigue 1.0; ATR se sigue computando para sizing/stops.
->   Tests de scoring acoplados al YAML actualizados. Nueva `strategy_version` (config_hash) para A/B.
+> **Estado de implementación (rama `feat/per-portfolio-strategy-version`, 2026-06-08):**
+> - **P1 — hecho, como variante de estrategia (A/B), no global.** En vez de cambiar
+>   `strategy.yaml` para todos, ATR→0 vive en `config/strategies/v2.yaml` (overlay). El base
+>   (`strategy.yaml`, "v1") mantiene `atr: 0.20`. Cada cartera elige su versión (`strategy_label`)
+>   y el motor la opera con esa config; v1 vs v2 se compara por rendimiento de cartera.
 > - **P8 — hecho.** `paper_broker._apply_sell` pone `unrealized_pnl=0` al quedar la posición plana
 >   (qty≤0). La app ya filtraba `qty != 0` (NAV/equity eran correctos); esto sanea la columna cruda.
 >   Backfill de filas existentes pendiente al desplegar: `UPDATE portfolio_positions SET unrealized_pnl=0 WHERE qty=0;`
@@ -14,7 +15,7 @@
 >   Un check ingenuo de staleness anularía el benchmark a diario. Requiere decidir el *sellado del
 >   snapshot* (fecha de la barra, o no snapshotear sin sesión) — fuera de este lote seguro.
 >
-> Suite completa: **272 tests en verde**. Sin cambios aplicados a `main` ni desplegados.
+> Sin cambios aplicados a `main` ni desplegados.
 
 > **Autor:** Quinn (Investment Researcher), con el Experiment Tracker para la medición.
 > **Estado:** plan accionable. **No aplica ningún cambio de trading** (CLAUDE.md: este encargo es diagnóstico + plan; la ejecución se aprueba aparte).
