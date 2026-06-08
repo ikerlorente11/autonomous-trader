@@ -51,6 +51,26 @@ weighted composite (0–100) -> ranked buy candidates. Weights and thresholds ar
 - Every `algorithm_signals` row must have a non-null `strategy_version` matching the active `experiment_runs.strategy_version`.
 
 ### Open questions / deferred
-- **Cross-sectional rank-normalization (§3.4)** is not yet applied — sub-scores are currently per-symbol bounded (logistic) only. Add a universe-level normalization pass in the engine when the real signal set lands.
+- **Cross-sectional rank-normalization (§3.4)** is not yet applied — sub-scores are currently per-symbol bounded (logistic) only. Add a universe-level normalization pass in the engine when the real signal set lands. **Now scoped as v3/P7 — see `docs/diagnostics/03-plan-v3.md`.**
+
+## Update notes (2026-06-08) — strategy versions + diagnosis fixes
+
+The engine is now driven by a **selectable strategy version** (A/B). Config resolution:
+`load_strategy_config(label=...)` deep-merges a `config/strategies/<label>.yaml` overlay onto the base
+`config/strategy.yaml`; `list_strategy_versions()` enumerates the overlays. Each portfolio picks a
+version (`portfolios.strategy_label`); the scheduler builds one `DefaultAnalysisEngine` per distinct
+version and trades each portfolio under its own config. New config surface (`backend/analysis/config.py`):
+- `RsiParams.mode`: `passthrough` (default, base) | `mean_reversion` (sub-score = `100 - RSI`, contrarian).
+  Implemented in `RelativeStrengthIndex.latest_score`. (`banded` is reserved in the Literal but **not yet
+  implemented** — see v3 plan.)
+- `MaTrendParams.extension_cap`: caps the above-MA reward (trend gate, not a chase).
+- `TradingConfig` (`StrategyConfig.trading`): per-version, all-optional with `None` → fall back to env/defaults
+  (so base = unchanged). Fields: `stop_reentry_cooldown_days`, `stop_min_distance_pct`, `stop_atr_multiple`,
+  `allow_pyramiding`. Consumed by `PortfolioManager`/`stops.py` (cooldown/pyramiding/stop floor).
+
+Shipped versions: `v1` = base (control); `v2` = diagnosis fixes P1 (ATR weight 0) + P4 (RSI mean_reversion)
++ P5 (ma cap) + P2/P3/P6 (cooldown/stop floor/no-pyramiding). Note: adding these fields changed the **base
+`config_hash`** (so v1's `strategy_version` string differs from pre-2026-06-08 trades) — group A/B analysis
+by **portfolio / `strategy_label`**, not by the raw `strategy_version`. Rationale and v3: `docs/diagnostics/`.
 - **Sell logic**: `action` is `buy`/`hold` only; sell/exit signals are deferred to risk_manager/trading phase.
 - **Local runtime check not possible**: analysis deps (`pydantic`, `pandas`, `ta`) aren't in the local env; only `py_compile` + YAML-schema checks were run here. Full execution validation runs in the Docker (Python 3.12) image.

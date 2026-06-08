@@ -444,8 +444,10 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > unchanged and an overlay only changes what it sets. The `BrokerAdapter` seam is untouched
 > (`config` is a constructor arg to `PortfolioManager`, never part of `place_order`). Shipped
 > variants: `v1` = base (control), `v2` = the loss-diagnosis fixes (ATR out of the score, RSI
-> mean-reversion, ma_trend cap, re-entry cooldown, stop-distance floor, no pyramiding). Diagnosis
-> and rationale: `docs/diagnostics/01-diagnostico-perdidas.md` / `02-plan-mejora.md`.
+> mean-reversion, ma_trend cap, re-entry cooldown, stop-distance floor, no pyramiding). The frontend
+> **`/compare`** route overlays each portfolio's NAV (% rebased or € absolute) with a shared crosshair
+> tooltip to compare versions. Diagnosis and rationale: `docs/diagnostics/01-diagnostico-perdidas.md`,
+> `02-plan-mejora.md`; next iteration (P7/P10/P11): `03-plan-v3.md`.
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.

@@ -126,8 +126,23 @@ These extend module-contracts §5. All have safe defaults; none is a secret.
 - **§2 / §1** — refreshed the endpoint table to the real routers (`portfolio`, `portfolios`, `market`, `trades`, `algorithms`, `system`): added portfolio CRUD + deposit/withdraw/movements, `system/run`, `market/quotes`, `trades/round-trips`, `algorithms/accuracy`.
 - **§4 / handoff** — `STARTING_CASH` only seeds `MockRealBroker`. `mock_real` is **registered** in `broker_factory.py`, so the env-only swap gate is satisfied (was previously noted as not registered).
 
+**2026-06-08** — per-portfolio strategy version (A/B) + loss-diagnosis fixes:
+- **Per-version trading.** `execute_paper_trades` now groups active portfolios by `strategy_label`,
+  scores each distinct version once (`_ranked_for_engine` over the same stored bars) and trades every
+  portfolio under **its own** `StrategyConfig`, tagging `trade_orders.strategy_version`. `protective_sell`
+  resolves stop params (ATR multiple, min-distance floor) per portfolio. `PortfolioManager` takes an
+  optional `config` and applies P2 re-entry cooldown + P6 no-pyramiding entry guards. **Seam intact** —
+  `config` is a constructor arg, never part of `place_order`.
+- **New endpoints/schemas.** `GET /api/strategies` (lists `config/strategies/*` versions + their
+  `strategy_version`). `PATCH /api/portfolios/{id}` now accepts `name` and/or `strategy_label`
+  (`PortfolioUpdate`, partial via `model_fields_set`; unknown label → 400). `Portfolio` carries `strategy_label`.
+- **Benchmark (P9).** `snapshot_nav`/`_benchmark_value` now anchor on the first real SPY bar at/after
+  inception (`get_close_after`); `update_portfolio_nav` skips non-trading days (no stale weekend marks).
+- **P8.** `PaperBroker._apply_sell` zeroes `unrealized_pnl` when a position goes flat.
+- Full rationale: `docs/diagnostics/01-diagnostico-perdidas.md` / `02-plan-mejora.md`; next steps: `03-plan-v3.md`.
+
 **Open items / deferred**
 - **`mock_real` broker** is **registered** in `broker_factory.py` (`_REGISTRY = {"paper": PaperBroker, "mock_real": MockRealBroker}`), so the Reality Checker's env-only swap gate (`BROKER_ADAPTER=mock_real`) is satisfied. A real `alpaca` adapter remains Phase 2.
-- **Benchmark NAV** (`portfolio_nav.benchmark_value`) is left `None`; alpha/beta need a benchmark series — wire a benchmark symbol into `snapshot_nav` when desired.
+- **Benchmark NAV** (`portfolio_nav.benchmark_value`) is computed (SPY, rebased) — the earlier "left None" note is obsolete; remaining benchmark work (idempotent backfill of the historical series) is noted in `02-plan-mejora.md` §P9.
 - **`get_market_sentiment`** query was added (module-contracts open-Q1) but no `/market/sentiment` endpoint is in the prompt's 10 — exposed query is ready if the dashboard wants it.
 - Runtime import of the pydantic/pandas/fastapi layers needs the Python 3.12 image (current `.venv-db` is DB-only on 3.10 — `StrEnum`/pydantic absent). DB query layer was runtime-validated; the rest is byte-compiled. DevOps must install `requirements-api.txt`.
