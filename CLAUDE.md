@@ -427,6 +427,26 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > the `BrokerAdapter` seam is unchanged (sells via `place_order`). Full design:
 > `docs/architecture/protective-sell.md`.
 
+> **Per-portfolio strategy version — A/B testing (post-Phase-5).** Each portfolio carries an
+> editable `strategy_label` (`portfolios.strategy_label`, migration `0008`; set via
+> `PATCH /api/portfolios/{id}` / the Portfolios admin), so different portfolios can run
+> **different strategy versions at once** and be compared. A version is a named overlay file
+> `config/strategies/<label>.yaml` **deep-merged onto `config/strategy.yaml`** (the base); a
+> label whose overlay is empty equals the base. `load_strategy_config(label=...)` /
+> `list_strategy_versions()` resolve them (`backend/analysis/config.py`); `GET /api/strategies`
+> lists them. The daily `run_analysis` still persists ONE base signal set; **`execute_paper_trades`
+> scores each distinct version once and trades every portfolio under its own config**, tagging
+> `trade_orders.strategy_version`; `protective_sell` resolves stop params per portfolio. v1 vs v2
+> is compared by **portfolio** performance (NAV/P&L/alpha) — no schema change to the signal tables.
+> **Still nothing hardcoded**: every weight/threshold lives in the (versioned) `StrategyConfig`,
+> and the new `trading` section (`StrategyConfig.trading`) is **all-optional with `None` defaults
+> that fall back to the existing env/defaults**, so the base config leaves execution byte-for-byte
+> unchanged and an overlay only changes what it sets. The `BrokerAdapter` seam is untouched
+> (`config` is a constructor arg to `PortfolioManager`, never part of `place_order`). Shipped
+> variants: `v1` = base (control), `v2` = the loss-diagnosis fixes (ATR out of the score, RSI
+> mean-reversion, ma_trend cap, re-entry cooldown, stop-distance floor, no pyramiding). Diagnosis
+> and rationale: `docs/diagnostics/01-diagnostico-perdidas.md` / `02-plan-mejora.md`.
+
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.
