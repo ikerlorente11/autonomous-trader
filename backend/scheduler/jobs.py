@@ -46,7 +46,6 @@ from backend.contracts import (
     OHLCVBar,
     OrderState,
     RankedSymbol,
-    SignalAction,
     SymbolScore,
 )
 from backend.data_ingestion.calendar import is_market_open_now, is_trading_day
