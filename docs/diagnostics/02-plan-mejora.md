@@ -2,20 +2,23 @@
 
 # Plan de mejora — Autonomous Trader (corrección del sangrado de alfa)
 
-> **Estado de implementación (rama `feat/per-portfolio-strategy-version`, 2026-06-08):**
-> - **P1 — hecho, como variante de estrategia (A/B), no global.** En vez de cambiar
->   `strategy.yaml` para todos, ATR→0 vive en `config/strategies/v2.yaml` (overlay). El base
->   (`strategy.yaml`, "v1") mantiene `atr: 0.20`. Cada cartera elige su versión (`strategy_label`)
->   y el motor la opera con esa config; v1 vs v2 se compara por rendimiento de cartera.
-> - **P8 — hecho.** `paper_broker._apply_sell` pone `unrealized_pnl=0` al quedar la posición plana
->   (qty≤0). La app ya filtraba `qty != 0` (NAV/equity eran correctos); esto sanea la columna cruda.
->   Backfill de filas existentes pendiente al desplegar: `UPDATE portfolio_positions SET unrealized_pnl=0 WHERE qty=0;`
-> - **P9 — DIFERIDO (no es one-liner).** Investigado: el NAV se sella a las 08:15 UTC con la barra
->   del día hábil *anterior* (la del día aún no existe), y se marca también en fines de semana.
->   Un check ingenuo de staleness anularía el benchmark a diario. Requiere decidir el *sellado del
->   snapshot* (fecha de la barra, o no snapshotear sin sesión) — fuera de este lote seguro.
->
-> Sin cambios aplicados a `main` ni desplegados.
+> **Estado de implementación (DESPLEGADO en `main`, 2026-06-08):** todo lo de abajo está en producción.
+> La corrección se entrega como **versión de estrategia por cartera (A/B)**: `v1` = base (control), `v2` =
+> los fixes de selección/ejecución. Cada cartera elige su versión (`strategy_label`); el motor opera cada
+> una con su config. Comparación en la página `/compare`. **Siguiente iteración: `03-plan-v3.md`.**
+> - **P1 — hecho (v2).** ATR→0 en `config/strategies/v2.yaml` (overlay); el base mantiene `atr: 0.20`.
+> - **P2 — hecho (v2).** Cooldown de recompra (`trading.stop_reentry_cooldown_days: 3`) en `PortfolioManager`.
+> - **P3 — hecho (v2).** Piso de stop (`trading.stop_min_distance_pct: 0.05`) en `stops.py` / `protective_sell`.
+> - **P4 — hecho (v2).** RSI `mean_reversion` (`indicators.rsi.mode`) en `momentum.py`.
+> - **P5 — hecho (v2).** `ma_trend.extension_cap: 0.02` en `moving_average.py`.
+> - **P6 — hecho (v2).** `trading.allow_pyramiding: false` (no doblar nombres ya en cartera).
+> - **P8 — hecho (global).** `paper_broker._apply_sell` pone `unrealized_pnl=0` al quedar plana; backfill ya aplicado en la Pi.
+> - **P9 — hecho (global).** `update_portfolio_nav` no sella días sin sesión; benchmark anclado a la primera barra SPY real.
+> - **Pendientes → v3 (`03-plan-v3.md`):** **P7** (rank-norm cross-seccional), **P10** (comisiones), **P12**
+>   (frescura de datos), **P11** (momentum + macro, fase aparte). Y los stubs de significancia de
+>   `comparator.py` para juzgar el A/B con rigor.
+> - **Nota A/B:** v2 puede quedarse en caja cuando el mercado está sobrecomprado (comportamiento buscado);
+>   agrupar el análisis por **cartera/`strategy_label`**, no por el hash de `strategy_version` (cambió al añadir campos).
 
 > **Autor:** Quinn (Investment Researcher), con el Experiment Tracker para la medición.
 > **Estado:** plan accionable. **No aplica ningún cambio de trading** (CLAUDE.md: este encargo es diagnóstico + plan; la ejecución se aprueba aparte).

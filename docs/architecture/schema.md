@@ -138,6 +138,16 @@ Notes:
 
 - `0001_initial_schema` — extension, 18 tables, 5 hypertables, indexes, `market_bars` compression.
 - `0002_continuous_aggregates` — the 2 CAs + refresh policies (autocommit_block).
+- `0003_algorithm_signals_strategy_version` — `strategy_version` on `algorithm_signals`.
+- `0004_job_runs` — `job_runs` audit table.
+- `0005_multi_portfolio` — `portfolios` + `cash_movements`; `trade_orders`/`portfolio_positions`/
+  `portfolio_nav` scoped by `portfolio_id` (composite PKs; NAV CA regrouped by portfolio).
+- `0006_signal_completeness_indexes` — supporting indexes.
+- `0007_position_high_water_mark` — `portfolio_positions.high_water_mark` (trailing stop).
+- `0008_portfolio_strategy_label` — **`portfolios.strategy_label`** (nullable). Per-portfolio
+  **strategy version** for A/B: NULL = base config; a label resolves to
+  `config/strategies/<label>.yaml` deep-merged onto `config/strategy.yaml`. The daily engine
+  trades each portfolio under its own version. See `docs/diagnostics/02-plan-mejora.md` and `CLAUDE.md`.
 
 Run with `DATABASE_URL` set (asyncpg URL, e.g. `postgresql+asyncpg://user:pass@host/db`):
 `cd backend/db/migrations && alembic upgrade head`.

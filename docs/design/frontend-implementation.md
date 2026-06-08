@@ -222,3 +222,15 @@ module-eval time and throws under Node, so Chart.js + the financial plugin + the
 adapter are loaded **lazily** via `register.ts::loadChart()` (an async dynamic import
 called only from `ChartCanvas`'s browser-side build effect). Static top-level imports of
 those libs must never be reintroduced or prerender will 500.
+
+## Update notes (2026-06-08) — strategy versions + comparison view
+
+- **Portfolios admin** (`routes/portfolios/+page.svelte`) gained a **version selector** per row: a
+  `<select>` bound to `GET /api/strategies` that calls `portfoliosApi.setStrategy(id, label)`
+  (`PATCH /api/portfolios/{id}` with `strategy_label`). `Portfolio` type now carries `strategy_label`.
+- **New route `/compare`** (8th route; nav icon `layers`): overlays every portfolio's NAV on one chart
+  with a **shared index-mode crosshair tooltip** (all portfolios' values at the hovered date), a
+  **% (rebased) / € (absolute)** toggle so unequal budgets are comparable, and a range selector. Show/hide
+  is via the Chart.js legend (the earlier explicit selector card was removed at the owner's request).
+  Component: `lib/charts/ComparisonChart.svelte` (+ `comparePalette.ts` for stable per-portfolio colours);
+  data via `portfoliosApi.navFor(id, range)`. i18n keys under `compare.*` / `nav.compare` (ES+EN).

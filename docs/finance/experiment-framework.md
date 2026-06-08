@@ -204,3 +204,18 @@ Both are nullable/additive → a forward-only Alembic migration, no backfill nee
 - **Blocked on Financial Analyst** (`performance-metrics.md`): the exact `risk` formulas behind the `sharpe/sortino/max_drawdown/calmar` keys the comparator deltas. The comparator treats them as opaque numbers from `summary.json`, so it is unblocked *structurally*, but verdict thresholds may want tuning once formulas land.
 - **Schema additions (§5)** require Database Optimizer sign-off before the tracker can stamp signals or store frozen results.
 - **Parallel shadow experiments** (§3.4 mitigation 4) deferred to Phase 2 — needs multi-book PortfolioManager; schema already supports it.
+
+## Update notes (2026-06-08) — the parallel A/B is now live
+
+Mitigation 4 (§3.4) is **realized ahead of schedule**: portfolios carry a `strategy_label`
+(`portfolios.strategy_label`, migration `0008`) → a `config/strategies/<label>.yaml` overlay, and the daily
+engine trades every portfolio under its own version on the **same universe/day** (true parallel shadow
+experiment — the regime confound is largely eliminated). Live arms: `v1` (control) vs `v2` (diagnosis fixes).
+A first comparison view ships at `/compare` (overlaid rebased/€ equity curves + shared crosshair tooltip).
+
+**Still pending for a rigorous verdict:** the significance tests in `backend/experiments/comparator.py`
+(`_significance_returns` bootstrap, `_significance_sharpe` Jobson–Korkie) remain **stubs**, and `/compare`
+does not yet render the §3.5 payload (metric-delta table, significance badges, regime-mix). These are the
+prerequisite to a formal A/B verdict and are scoped in `docs/diagnostics/03-plan-v3.md`. Caveat: adding
+config fields changed the base `config_hash`, so group analysis by `strategy_label`/portfolio rather than the
+raw `strategy_version` string.
