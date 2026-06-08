@@ -88,6 +88,11 @@ export const portfoliosApi = {
 	rename: (id: number, name: string) => api.patch<Portfolio>(`/portfolios/${id}`, { name }),
 	setStrategy: (id: number, strategy_label: string | null) =>
 		api.patch<Portfolio>(`/portfolios/${id}`, { strategy_label }),
+	navFor: (id: number, range: NavRange, f?: F) =>
+		api.get<PortfolioSnapshot[]>('/portfolio/nav', {
+			params: { ...rangeWindow(range), portfolio_id: id },
+			fetcher: f
+		}),
 	remove: (id: number) => api.del<void>(`/portfolios/${id}`),
 	deposit: (id: number, amount: number, note?: string) =>
 		api.post<CashMovement>(`/portfolios/${id}/deposit`, { amount, note }),

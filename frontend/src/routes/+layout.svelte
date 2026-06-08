@@ -32,6 +32,7 @@
 	const nav = [
 		{ href: '/', labelKey: 'nav.dashboard', icon: 'grid' },
 		{ href: '/portfolios', labelKey: 'nav.portfolios', icon: 'wallet' },
+		{ href: '/compare', labelKey: 'nav.compare', icon: 'layers' },
 		{ href: '/market', labelKey: 'nav.market', icon: 'chart' },
 		{ href: '/trades', labelKey: 'nav.trades', icon: 'swap' },
 		{ href: '/reports', labelKey: 'nav.reports', icon: 'briefcase' },
