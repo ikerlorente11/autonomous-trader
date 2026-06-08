@@ -63,6 +63,24 @@ def test_zero_atr_multiple_falls_back_to_pct() -> None:
     assert dist == D("8.00")  # 100 * 0.08
 
 
+def test_min_distance_floor_widens_a_tight_atr_stop() -> None:
+    # P3: tiny ATR (distance 1) would stop on noise; a 5% floor widens it to 5.
+    tight = stop_distance(D("100"), pct=PCT, atr=D("0.4"), atr_multiple=D("2.5"))
+    floored = stop_distance(
+        D("100"), pct=PCT, atr=D("0.4"), atr_multiple=D("2.5"), min_distance_pct=D("0.05")
+    )
+    assert tight == D("1.0")
+    assert floored == D("5.00")  # max(1.0, 100*0.05)
+
+
+def test_min_distance_floor_inactive_when_base_is_wider() -> None:
+    # Floor never tightens: a base distance already above the floor is unchanged.
+    dist = stop_distance(
+        D("100"), pct=PCT, atr=D("4"), atr_multiple=D("2.5"), min_distance_pct=D("0.05")
+    )
+    assert dist == D("10.0")  # base 10 > floor 5
+
+
 # ---- regime tightening / panic hold ----
 
 

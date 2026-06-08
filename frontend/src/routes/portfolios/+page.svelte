@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { portfoliosApi } from '$lib/api/endpoints';
+	import { portfoliosApi, strategiesApi } from '$lib/api/endpoints';
 	import { getActivePortfolioId, setActivePortfolioId } from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { formatDate } from '$lib/utils/format';
@@ -9,6 +9,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 
 	const portfolios = createResource(() => portfoliosApi.list(), { intervalMs: 300_000 });
+	const strategies = createResource(() => strategiesApi.list(), { intervalMs: 600_000 });
 
 	let activeId = $derived(getActivePortfolioId() ?? portfolios.data?.[0]?.id ?? null);
 
@@ -46,6 +47,19 @@
 		msg = null;
 		try {
 			await portfoliosApi.rename(id, name.trim());
+			await portfolios.refresh();
+		} catch (e) {
+			fail(e);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function setVersion(id: number, value: string) {
+		busy = true;
+		msg = null;
+		try {
+			await portfoliosApi.setStrategy(id, value === '' ? null : value);
 			await portfolios.refresh();
 		} catch (e) {
 			fail(e);
@@ -110,6 +124,7 @@
 					<thead>
 						<tr>
 							<th>{t('portfolios.col.name')}</th>
+							<th>{t('portfolios.col.version')}</th>
 							<th>{t('portfolios.col.created')}</th>
 							<th>{t('portfolios.col.state')}</th>
 							<th></th>
@@ -119,6 +134,19 @@
 						{#each d as p (p.id)}
 							<tr class:current={p.id === activeId}>
 								<td class="sym">{p.name}</td>
+								<td>
+									<select
+										class="ver"
+										disabled={busy}
+										value={p.strategy_label ?? ''}
+										onchange={(e) => setVersion(p.id, e.currentTarget.value)}
+									>
+										<option value="">{t('portfolios.version.base')}</option>
+										{#each strategies.data ?? [] as s (s.label)}
+											<option value={s.label}>{s.label}</option>
+										{/each}
+									</select>
+								</td>
 								<td>{formatDate(p.created_at)}</td>
 								<td>
 									{#if p.id === activeId}<StatusBadge status="active" />{:else}<span class="muted">—</span>{/if}
@@ -163,6 +191,18 @@
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--text-sm);
 		min-width: 180px;
+	}
+	.ver {
+		background: var(--color-bg-1);
+		border: 1px solid var(--color-bg-4);
+		color: var(--color-text-0);
+		border-radius: var(--radius-md);
+		padding: var(--space-1) var(--space-2);
+		font-size: var(--text-sm);
+	}
+	.ver:disabled {
+		opacity: 0.6;
+		cursor: progress;
 	}
 	.btn {
 		background: var(--color-accent, var(--color-text-0));

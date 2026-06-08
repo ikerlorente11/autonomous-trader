@@ -11,6 +11,7 @@ from decimal import Decimal
 
 import pytest
 
+from backend.analysis.config import load_strategy_config
 from backend.contracts import OrderSide, OrderState, RankedSymbol, SignalAction
 from backend.db.queries.portfolio_queries import (
     compute_cash,
@@ -58,6 +59,45 @@ async def test_buy_signal_opens_sized_position(db_session) -> None:
     pos = await get_position(db_session, pid, "AAPL")
     assert pos.qty == Decimal("5.000000")
     assert await compute_cash(db_session, pid) == Decimal("9500")  # 10 000 − 5·100
+
+
+async def test_v2_no_pyramiding_skips_held_name(db_session) -> None:
+    # P6: v2 disallows pyramiding -> a BUY for an already-held name is dropped.
+    pid = await f.seed_portfolio(db_session, deposit=10_000.0)
+    await f.seed_position(db_session, pid, "AAPL", qty=5, avg_cost=100.0)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    pm = PortfolioManager(
+        PaperBroker(db_session, pid), db_session, pid,
+        config=load_strategy_config(label="v2"),
+    )
+    orders = await pm.execute_signals([f.ranked("AAPL", 80, rank=1)])
+    assert orders == []
+
+
+async def test_v2_cooldown_blocks_recent_rebuy(db_session) -> None:
+    # P2: v2 blocks re-buying a name sold within the cooldown window.
+    pid = await f.seed_portfolio(db_session, deposit=10_000.0)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    broker = PaperBroker(db_session, pid)
+    await broker.place_order("AAPL", "buy", Decimal("3"), "market")
+    await broker.place_order("AAPL", "sell", Decimal("3"), "market")  # recent filled sell
+    pm = PortfolioManager(
+        broker, db_session, pid, config=load_strategy_config(label="v2")
+    )
+    orders = await pm.execute_signals([f.ranked("AAPL", 80, rank=1)])
+    assert orders == []
+
+
+async def test_base_config_allows_rebuy(db_session) -> None:
+    # Control: with no version config (v1/base), the rebuy is allowed (unchanged behavior).
+    pid = await f.seed_portfolio(db_session, deposit=10_000.0)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    broker = PaperBroker(db_session, pid)
+    await broker.place_order("AAPL", "buy", Decimal("3"), "market")
+    await broker.place_order("AAPL", "sell", Decimal("3"), "market")
+    pm = PortfolioManager(broker, db_session, pid)  # no config -> defaults
+    orders = await pm.execute_signals([f.ranked("AAPL", 80, rank=1)])
+    assert len(orders) == 1
 
 
 async def test_sell_signal_exits_held_position(db_session) -> None:

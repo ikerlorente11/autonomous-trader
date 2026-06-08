@@ -16,13 +16,19 @@ from decimal import Decimal
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.analysis.config import StrategyConfig
 from backend.contracts import AccountBalance, Order, RankedSymbol, SignalAction
 from backend.db.models import PortfolioNav
-from backend.db.queries.market_queries import get_close_asof, get_latest_bars
+from backend.db.queries.market_queries import (
+    get_close_after,
+    get_close_asof,
+    get_latest_bars,
+)
 from backend.db.queries.portfolio_queries import (
     compute_cash,
     get_first_nav,
     get_open_positions,
+    get_recently_sold_symbols,
 )
 from backend.trading.broker_adapter import BrokerAdapter
 from backend.trading.risk_manager import make_risk_manager
@@ -32,11 +38,16 @@ _BENCHMARK_SYMBOL = os.environ.get("BENCHMARK_SYMBOL", "SPY")
 
 class PortfolioManager:
     def __init__(
-        self, broker: BrokerAdapter, session: AsyncSession, portfolio_id: int
+        self,
+        broker: BrokerAdapter,
+        session: AsyncSession,
+        portfolio_id: int,
+        config: StrategyConfig | None = None,
     ) -> None:
         self._broker = broker
         self._session = session
         self._portfolio_id = portfolio_id
+        self._config = config
 
     async def _latest_prices(self, symbols: Sequence[str]) -> dict[str, Decimal]:
         if not symbols:
@@ -87,6 +98,7 @@ class PortfolioManager:
 
         # Entries: size the buy candidates against current cash.
         buys = [s for s in signals if s.score.action is SignalAction.BUY]
+        buys = await self._filter_entries(buys, held)
         if buys:
             prices = await self._latest_prices([s.score.symbol for s in buys])
             balance = await self._account_balance()
@@ -97,6 +109,29 @@ class PortfolioManager:
                 orders.append(order)
 
         return orders
+
+    async def _filter_entries(
+        self, buys: list[RankedSymbol], held: dict[str, object]
+    ) -> list[RankedSymbol]:
+        """Apply per-version entry guards (no-op when no config / defaults):
+        - P6: drop names already held unless pyramiding is allowed.
+        - P2: drop names sold within the re-entry cooldown window (anti-whipsaw)."""
+        if self._config is None or not buys:
+            return buys
+        trading = self._config.trading
+        allow_pyramiding = (
+            True if trading.allow_pyramiding is None else trading.allow_pyramiding
+        )
+        if not allow_pyramiding:
+            buys = [s for s in buys if s.score.symbol not in held]
+        cooldown_days = trading.stop_reentry_cooldown_days
+        if cooldown_days and cooldown_days > 0 and buys:
+            since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=cooldown_days)
+            blocked = await get_recently_sold_symbols(
+                self._session, self._portfolio_id, since
+            )
+            buys = [s for s in buys if s.score.symbol not in blocked]
+        return buys
 
     async def update_positions(self) -> tuple[int, list[str]]:
         """Refresh marks. Returns (updated_count, stale_symbols) — stale symbols have
@@ -176,7 +211,9 @@ class PortfolioManager:
         first_nav = await get_first_nav(self._session, self._portfolio_id)
         if first_nav is None:
             return total
-        start_bar = await get_close_asof(
+        # P9: anchor on the first real benchmark bar at/after inception (not the latest
+        # one at/before it), so rebasing is stable even if the first NAV predates a bar.
+        start_bar = await get_close_after(
             self._session, _BENCHMARK_SYMBOL, first_nav.ts
         )
         if start_bar is None or start_bar.close <= 0:

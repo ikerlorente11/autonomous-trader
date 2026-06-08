@@ -40,6 +40,28 @@ def test_sma_short_data_is_all_nan_and_score_none() -> None:
     assert sma.latest_score(short) is None
 
 
+def test_rsi_mean_reversion_inverts_passthrough() -> None:
+    # P4: same bars, opposite sub-scores. mean_reversion = 100 - passthrough.
+    bars = _df([10, 11, 12, 13, 14, 15, 16, 15, 14, 13, 12, 13, 14, 15, 16, 17])
+    passthrough = RelativeStrengthIndex(period=14, overbought=70, oversold=30).latest_score(bars)
+    contrarian = RelativeStrengthIndex(
+        period=14, overbought=70, oversold=30, mode="mean_reversion"
+    ).latest_score(bars)
+    assert passthrough is not None and contrarian is not None
+    assert contrarian == pytest.approx(100.0 - passthrough)
+
+
+def test_ma_trend_extension_cap_limits_upside_score() -> None:
+    # P5: a name far above its MA scores lower when capped than uncapped.
+    bars = _df([10, 10, 10, 10, 10, 10, 10, 10, 10, 20])  # last close way above MA
+    uncapped = ExponentialMovingAverage(period=5, sensitivity=20.0).latest_score(bars)
+    capped = ExponentialMovingAverage(
+        period=5, sensitivity=20.0, extension_cap=0.02
+    ).latest_score(bars)
+    assert uncapped is not None and capped is not None
+    assert capped < uncapped
+
+
 def test_ma_score_above_50_when_price_above_average() -> None:
     sma = SimpleMovingAverage(period=3, sensitivity=10.0)
     score = sma.latest_score(_df([10, 11, 12, 13, 20]))  # last close well above MA

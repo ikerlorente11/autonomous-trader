@@ -1,0 +1,7 @@
+# Strategy version "v1" — the baseline as deployed pre-diagnostics.
+#
+# This overlay is merged onto config/strategy.yaml (see backend/analysis/config.py).
+# It is intentionally a no-op (identical to the base) so "v1" is an explicit,
+# selectable control arm in the A/B alongside "v2". Override any leaf here to make
+# v1 diverge from the base in the future.
+{}

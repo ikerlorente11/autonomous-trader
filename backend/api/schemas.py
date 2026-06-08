@@ -37,6 +37,7 @@ class Portfolio(BaseModel):
     id: int
     name: str
     active: bool
+    strategy_label: str | None = None
     created_at: dt.datetime
 
 
@@ -53,16 +54,35 @@ class PortfolioCreate(BaseModel):
         return name
 
 
-class PortfolioRename(BaseModel):
-    name: str = Field(min_length=1, max_length=64)
+class PortfolioUpdate(BaseModel):
+    """Partial update: only the fields present in the request are applied. ``name``
+    renames; ``strategy_label`` sets the strategy version (null = base config)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    strategy_label: str | None = Field(default=None, max_length=16)
 
     @field_validator("name")
     @classmethod
-    def _normalize_name(cls, value: str) -> str:
+    def _normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         name = value.strip()
         if not name:
             raise ValueError("name must not be blank")
         return name
+
+    @field_validator("strategy_label")
+    @classmethod
+    def _normalize_label(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        label = value.strip()
+        return label or None
+
+
+class StrategyVersion(BaseModel):
+    label: str
+    strategy_version: str
 
 
 class CashMovementCreate(BaseModel):

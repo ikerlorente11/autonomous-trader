@@ -33,6 +33,30 @@ async def get_open_positions(
     return (await session.scalars(stmt)).all()
 
 
+async def get_recently_sold_symbols(
+    session: AsyncSession,
+    portfolio_id: int,
+    since: dt.datetime,
+    *,
+    strategy_version: str | None = None,
+) -> set[str]:
+    """Symbols this portfolio sold (filled) at/after ``since`` — the re-entry cooldown
+    set (P2). Optionally restrict to one ``strategy_version`` (e.g. protective-sell)."""
+    stmt = (
+        select(TradeOrder.symbol)
+        .where(
+            TradeOrder.portfolio_id == portfolio_id,
+            func.lower(TradeOrder.side) == "sell",
+            func.lower(TradeOrder.status) == "filled",
+            TradeOrder.ts >= since,
+        )
+        .distinct()
+    )
+    if strategy_version is not None:
+        stmt = stmt.where(TradeOrder.strategy_version == strategy_version)
+    return set((await session.scalars(stmt)).all())
+
+
 async def get_nav_history(
     session: AsyncSession, portfolio_id: int, start: dt.datetime, end: dt.datetime
 ) -> Sequence[PortfolioNav]:
@@ -346,6 +370,18 @@ async def rename_portfolio(
     if portfolio is None:
         return None
     portfolio.name = name
+    await session.flush()
+    return portfolio
+
+
+async def set_portfolio_strategy_label(
+    session: AsyncSession, portfolio_id: int, label: str | None
+) -> Portfolio | None:
+    """Set which strategy version a portfolio trades (None = base config). Caller commits."""
+    portfolio = await session.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        return None
+    portfolio.strategy_label = label
     await session.flush()
     return portfolio
 

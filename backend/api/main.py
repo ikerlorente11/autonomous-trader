@@ -110,6 +110,7 @@ def create_app() -> FastAPI:
 
     app.include_router(portfolio.router)
     app.include_router(portfolios.router)
+    app.include_router(portfolios.strategies_router)
     app.include_router(market.router)
     app.include_router(trades.router)
     app.include_router(algorithms.router)

@@ -23,6 +23,7 @@ from typing import Any
 
 import pandas as pd
 
+from backend.analysis.config import load_strategy_config
 from backend.analysis.engine import DefaultAnalysisEngine
 from backend.analysis.indicators.volatility import AverageTrueRangeIndicator
 from backend.analysis.performance.settle import settle_due_signals
@@ -45,7 +46,6 @@ from backend.contracts import (
     OHLCVBar,
     OrderState,
     RankedSymbol,
-    SignalAction,
     SymbolScore,
 )
 from backend.data_ingestion.calendar import is_market_open_now, is_trading_day
@@ -80,7 +80,6 @@ from backend.db.queries.portfolio_queries import (
     get_active_watchlist,
     get_latest_analysis_ts,
     get_open_positions,
-    get_top_ranked_signals,
     list_portfolios,
 )
 from backend.db.session import async_session
@@ -435,6 +434,38 @@ async def run_analysis() -> None:
             }
 
 
+def _config_for_label(label: str | None):
+    """Resolve a portfolio's strategy version to a config. Falls back to the base config
+    if the variant file is missing so a portfolio never stops trading on a typo'd label."""
+    try:
+        return load_strategy_config(label=label) if label else load_strategy_config()
+    except FileNotFoundError:
+        logger.warning("strategy version %r not found; using base config", label)
+        return load_strategy_config()
+
+
+def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
+    return DefaultAnalysisEngine(_config_for_label(label))
+
+
+async def _ranked_for_engine(
+    session, engine: DefaultAnalysisEngine, asof: dt.datetime
+) -> list[RankedSymbol]:
+    """Score the watchlist under one engine's config and return the top signals by
+    score (mirrors get_top_ranked_signals, but per strategy version, scored in memory
+    from the stored bars instead of the single persisted base set)."""
+    start = asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
+    watchlist = await get_active_watchlist(session)
+    scores: list[SymbolScore] = []
+    for entry in watchlist:
+        rows = await get_bars_range(session, entry.symbol, start, asof)
+        if not rows:
+            continue
+        scores.append(engine.score_symbol(entry.symbol, _bars_to_frame(rows), asof))
+    scores.sort(key=lambda s: s.score, reverse=True)
+    return [RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores[:_RANK_LIMIT])]
+
+
 async def execute_paper_trades() -> None:
     async with _job_context("execute_paper_trades") as outcome:
         today = dt.date.today()
@@ -453,26 +484,18 @@ async def execute_paper_trades() -> None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "no_active_portfolios"}
                 return
-            signals = await get_top_ranked_signals(session, asof, limit=_RANK_LIMIT)
-            ranked = [
-                RankedSymbol(
-                    rank=i + 1,
-                    score=SymbolScore(
-                        symbol=s.symbol,
-                        ts=s.ts,
-                        score=s.score,
-                        action=SignalAction(s.action),
-                        reason=s.reason,
-                        indicator_snapshot=s.indicator_snapshot,
-                        data_completeness=s.data_completeness,
-                    ),
-                )
-                for i, s in enumerate(signals)
-            ]
-            engine = DefaultAnalysisEngine()
+            # Each distinct strategy version is scored once; portfolios on the same
+            # version share its ranked set. v1 vs v2 thus trade different decisions.
+            engines: dict[str | None, DefaultAnalysisEngine] = {}
+            ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
+            for label in {p.strategy_label for p in portfolios}:
+                engine = _engine_for_label(label)
+                engines[label] = engine
+                ranked_by_label[label] = await _ranked_for_engine(session, engine, asof)
             midnight = _today_utc_midnight()
             total_orders = 0
             per_portfolio: dict[str, int] = {}
+            versions: dict[str, str] = {}
             skipped: list[int] = []
             failed: dict[str, str] = {}
             for portfolio in portfolios:
@@ -480,6 +503,9 @@ async def execute_paper_trades() -> None:
                 if await count_filled_orders_since(session, portfolio.id, midnight) > 0:
                     skipped.append(portfolio.id)
                     continue
+                engine = engines[portfolio.strategy_label]
+                ranked = ranked_by_label[portfolio.strategy_label]
+                versions[str(portfolio.id)] = engine.strategy_version
                 # Each portfolio runs in its own savepoint so one failure rolls back only
                 # that portfolio, never the fills already booked for the others (H3).
                 try:
@@ -488,7 +514,10 @@ async def execute_paper_trades() -> None:
                             session, portfolio.id,
                             strategy_version=engine.strategy_version,
                         )
-                        manager = PortfolioManager(broker, session, portfolio.id)
+                        manager = PortfolioManager(
+                            broker, session, portfolio.id,
+                            config=_config_for_label(portfolio.strategy_label),
+                        )
                         orders = await manager.execute_signals(ranked)
                     per_portfolio[str(portfolio.id)] = len(orders)
                     total_orders += len(orders)
@@ -501,6 +530,7 @@ async def execute_paper_trades() -> None:
             outcome.detail = {
                 "orders": total_orders,
                 "per_portfolio": per_portfolio,
+                "versions": versions,
                 "skipped_already_traded": skipped,
                 "failed": failed,
             }
@@ -508,6 +538,12 @@ async def execute_paper_trades() -> None:
 
 async def update_portfolio_nav() -> None:
     async with _job_context("update_portfolio_nav") as outcome:
+        # P9: don't stamp a NAV/benchmark point on non-session days — it carried stale
+        # weekend marks forward and skewed the day-by-day benchmark. Market days only.
+        if not is_trading_day(dt.date.today()):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            return
         async with async_session() as session:
             portfolios = await list_portfolios(session, active_only=True)
             if not portfolios:
@@ -603,6 +639,19 @@ async def protective_sell() -> None:
                 positions = await get_open_positions(session, portfolio.id)
                 if not positions:
                     continue
+                # Per-version stop tuning (P3): a wider ATR multiple and/or a minimum
+                # distance floor so calm names aren't stopped out by 1–2% noise.
+                trading = _config_for_label(portfolio.strategy_label).trading
+                p_atr_mult = (
+                    Decimal(str(trading.stop_atr_multiple))
+                    if trading.stop_atr_multiple is not None
+                    else atr_mult
+                )
+                p_min_dist = (
+                    Decimal(str(trading.stop_min_distance_pct))
+                    if trading.stop_min_distance_pct is not None
+                    else Decimal(0)
+                )
                 symbols = [p.symbol for p in positions]
                 live = await provider.fetch_live_prices(symbols)
                 # Feed fallback: if the live quote is missing (Yahoo 429), fall back to the
@@ -624,8 +673,9 @@ async def protective_sell() -> None:
                     )
                     new_hwm, hit = evaluate_trailing_stop(
                         position.avg_cost, position.high_water_mark, price,
-                        pct=pct, atr=atr, atr_multiple=atr_mult,
+                        pct=pct, atr=atr, atr_multiple=p_atr_mult,
                         distance_factor=distance_factor,
+                        min_distance_pct=p_min_dist,
                     )
                     position.high_water_mark = new_hwm  # ratchet up, persisted on commit
                     if not hit or panic_hold:

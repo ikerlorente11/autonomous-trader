@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 
 
 class RelativeStrengthIndex(Indicator):
-    def __init__(self, period: int, overbought: float, oversold: float) -> None:
+    def __init__(
+        self,
+        period: int,
+        overbought: float,
+        oversold: float,
+        mode: str = "passthrough",
+    ) -> None:
         if period < 1:
             raise ValueError("period must be >= 1")
         self.signal_id = "rsi"
@@ -27,9 +33,18 @@ class RelativeStrengthIndex(Indicator):
         self._period = period
         self.overbought = overbought
         self.oversold = oversold
+        self._mode = mode
 
     def compute(self, df: DataFrame) -> Series:
         close = df["close"].astype(float)
         if not self.has_enough(df):
             return close * float("nan")
         return RSIIndicator(close=close, window=self._period, fillna=False).rsi()
+
+    def latest_score(self, df: DataFrame) -> float | None:
+        # P4: in mean_reversion mode the sub-score inverts (oversold -> high score) so
+        # the scorer favours pullbacks instead of buying overbought strength.
+        raw = super().latest_score(df)
+        if raw is None or self._mode != "mean_reversion":
+            return raw
+        return 100.0 - raw

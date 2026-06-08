@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from backend.db.queries.portfolio_queries import upsert_watchlist_symbol
+from backend.tests import factories as f
 
 pytestmark = pytest.mark.integration
 
@@ -36,3 +37,30 @@ async def test_watchlist_returns_seeded_symbol(api_client, db_session) -> None:
     r = await api_client.get("/api/market/watchlist")
     assert r.status_code == 200
     assert "AAPL" in [e["symbol"] for e in r.json()]
+
+
+async def test_strategies_lists_available_versions(api_client) -> None:
+    r = await api_client.get("/api/strategies")
+    assert r.status_code == 200
+    labels = {v["label"] for v in r.json()}
+    assert {"v1", "v2"} <= labels
+
+
+async def test_patch_sets_portfolio_strategy_label(api_client, db_session) -> None:
+    pid = await f.seed_portfolio(db_session, name="ab-v2", deposit=500)
+    r = await api_client.patch(f"/api/portfolios/{pid}", json={"strategy_label": "v2"})
+    assert r.status_code == 200
+    assert r.json()["strategy_label"] == "v2"
+
+
+async def test_patch_rejects_unknown_strategy_version(api_client, db_session) -> None:
+    pid = await f.seed_portfolio(db_session, name="ab-bogus", deposit=500)
+    r = await api_client.patch(f"/api/portfolios/{pid}", json={"strategy_label": "bogus"})
+    assert r.status_code == 400
+
+
+async def test_patch_rename_still_works(api_client, db_session) -> None:
+    pid = await f.seed_portfolio(db_session, name="ab-old", deposit=500)
+    r = await api_client.patch(f"/api/portfolios/{pid}", json={"name": "ab-new"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "ab-new"

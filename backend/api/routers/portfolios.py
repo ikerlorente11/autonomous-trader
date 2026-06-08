@@ -4,13 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.analysis.config import list_strategy_versions, load_strategy_config
 from backend.api.deps import get_session
 from backend.api.schemas import (
     CashMovement as CashMovementSchema,
     CashMovementCreate,
     Portfolio as PortfolioSchema,
     PortfolioCreate,
-    PortfolioRename,
+    PortfolioUpdate,
+    StrategyVersion,
 )
 from backend.db.queries.portfolio_queries import (
     add_cash_movement,
@@ -23,9 +25,23 @@ from backend.db.queries.portfolio_queries import (
     get_portfolio_for_update,
     list_portfolios,
     rename_portfolio,
+    set_portfolio_strategy_label,
 )
 
 router = APIRouter(prefix="/api/portfolios", tags=["portfolios"])
+strategies_router = APIRouter(prefix="/api/strategies", tags=["strategies"])
+
+
+@strategies_router.get("", response_model=list[StrategyVersion])
+async def list_strategies() -> list[StrategyVersion]:
+    """Available strategy versions a portfolio can be assigned (config/strategies/*)."""
+    return [
+        StrategyVersion(
+            label=label,
+            strategy_version=load_strategy_config(label=label).strategy_version,
+        )
+        for label in list_strategy_versions()
+    ]
 
 
 def _to_schema(portfolio) -> PortfolioSchema:
@@ -33,6 +49,7 @@ def _to_schema(portfolio) -> PortfolioSchema:
         id=portfolio.id,
         name=portfolio.name,
         active=portfolio.active,
+        strategy_label=portfolio.strategy_label,
         created_at=portfolio.created_at,
     )
 
@@ -74,13 +91,29 @@ async def create(
 
 
 @router.patch("/{portfolio_id}", response_model=PortfolioSchema)
-async def rename(
-    payload: PortfolioRename,
+async def update(
+    payload: PortfolioUpdate,
     portfolio_id: int = Path(...),
     session: AsyncSession = Depends(get_session),
 ) -> PortfolioSchema:
+    fields = payload.model_fields_set
+    if "strategy_label" in fields and payload.strategy_label is not None:
+        if payload.strategy_label not in list_strategy_versions():
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown strategy version {payload.strategy_label!r}; "
+                f"available: {list_strategy_versions()}",
+            )
+    portfolio = None
     try:
-        portfolio = await rename_portfolio(session, portfolio_id, payload.name)
+        if "name" in fields and payload.name is not None:
+            portfolio = await rename_portfolio(session, portfolio_id, payload.name)
+        if "strategy_label" in fields:
+            portfolio = await set_portfolio_strategy_label(
+                session, portfolio_id, payload.strategy_label
+            )
+        if portfolio is None:
+            portfolio = await get_portfolio(session, portfolio_id)
         if portfolio is None:
             raise HTTPException(status_code=404, detail="portfolio not found")
         await session.commit()

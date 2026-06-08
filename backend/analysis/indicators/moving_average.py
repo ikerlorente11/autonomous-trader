@@ -19,13 +19,16 @@ _SIGNAL_ID = "ma_trend"
 
 
 class _MovingAverage(Indicator):
-    def __init__(self, period: int, sensitivity: float) -> None:
+    def __init__(
+        self, period: int, sensitivity: float, extension_cap: float | None = None
+    ) -> None:
         if period < 1:
             raise ValueError("period must be >= 1")
         self.signal_id = _SIGNAL_ID
         self.required_periods = period
         self._period = period
         self._sensitivity = sensitivity
+        self._extension_cap = extension_cap
 
     def _ma(self, close: Series) -> Series:  # noqa: D401 - subclass hook
         raise NotImplementedError
@@ -48,6 +51,10 @@ class _MovingAverage(Indicator):
         if last_ma == 0.0:
             return None
         distance = last_close / last_ma - 1.0
+        # P5: cap how far above the MA still raises the score — a trend gate, not a
+        # reward for extension. Below the MA is left untouched (full downside signal).
+        if self._extension_cap is not None and distance > self._extension_cap:
+            distance = self._extension_cap
         return logistic_0_100(self._sensitivity * distance)
 
 
