@@ -14,9 +14,9 @@
 > - **P6 — hecho (v2).** `trading.allow_pyramiding: false` (no doblar nombres ya en cartera).
 > - **P8 — hecho (global).** `paper_broker._apply_sell` pone `unrealized_pnl=0` al quedar plana; backfill ya aplicado en la Pi.
 > - **P9 — hecho (global).** `update_portfolio_nav` no sella días sin sesión; benchmark anclado a la primera barra SPY real.
-> - **Pendientes → v3 (`03-plan-v3.md`):** **P7** (rank-norm cross-seccional), **P10** (comisiones), **P12**
->   (frescura de datos), **P11** (momentum + macro, fase aparte). Y los stubs de significancia de
->   `comparator.py` para juzgar el A/B con rigor.
+> - **Hecho en v3 (2026-06-09, `03-plan-v3.md`):** **P7** (rank-norm cross-seccional, flag por versión),
+>   **P10** (comisiones, global) y **P12** (frescura de datos, global). **Pendiente:** **P11** (momentum +
+>   macro, fase aparte → v4) y los stubs de significancia de `comparator.py` para juzgar el A/B con rigor.
 > - **Nota A/B:** v2 puede quedarse en caja cuando el mercado está sobrecomprado (comportamiento buscado);
 >   agrupar el análisis por **cartera/`strategy_label`**, no por el hash de `strategy_version` (cambió al añadir campos).
 

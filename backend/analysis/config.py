@@ -53,6 +53,12 @@ class ScoringConfig(_Frozen):
     score_min: float
     score_max: float
     weights: dict[str, float]
+    # Diagnostics P7: when True, each weighted sub-score is replaced by its percentile
+    # rank across the day's universe before weighting, so the buy/exit gate is relative
+    # to the universe instead of an absolute, biased threshold (synthesis §3.4). The
+    # normalization happens one layer above the per-symbol scorer (engine.score_universe).
+    # False = current behaviour (raw sub-scores); the base/v1/v2 configs leave it off.
+    rank_normalize: bool = False
 
 
 class MaTrendParams(_Frozen):

@@ -148,6 +148,10 @@ Notes:
   **strategy version** for A/B: NULL = base config; a label resolves to
   `config/strategies/<label>.yaml` deep-merged onto `config/strategy.yaml`. The daily engine
   trades each portfolio under its own version. See `docs/diagnostics/02-plan-mejora.md` and `CLAUDE.md`.
+- `0009_trade_orders_commission` — **`trade_orders.commission`** (nullable; P10). Per-order
+  commission cost charged by `PaperBroker` (`COMMISSION_PCT`/`COMMISSION_PER_ORDER`, default 0).
+  `compute_cash` subtracts Σcommission, so it drags cash/NAV but **not** contributed capital.
+  NULL backfilled to 0, so historical portfolios' cash is unchanged. See `docs/diagnostics/03-plan-v3.md`.
 
 Run with `DATABASE_URL` set (asyncpg URL, e.g. `postgresql+asyncpg://user:pass@host/db`):
 `cd backend/db/migrations && alembic upgrade head`.

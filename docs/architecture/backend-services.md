@@ -92,6 +92,9 @@ These extend module-contracts §5. All have safe defaults; none is a secret.
 | Var | Default | Used by |
 |---|---|---|
 | `SLIPPAGE_PCT` | `0.001` | PaperBroker fill price |
+| `COMMISSION_PCT` | `0` | PaperBroker per-order commission (fraction of notional); P10, global |
+| `COMMISSION_PER_ORDER` | `0` | PaperBroker flat per-order commission; P10, global |
+| `MAX_BAR_STALENESS_DAYS` | `0` (off) | Data-freshness gate (P12): drop symbols whose latest bar is older than N sessions before scoring/execution |
 | `STARTING_CASH` | `500` | `MockRealBroker` in-memory starting cash only (paper cash is `cash_movements`-derived) |
 | `MAX_POSITION_PCT` | `0.05` | RiskManager sizing |
 | `MAX_OPEN_POSITIONS` | `10` | RiskManager cap |
@@ -139,7 +142,13 @@ These extend module-contracts §5. All have safe defaults; none is a secret.
 - **Benchmark (P9).** `snapshot_nav`/`_benchmark_value` now anchor on the first real SPY bar at/after
   inception (`get_close_after`); `update_portfolio_nav` skips non-trading days (no stale weekend marks).
 - **P8.** `PaperBroker._apply_sell` zeroes `unrealized_pnl` when a position goes flat.
-- Full rationale: `docs/diagnostics/01-diagnostico-perdidas.md` / `02-plan-mejora.md`; next steps: `03-plan-v3.md`.
+- **P10 (commissions).** `PaperBroker.place_order` charges `COMMISSION_PCT × notional + COMMISSION_PER_ORDER`
+  on every fill, stored in `trade_orders.commission` (migration `0009`) and subtracted by `compute_cash`
+  — drags cash/NAV, not contributed capital. Global (env, default 0); the seam is unchanged (`place_order`
+  signature untouched; `qty` stays `Decimal`).
+- **P12 (data-freshness gate).** `run_analysis` / `_ranked_for_engine` exclude symbols whose latest bar is
+  more than `MAX_BAR_STALENESS_DAYS` sessions stale (`calendar.nth_prior_trading_day`; default 0 = off).
+- Full rationale: `docs/diagnostics/01-diagnostico-perdidas.md` / `02-plan-mejora.md` / `03-plan-v3.md`.
 
 **Open items / deferred**
 - **`mock_real` broker** is **registered** in `broker_factory.py` (`_REGISTRY = {"paper": PaperBroker, "mock_real": MockRealBroker}`), so the Reality Checker's env-only swap gate (`BROKER_ADAPTER=mock_real`) is satisfied. A real `alpaca` adapter remains Phase 2.

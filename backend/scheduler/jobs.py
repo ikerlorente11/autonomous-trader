@@ -46,9 +46,12 @@ from backend.contracts import (
     OHLCVBar,
     OrderState,
     RankedSymbol,
-    SymbolScore,
 )
-from backend.data_ingestion.calendar import is_market_open_now, is_trading_day
+from backend.data_ingestion.calendar import (
+    is_market_open_now,
+    is_trading_day,
+    nth_prior_trading_day,
+)
 from backend.data_ingestion.fundamentals_ingest import (
     fundamentals_data_configured,
     ingest_fundamentals,
@@ -187,6 +190,28 @@ def _bars_to_frame(rows) -> pd.DataFrame:
         },
         index=[r.ts for r in rows],
     )
+
+
+def _bar_staleness_cutoff(asof: dt.datetime) -> dt.date | None:
+    """P12: the oldest acceptable latest-bar date, or None when the gate is disabled.
+
+    ``MAX_BAR_STALENESS_DAYS`` (env, default 0 = off) is how many sessions a symbol may
+    fall behind before it is excluded from scoring/execution — guards against deciding
+    on stale prices (low € impact today, important for a real broker)."""
+    try:
+        max_days = int(os.environ.get("MAX_BAR_STALENESS_DAYS", "0"))
+    except ValueError:
+        max_days = 0
+    if max_days <= 0:
+        return None
+    return nth_prior_trading_day(asof.date(), max_days)
+
+
+def _bars_fresh(rows, cutoff: dt.date | None) -> bool:
+    """True if the symbol's latest bar is recent enough (>= cutoff), or the gate is off."""
+    if cutoff is None:
+        return True
+    return bool(rows) and rows[-1].ts.date() >= cutoff
 
 
 _ATR_PERIOD = 14
@@ -353,30 +378,31 @@ async def run_analysis() -> None:
         asof = _today_utc_midnight()
         start = asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
         engine = DefaultAnalysisEngine()
+        cutoff = _bar_staleness_cutoff(asof)
         async with async_session() as session:
             watchlist = await get_active_watchlist(session)
-            indicators = []
-            scores = []
+            frames: dict[str, pd.DataFrame] = {}
             for entry in watchlist:
                 rows = await get_bars_range(session, entry.symbol, start, asof)
-                if not rows:
+                if not rows or not _bars_fresh(rows, cutoff):
                     continue
-                frame = _bars_to_frame(rows)
-                indicators.extend(
-                    engine.compute_indicators({entry.symbol: frame}, asof)
-                )
-                scores.append(engine.score_symbol(entry.symbol, frame, asof))
+                frames[entry.symbol] = _bars_to_frame(rows)
+            # P7: one universe pass — rank-normalizes weighted sub-scores when the config
+            # enables it (the base config does not, so the persisted set stays raw).
+            indicators, scores = engine.score_universe(frames, asof)
+            indicators = list(indicators)
+            for symbol in frames:
                 # Fundamental signals (OBSERVATION ONLY): recorded as signal_values,
                 # not fed to the scorer, so the action is unchanged. Empty until the
                 # fundamentals ingestion job (C3b) populates fundamentals_quarterly.
-                fundamentals = await get_recent_fundamentals(session, entry.symbol)
+                fundamentals = await get_recent_fundamentals(session, symbol)
                 if fundamentals:
                     fund_scores = compute_fundamental_signals(
                         [fr.line_items for fr in fundamentals]
                     )
                     indicators.extend(
                         IndicatorResult(
-                            symbol=entry.symbol,
+                            symbol=symbol,
                             ts=asof,
                             signal_id=signal_id,
                             value=Decimal(str(round(value, 8))),
@@ -386,12 +412,12 @@ async def run_analysis() -> None:
                 # News buzz (OBSERVATION ONLY): abnormal news flow, recorded but not
                 # scored. Empty until the news job populates news_sentiment.
                 buzz = news_buzz_score(
-                    await get_recent_news_counts(session, entry.symbol)
+                    await get_recent_news_counts(session, symbol)
                 )
                 if buzz is not None:
                     indicators.append(
                         IndicatorResult(
-                            symbol=entry.symbol,
+                            symbol=symbol,
                             ts=asof,
                             signal_id=NEWS_BUZZ_SIGNAL_ID,
                             value=Decimal(str(round(buzz, 8))),
@@ -455,13 +481,17 @@ async def _ranked_for_engine(
     score (mirrors get_top_ranked_signals, but per strategy version, scored in memory
     from the stored bars instead of the single persisted base set)."""
     start = asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
+    cutoff = _bar_staleness_cutoff(asof)
     watchlist = await get_active_watchlist(session)
-    scores: list[SymbolScore] = []
+    frames: dict[str, pd.DataFrame] = {}
     for entry in watchlist:
         rows = await get_bars_range(session, entry.symbol, start, asof)
-        if not rows:
+        if not rows or not _bars_fresh(rows, cutoff):
             continue
-        scores.append(engine.score_symbol(entry.symbol, _bars_to_frame(rows), asof))
+        frames[entry.symbol] = _bars_to_frame(rows)
+    # P7: score the whole universe in one pass so rank-normalization (when this version
+    # enables it) sees every symbol; mirrors run_analysis via the same engine method.
+    _, scores = engine.score_universe(frames, asof)
     scores.sort(key=lambda s: s.score, reverse=True)
     return [RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores[:_RANK_LIMIT])]
 

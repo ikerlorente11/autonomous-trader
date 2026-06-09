@@ -81,6 +81,16 @@
 	</ul>
 </Card>
 
+<Card title={t('info.versions.title')} caption={t('info.versions.caption')} span="full">
+	<p>{@html t('info.versions.p1')}</p>
+	<ul class="list">
+		<li>{@html t('info.versions.li1')}</li>
+		<li>{@html t('info.versions.li2')}</li>
+		<li>{@html t('info.versions.li3')}</li>
+	</ul>
+	<p class="note">{@html t('info.versions.note')}</p>
+</Card>
+
 <Card title={t('info.limits.title')} span="full">
 	<p class="warn">{@html t('info.limits.text')}</p>
 </Card>

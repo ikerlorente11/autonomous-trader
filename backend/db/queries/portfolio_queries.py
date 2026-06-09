@@ -126,12 +126,15 @@ async def compute_cash(session: AsyncSession, portfolio_id: int) -> Decimal:
     any restart.
     """
     contributed = await compute_contributed_capital(session, portfolio_id)
+    # Commission (P10) is a cost on every filled order: it reduces cash (and thus NAV)
+    # but NOT contributed capital, so the A/B return is correctly penalized for churn.
     flow = func.coalesce(
         func.sum(
             case(
                 (func.lower(TradeOrder.side) == "buy", TradeOrder.price * TradeOrder.qty),
                 else_=-(TradeOrder.price * TradeOrder.qty),
             )
+            + func.coalesce(TradeOrder.commission, 0)
         ),
         0,
     )

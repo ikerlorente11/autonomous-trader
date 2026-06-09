@@ -44,6 +44,57 @@ class AnalysisEngine(Protocol):
     def rank_symbols(self, scores: list[SymbolScore]) -> list[RankedSymbol]: ...
 
 
+def _percentile_ranks(values: list[float]) -> list[float]:
+    """Map each value to its percentile rank in [0, 100] (min -> 0, max -> 100), with
+    ties resolved to their average rank. A single value (or an all-equal set) maps to 50.
+    Pure and in-memory over the day's universe — no history materialized (Pi RAM)."""
+    n = len(values)
+    if n <= 1:
+        return [50.0] * n
+    order = sorted(range(n), key=lambda i: values[i])
+    ranks = [50.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        avg_rank = (i + j) / 2.0
+        pct = avg_rank / (n - 1) * 100.0
+        for k in range(i, j + 1):
+            ranks[order[k]] = pct
+        i = j + 1
+    return ranks
+
+
+def rank_normalize_results(
+    per_symbol: dict[str, list[IndicatorResult]], signal_ids: set[str]
+) -> dict[str, list[IndicatorResult]]:
+    """Replace each target signal's value with its cross-sectional percentile rank
+    across the universe (P7). Signals not in ``signal_ids`` (and symbols lacking a
+    signal) pass through untouched; percentiles are computed only over symbols that
+    have the signal, never imputing a missing one (synthesis §3.3)."""
+    by_signal: dict[str, list[tuple[str, float]]] = {}
+    for symbol, results in per_symbol.items():
+        for res in results:
+            if res.signal_id in signal_ids:
+                by_signal.setdefault(res.signal_id, []).append((symbol, float(res.value)))
+    normalized: dict[tuple[str, str], float] = {}
+    for signal_id, pairs in by_signal.items():
+        for (symbol, _), pct in zip(pairs, _percentile_ranks([v for _, v in pairs])):
+            normalized[(symbol, signal_id)] = pct
+    out: dict[str, list[IndicatorResult]] = {}
+    for symbol, results in per_symbol.items():
+        out[symbol] = [
+            res.model_copy(
+                update={"value": Decimal(str(round(normalized[(symbol, res.signal_id)], 8)))}
+            )
+            if (symbol, res.signal_id) in normalized
+            else res
+            for res in results
+        ]
+    return out
+
+
 def _build_indicators(config: StrategyConfig) -> list[Indicator]:
     ma_cfg = config.indicators.ma_trend
     ma_cls = SimpleMovingAverage if ma_cfg.kind == "sma" else ExponentialMovingAverage
@@ -101,6 +152,31 @@ class DefaultAnalysisEngine:
         for symbol, frame in bars.items():
             out.extend(self._symbol_indicators(symbol, frame, asof))
         return out
+
+    def _rank_normalize_targets(self) -> set[str]:
+        return {sid for sid, w in self._config.scoring.weights.items() if w > 0}
+
+    def score_universe(
+        self, bars: Mapping[str, DataFrame], asof: dt.datetime
+    ) -> tuple[list[IndicatorResult], list[SymbolScore]]:
+        """Compute indicators and composite scores for the whole universe in one pass,
+        applying cross-sectional rank-normalization (P7) when the config enables it.
+        Both ``run_analysis`` and ``execute_paper_trades`` go through this so the two
+        paths can never diverge; with ``rank_normalize`` off it equals per-symbol scoring.
+        Computing sub-scores once also avoids the double compute of calling
+        ``compute_indicators`` and ``score_symbol`` separately."""
+        per_symbol = {
+            symbol: self._symbol_indicators(symbol, frame, asof)
+            for symbol, frame in bars.items()
+        }
+        if self._config.scoring.rank_normalize:
+            per_symbol = rank_normalize_results(per_symbol, self._rank_normalize_targets())
+        indicators: list[IndicatorResult] = []
+        scores: list[SymbolScore] = []
+        for symbol, results in per_symbol.items():
+            indicators.extend(results)
+            scores.append(self._scorer.score(symbol, results, asof))
+        return indicators, scores
 
     def score_symbol(
         self, symbol: str, bars: DataFrame, asof: dt.datetime
