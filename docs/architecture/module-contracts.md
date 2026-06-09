@@ -174,7 +174,7 @@ All in `backend/contracts.py`, Pydantic v2, `frozen=True`, `extra="forbid"`. The
 | `IndicatorResult` | `signal_values` (`SignalValue`) | `symbol, ts, signal_id, value, data_completeness` — exact |
 | `SymbolScore` | `algorithm_signals` (`AlgorithmSignal`) | `symbol, ts, score, action, reason, indicator_snapshot`; `data_completeness` is engine-local diagnostics |
 | `RankedSymbol` | (ranker output, not persisted) | `rank: int`, `score: SymbolScore` |
-| `Order` | `trade_orders` (`TradeOrder`) | `id, symbol, side, qty, price, status, reason, strategy_version, ts` — exact (`id` optional pre-insert; DB `BIGSERIAL`) |
+| `Order` | `trade_orders` (`TradeOrder`) | `id, symbol, side, qty, price, commission, status, reason, strategy_version, ts` — exact (`id` optional pre-insert, DB `BIGSERIAL`; `commission` nullable, P10/migration `0009`) |
 | `Position` | `portfolio_positions` (`PortfolioPosition`) | `symbol, qty, avg_cost, current_price, unrealized_pnl, updated_at` — exact |
 | `AccountBalance` | assembled by `PortfolioManager` (not returned by the broker) | `cash, equity, total` — `total = broker.get_account_balance()`, `cash = broker.get_cash()`, `equity = total − cash` |
 | `OrderStatus` | broker lifecycle (paper) | `order_id, status, filled_qty, avg_fill_price` |

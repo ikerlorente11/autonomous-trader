@@ -105,6 +105,7 @@ class Order(_Frozen):
     side: OrderSide
     qty: Decimal
     price: Decimal | None = None
+    commission: Decimal | None = None
     status: OrderState
     reason: str | None = None
     strategy_version: str | None = None

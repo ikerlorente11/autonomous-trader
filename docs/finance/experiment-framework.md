@@ -210,7 +210,9 @@ Both are nullable/additive → a forward-only Alembic migration, no backfill nee
 Mitigation 4 (§3.4) is **realized ahead of schedule**: portfolios carry a `strategy_label`
 (`portfolios.strategy_label`, migration `0008`) → a `config/strategies/<label>.yaml` overlay, and the daily
 engine trades every portfolio under its own version on the **same universe/day** (true parallel shadow
-experiment — the regime confound is largely eliminated). Live arms: `v1` (control) vs `v2` (diagnosis fixes).
+experiment — the regime confound is largely eliminated). Live arms: `v1` (control) vs `v2` (diagnosis
+fixes) vs `v3` (= v2 + P7 cross-sectional rank-normalization). A commission model (P10) and a
+data-freshness gate (P12) ship as **global** knobs (same for every arm, so churn is priced fairly).
 A first comparison view ships at `/compare` (overlaid rebased/€ equity curves + shared crosshair tooltip).
 
 **Still pending for a rigorous verdict:** the significance tests in `backend/experiments/comparator.py`

@@ -234,3 +234,12 @@ those libs must never be reintroduced or prerender will 500.
   is via the Chart.js legend (the earlier explicit selector card was removed at the owner's request).
   Component: `lib/charts/ComparisonChart.svelte` (+ `comparePalette.ts` for stable per-portfolio colours);
   data via `portfoliosApi.navFor(id, range)`. i18n keys under `compare.*` / `nav.compare` (ES+EN).
+
+## Update notes (2026-06-09) — v3 + strategy-versions explainer on /info
+
+- **`/info` page** (`routes/info/+page.svelte`) gained a **"Strategy versions (A/B)"** card explaining,
+  in plain language, what `v1` (control), `v2` (diagnosis fixes) and `v3` (= v2 + cross-sectional
+  rank-normalization) each do and how they differ, plus a note that commissions (P10) and the
+  data-freshness gate (P12) are global. Copy lives in the i18n dictionary under `info.versions.*` (ES+EN);
+  no new API calls (static page). Backed by the new `v3` version (`config/strategies/v3.yaml`) and live
+  `v3-500` / `v3-100k` portfolios. See `docs/diagnostics/03-plan-v3.md`.

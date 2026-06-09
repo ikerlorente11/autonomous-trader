@@ -1,8 +1,22 @@
 <!-- Agent: Investment Researcher | Phase: diagnóstico | Depends on: 01-diagnostico-perdidas, 02-plan-mejora -->
 
-# Plan v3 — siguiente iteración de estrategia (para retomar más adelante)
+# Plan v3 — siguiente iteración de estrategia
 
-> **Estado:** plan, **nada implementado**. Pensado para retomarse en otra sesión sin contexto previo.
+> **Estado (DESPLEGADO, 2026-06-09):** **P7 + P10 + P12 implementados** y en `main`. v3 = v2 + P7.
+> - **P7 — hecho (v3).** `scoring.rank_normalize` (campo nuevo en `ScoringConfig`, default `False`);
+>   rank-norm cross-seccional en `engine.score_universe` (capa sobre el scorer), usada por
+>   `run_analysis` y `execute_paper_trades`. Activo solo en `config/strategies/v3.yaml`.
+> - **P10 — hecho (global).** Comisiones en `PaperBroker` (`COMMISSION_PCT` / `COMMISSION_PER_ORDER`,
+>   env, default 0); columna nullable `trade_orders.commission` (migración `0009`); `compute_cash`
+>   las resta (afecta caja/NAV, **no** capital aportado). Global a todas las versiones.
+> - **P12 — hecho (global).** Gate de frescura `MAX_BAR_STALENESS_DAYS` (env, sesiones, default 0=off)
+>   en `run_analysis` / `_ranked_for_engine` vía `calendar.nth_prior_trading_day`.
+> - **Carteras vivas:** `v3-500` (id 6) / `v3-100k` (id 7), `strategy_label="v3"`.
+> - **Pendiente:** **P11** (momentum cross-seccional + multiplicador macro) → **v4**, fase aparte; y
+>   los stubs de significancia de `comparator.py` para juzgar el A/B con rigor (≥20 sesiones).
+> - **Para activar comisiones/frescura:** poner `COMMISSION_PCT` / `MAX_BAR_STALENESS_DAYS` en `.env`
+>   (defaults 0 dejan el comportamiento idéntico al actual).
+
 > **Depende de:** `01-diagnostico-perdidas.md` (causas), `02-plan-mejora.md` (P1–P12).
 > **Restricciones (CLAUDE.md):** paper-only, seam `BrokerAdapter` intacto, **nada hardcodeado**
 > (todo en `config/strategy.yaml` / `config/strategies/<label>.yaml` / env), presupuesto RAM de la Pi.

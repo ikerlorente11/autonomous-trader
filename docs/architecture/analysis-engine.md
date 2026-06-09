@@ -51,7 +51,7 @@ weighted composite (0–100) -> ranked buy candidates. Weights and thresholds ar
 - Every `algorithm_signals` row must have a non-null `strategy_version` matching the active `experiment_runs.strategy_version`.
 
 ### Open questions / deferred
-- **Cross-sectional rank-normalization (§3.4)** is not yet applied — sub-scores are currently per-symbol bounded (logistic) only. Add a universe-level normalization pass in the engine when the real signal set lands. **Now scoped as v3/P7 — see `docs/diagnostics/03-plan-v3.md`.**
+- **Cross-sectional rank-normalization (§3.4)** is **now implemented (v3/P7)**: `engine.score_universe` runs a universe-level pass that replaces each weighted sub-score with its percentile rank across the day's symbols before scoring, gated by the `scoring.rank_normalize` flag (off in base/v1/v2, on in `config/strategies/v3.yaml`). Both `run_analysis` and `execute_paper_trades` call it. See `docs/diagnostics/03-plan-v3.md`.
 
 ## Update notes (2026-06-08) — strategy versions + diagnosis fixes
 

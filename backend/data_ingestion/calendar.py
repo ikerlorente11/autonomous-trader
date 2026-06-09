@@ -56,3 +56,20 @@ def previous_trading_day(day: dt.date, *, calendar: str | None = None) -> dt.dat
     if not sessions:
         raise ValueError(f"no trading session found in 10 days before {day.isoformat()}")
     return sessions[-1]
+
+
+def nth_prior_trading_day(
+    day: dt.date, n: int, *, calendar: str | None = None
+) -> dt.date | None:
+    """The session ``n`` trading days before ``day`` (excluding ``day`` itself).
+
+    The data-freshness gate (P12) uses this as the staleness cutoff: a symbol whose
+    latest bar predates this date has missed more than ``n`` sessions. Returns ``None``
+    when ``n <= 0`` (gate disabled) or there is not enough calendar history to judge."""
+    if n <= 0:
+        return None
+    window_start = day - dt.timedelta(days=n * 3 + 10)
+    sessions = [d for d in trading_days(window_start, day, calendar=calendar) if d < day]
+    if len(sessions) < n:
+        return None
+    return sessions[-n]

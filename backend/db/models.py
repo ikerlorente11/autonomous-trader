@@ -132,6 +132,7 @@ class TradeOrder(Base):
     side: Mapped[str] = mapped_column(String(8))
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 6))
     price: Mapped[Decimal | None] = mapped_column(PRICE)
+    commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     status: Mapped[str] = mapped_column(String(16))
     reason: Mapped[str | None] = mapped_column(Text)
     strategy_version: Mapped[str | None] = mapped_column(String(64))

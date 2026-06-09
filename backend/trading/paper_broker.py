@@ -35,6 +35,8 @@ from backend.db.queries.portfolio_queries import (
 )
 
 _DEFAULT_SLIPPAGE_PCT = Decimal("0.001")
+_DEFAULT_COMMISSION_PCT = Decimal("0")
+_DEFAULT_COMMISSION_PER_ORDER = Decimal("0")
 
 
 def _decimal_env(name: str, default: Decimal) -> Decimal:
@@ -56,10 +58,20 @@ class PaperBroker:
         self._portfolio_id = portfolio_id
         self._strategy_version = strategy_version
         self._slippage_pct = _decimal_env("SLIPPAGE_PCT", _DEFAULT_SLIPPAGE_PCT)
+        # P10: a commission model so churn has a visible cost in the A/B. Global (env),
+        # not per-version: a trade cost is a market reality every version pays equally.
+        # Defaults of 0 leave cash/NAV byte-for-byte unchanged until configured.
+        self._commission_pct = _decimal_env("COMMISSION_PCT", _DEFAULT_COMMISSION_PCT)
+        self._commission_per_order = _decimal_env(
+            "COMMISSION_PER_ORDER", _DEFAULT_COMMISSION_PER_ORDER
+        )
 
     async def _latest_close(self, symbol: str) -> Decimal | None:
         bars = await get_latest_bars(self._session, [symbol])
         return bars[0].close if bars else None
+
+    def _commission_for(self, qty: Decimal, fill_price: Decimal) -> Decimal:
+        return qty * fill_price * self._commission_pct + self._commission_per_order
 
     async def _write_order(
         self,
@@ -70,6 +82,7 @@ class PaperBroker:
         status: OrderState,
         reason: str,
         ts: dt.datetime,
+        commission: Decimal | None = None,
     ) -> Order:
         stmt = (
             sa_insert(TradeOrder)
@@ -79,6 +92,7 @@ class PaperBroker:
                 side=side,
                 qty=qty,
                 price=price,
+                commission=commission,
                 status=status.value,
                 reason=reason,
                 strategy_version=self._strategy_version,
@@ -93,6 +107,7 @@ class PaperBroker:
             side=OrderSide(side),
             qty=qty,
             price=price,
+            commission=commission,
             status=status,
             reason=reason,
             strategy_version=self._strategy_version,
@@ -166,9 +181,11 @@ class PaperBroker:
 
         direction = Decimal(1) if side_enum is OrderSide.BUY else Decimal(-1)
         fill_price = market_price * (Decimal(1) + direction * self._slippage_pct)
+        commission = self._commission_for(qty_dec, fill_price)
 
         order = await self._write_order(
             symbol, side, qty_dec, fill_price, OrderState.FILLED, "paper fill", ts,
+            commission=commission,
         )
         if side_enum is OrderSide.BUY:
             await self._apply_buy(symbol, qty_dec, fill_price)

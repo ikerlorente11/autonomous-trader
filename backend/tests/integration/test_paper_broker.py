@@ -63,6 +63,33 @@ async def test_buy_then_partial_sell_reduces_position(db_session) -> None:
     assert pos.qty == Decimal("3.000000")
 
 
+async def test_commission_is_charged_and_drags_cash(
+    db_session, monkeypatch
+) -> None:
+    # P10: a commission (pct of notional + flat per-order) is deducted from cash and
+    # stored on the order, so churn has a visible cost in the A/B. Default is 0.
+    monkeypatch.setenv("COMMISSION_PCT", "0.002")
+    monkeypatch.setenv("COMMISSION_PER_ORDER", "0.5")
+    broker, pid = await _broker(db_session)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+
+    order = await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    assert order.status is OrderState.FILLED
+    # fill 100.1 (0.1% slippage); notional 500.5; commission 500.5*0.002 + 0.5 = 1.501
+    assert order.commission == Decimal("1.501")
+    # cash 10000 - 500.5 (notional) - 1.501 (commission) = 9497.999
+    assert await broker.get_cash() == Decimal("9497.999")
+
+
+async def test_no_commission_by_default(db_session) -> None:
+    # With the env unset, commission is 0 — existing behaviour is byte-for-byte unchanged.
+    broker, _ = await _broker(db_session)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    order = await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    assert order.commission == Decimal("0")
+    assert await broker.get_cash() == Decimal("9499.5")  # 10000 - 100.1*5
+
+
 async def test_full_sell_clears_unrealized_pnl(db_session) -> None:
     # A closed (qty=0) row must not retain a stale unrealized P&L (diagnostics P8):
     # the app filters qty != 0, but raw/analytics sums over portfolio_positions would

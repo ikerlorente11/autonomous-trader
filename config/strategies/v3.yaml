@@ -1,0 +1,30 @@
+# Strategy version "v3" — built ON TOP of v2 (v3 = v2 + delta) so the A/B isolates the
+# v3 effect over v2. Every key here is the difference from the base ("v1"); v2's fixes
+# (P1–P6) are repeated and the v3-only additions are marked. Rationale: docs/diagnostics/03-plan-v3.md.
+
+scoring:
+  weights:
+    # P1 (from v2): ATR out of the score — only sizing/stops use it.
+    atr: 0.0
+  # P7 (v3): rank-normalize each weighted sub-score to its percentile across the day's
+  # universe before weighting, so the buy/exit gate (60/45) is RELATIVE to the universe
+  # rather than an absolute, biased threshold. Off in base/v1/v2 — this is the v3 delta.
+  rank_normalize: true
+
+indicators:
+  rsi:
+    # P4 (from v2): contrarian RSI — oversold scores high.
+    mode: mean_reversion
+  ma_trend:
+    # P5 (from v2): cap the "how far above the MA" reward at +2% (trend gate, not a chase).
+    extension_cap: 0.02
+
+trading:
+  # P2/P3/P6 (from v2): re-entry cooldown, stop-distance floor, no pyramiding.
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.05
+  allow_pyramiding: false
+
+# NOTE: P10 (commissions) and P12 (data-freshness gate) are GLOBAL env knobs, not version
+# overlays — COMMISSION_PCT / COMMISSION_PER_ORDER and MAX_BAR_STALENESS_DAYS (.env.example).
+# Every version pays the same commission (a market reality), so the A/B fairly penalizes churn.

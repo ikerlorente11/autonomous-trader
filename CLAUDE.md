@@ -444,10 +444,32 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > unchanged and an overlay only changes what it sets. The `BrokerAdapter` seam is untouched
 > (`config` is a constructor arg to `PortfolioManager`, never part of `place_order`). Shipped
 > variants: `v1` = base (control), `v2` = the loss-diagnosis fixes (ATR out of the score, RSI
-> mean-reversion, ma_trend cap, re-entry cooldown, stop-distance floor, no pyramiding). The frontend
+> mean-reversion, ma_trend cap, re-entry cooldown, stop-distance floor, no pyramiding), **`v3` =
+> v2 + P7 (cross-sectional rank-normalization)**. The frontend
 > **`/compare`** route overlays each portfolio's NAV (% rebased or € absolute) with a shared crosshair
 > tooltip to compare versions. Diagnosis and rationale: `docs/diagnostics/01-diagnostico-perdidas.md`,
-> `02-plan-mejora.md`; next iteration (P7/P10/P11): `03-plan-v3.md`.
+> `02-plan-mejora.md`, `03-plan-v3.md`.
+
+> **v3 — P7 / P10 / P12 (post-Phase-5).** v3 layers three diagnostics fixes onto v2.
+> **P7 (rank-normalization, per-version):** when `scoring.rank_normalize: true` (a new
+> `ScoringConfig` field, off in base/v1/v2), each weighted sub-score is replaced by its
+> **percentile rank across the day's universe** before weighting, so the 60/45 buy/exit gate is
+> *relative* to the universe, not an absolute biased threshold. The normalization lives one layer
+> above the per-symbol scorer in `engine.score_universe`, which both `run_analysis` and
+> `execute_paper_trades` now call (single universe pass → no divergence; base persists the raw
+> set). **P10 (commissions, GLOBAL not per-version):** `PaperBroker` charges
+> `COMMISSION_PCT × notional + COMMISSION_PER_ORDER` (env, default 0) on every filled order, stored
+> in a new nullable `trade_orders.commission` (migration `0009`) and subtracted by `compute_cash`
+> — it drags **cash/NAV but not contributed capital**, so the A/B is fairly penalized for churn;
+> every version pays the same (a market reality). **P12 (data-freshness gate, GLOBAL):**
+> `MAX_BAR_STALENESS_DAYS` (env sessions, default 0 = off) excludes a symbol from
+> scoring/execution when its latest bar is too many sessions stale. Seam untouched (commission is
+> a `PaperBroker` detail; `qty` stays `Decimal`); nothing hardcoded. **P11** (momentum +
+> macro multiplier) stays out of scope — a future v4. Live portfolios `v3-500` / `v3-100k` run it.
+> Full plan/measurement: `docs/diagnostics/03-plan-v3.md`.
+
+> A user-facing plain-language explanation of the three versions and their differences lives on the
+> dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
