@@ -20,7 +20,7 @@ ALPHA = 0.05
 
 @pytest.fixture(scope="module")
 def comparator() -> ExperimentComparator:
-    return ExperimentComparator(None)  # methods under test never touch the session
+return ExperimentComparator(None)  # type: ignore[arg-type]  # methods under test never touch the session
 
 
 # --------------------------------------------------------------------------- #
