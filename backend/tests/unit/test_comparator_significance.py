@@ -140,3 +140,9 @@ def test_proportion_empty_group_is_nan(comparator) -> None:
 def test_fisher_symmetric_balanced_table() -> None:
     p = _fisher_exact_two_sided(3, 6, 3, 6)
     assert p == pytest.approx(1.0)
+
+
+def test_fisher_large_totals_stays_finite() -> None:
+    p = _fisher_exact_two_sided(1, 1000, 0, 1000)
+    assert 0.0 <= p <= 1.0
+    assert math.isfinite(p)
