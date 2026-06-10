@@ -46,23 +46,41 @@ def _norm_ppf(p: float) -> float:
 def _fisher_exact_two_sided(wins_a: int, n_a: int, wins_b: int, n_b: int) -> float:
     """Two-sided Fisher's exact p-value for a 2x2 table (successes x group).
 
-    Exact hypergeometric tail; no scipy needed for a 2x2.
+    Exact hypergeometric tail; computed in log-space to avoid overflow when counts are large.
     """
-    total = n_a + n_b
-    successes = wins_a + wins_b
-    denom = math.comb(total, n_a)
-    if denom == 0:
+    if n_a < 0 or n_b < 0 or wins_a < 0 or wins_b < 0:
+        return float("nan")
+    if wins_a > n_a or wins_b > n_b:
         return float("nan")
 
-    def tableProb(x: int) -> float:
-        return math.comb(successes, x) * math.comb(total - successes, n_a - x) / denom
+    total = n_a + n_b
+    successes = wins_a + wins_b
+    if total == 0:
+        return float("nan")
 
-    observedProb = tableProb(wins_a)
+    def log_comb(n: int, k: int) -> float:
+        if k < 0 or k > n:
+            return float("-inf")
+        return math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1)
+
+    log_denom = log_comb(total, n_a)
+
+    def table_prob(x: int) -> float:
+        log_p = log_comb(successes, x) + log_comb(total - successes, n_a - x) - log_denom
+        # exp() underflows to 0.0 for extremely tiny probabilities; that's acceptable for tail sums.
+        return math.exp(log_p)
+
+    observed = table_prob(wins_a)
     lo = max(0, successes - n_b)
     hi = min(successes, n_a)
-    tolerance = observedProb * (1.0 + 1e-7)
-    pValue = sum(tableProb(x) for x in range(lo, hi + 1) if tableProb(x) <= tolerance)
-    return min(1.0, pValue)
+    tol = observed * (1.0 + 1e-7)
+
+    p_value = 0.0
+    for x in range(lo, hi + 1):
+        px = table_prob(x)
+        if px <= tol:
+            p_value += px
+    return min(1.0, p_value)
 
 
 class ComparisonVerdict(str, enum.Enum):
