@@ -169,12 +169,12 @@ class ExperimentComparator:
         self, a: Sequence[float], b: Sequence[float], alpha: float
     ) -> SignificanceResult:
         """Bootstrap test on daily-return means (non-normal, small-n safe)."""
-arrA = np.asarray(a, dtype=float)
-arrB = np.asarray(b, dtype=float)
-if arrA.size < 2 or arrB.size < 2:
-    return _NAN_SIGNIFICANCE
-if not np.isfinite(arrA).all() or not np.isfinite(arrB).all():
-    return _NAN_SIGNIFICANCE
+        arrA = np.asarray(a, dtype=float)
+        arrB = np.asarray(b, dtype=float)
+        if arrA.size < 2 or arrB.size < 2:
+            return _NAN_SIGNIFICANCE
+        if not np.isfinite(arrA).all() or not np.isfinite(arrB).all():
+            return _NAN_SIGNIFICANCE
 
         observed = float(arrA.mean() - arrB.mean())
         rng = np.random.default_rng(_BOOTSTRAP_SEED)
