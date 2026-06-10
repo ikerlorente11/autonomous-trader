@@ -75,6 +75,11 @@ def test_returns_insufficient_sample_is_nan(comparator) -> None:
     assert math.isnan(res.p_value)
 
 
+def test_returns_non_finite_input_is_nan(comparator) -> None:
+    res = comparator._significance_returns([0.01, float("nan")], [0.01, 0.02], ALPHA)
+    assert res.significant is False
+    assert math.isnan(res.p_value)
+
 # --------------------------------------------------------------------------- #
 # Jobson-Korkie / Memmel Sharpe
 # --------------------------------------------------------------------------- #
