@@ -167,20 +167,27 @@ async def compute_contributed_capital(
 
 
 async def count_filled_orders_since(
-    session: AsyncSession, portfolio_id: int, since: dt.datetime
+    session: AsyncSession,
+    portfolio_id: int,
+    since: dt.datetime,
+    *,
+    exclude_strategy_version: str | None = None,
 ) -> int:
     """How many *filled* orders this portfolio wrote at/after ``since`` (idempotency
     guard). Rejected orders are excluded: a run that only produced rejections (e.g. no
-    price yet, all-HOLD) must be retryable, not locked out for the day (H2)."""
-    stmt = (
-        select(func.count())
-        .select_from(TradeOrder)
-        .where(
-            TradeOrder.portfolio_id == portfolio_id,
-            TradeOrder.ts >= since,
-            func.lower(TradeOrder.status) == "filled",
+    price yet, all-HOLD) must be retryable, not locked out for the day (H2).
+    ``exclude_strategy_version`` lets the daily-execution guard ignore intraday
+    protective-sell fills — a stop-out must not count as "already traded today"."""
+    conditions = [
+        TradeOrder.portfolio_id == portfolio_id,
+        TradeOrder.ts >= since,
+        func.lower(TradeOrder.status) == "filled",
+    ]
+    if exclude_strategy_version is not None:
+        conditions.append(
+            func.coalesce(TradeOrder.strategy_version, "") != exclude_strategy_version
         )
-    )
+    stmt = select(func.count()).select_from(TradeOrder).where(*conditions)
     return int((await session.scalar(stmt)) or 0)
 
 

@@ -468,13 +468,46 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > macro multiplier) stays out of scope — a future v4. Live portfolios `v3-500` / `v3-100k` run it.
 > Full plan/measurement: `docs/diagnostics/03-plan-v3.md`.
 
-> A user-facing plain-language explanation of the three versions and their differences lives on the
+> **v4 — momentum cross-seccional (P11 fase 1).** v4 = v3 + a `PriceMomentum` indicator
+> (`signal_id="momentum"`: return over `period=126` bars ending `skip=21` bars ago, logistic
+> squash). Its **params live in the base** `strategy.yaml` so every version computes and
+> `run_analysis` persists it in **observation mode**; only `config/strategies/v4.yaml` gives it
+> **weight** (0.40). With `rank_normalize` (inherited from v3) the sub-score is the symbol's
+> momentum **percentile across the day's universe** — relative momentum (synthesis §3.1). P11
+> phase 2 (macro regime multiplier) is deliberately deferred to a future v5 — one variable per
+> experiment. Live data findings + the broker fixes shipped alongside (stale `high_water_mark` on
+> re-entry causing stop churn, `MIN_CASH_PCT` reserve not held, unfunded buys accepted, zero-coverage
+> SELL, stale-analysis gate): `docs/diagnostics/04-plan-v4.md`. **v2 never trades** (composite ≈49
+> vs absolute gate 60 — anticipated in 03-plan-v3.md): kept active only as a cash-like baseline.
+
+> A user-facing plain-language explanation of the versions and their differences lives on the
 > dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.
 All jobs: `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
+
+---
+
+## Production deployment & auto-deploy (post-Phase-5)
+
+- **The live stack is the PRODUCTION compose** (`docker/docker-compose.yml` only, no dev
+  override): FastAPI serves the baked SvelteKit build and owns host port **8030** (`API_PORT=8030`
+  in `.env`; db 8031, scheduler 8032). There is no Vite container in production — the dev
+  override (`docker-compose.dev.yml`, Vite on 8030, FastAPI moved to 8033) is opt-in for
+  development sessions only.
+- **Auto-deploy on merge.** `.github/workflows/deploy.yml` targets the **self-hosted runner on
+  the Pi** (systemd service `actions.runner.…pi-trader`): every push/merge to `main` runs
+  `scripts/deploy.sh`, which fetches `origin/main`, **rebuilds the image** (source + frontend are
+  baked in — every change needs a rebuild), `up -d --remove-orphans` (init re-runs migrations),
+  health-checks `/api/health` and **rolls back to the previously deployed commit on any failure**.
+  CI (ci.yml, GitHub-hosted) is the test gate; deploy.sh runs no tests. A **cron fallback**
+  (`crontab -l`, every 15 min, logs to `~/.local/state/autonomous-trader/deploy.log`) covers
+  runner outages; it dedupes against the last deployed SHA (`~/.local/state/autonomous-trader/
+  deployed-sha`) and **refuses to deploy over a dirty working tree**, so local work is never wiped.
+- Direct pushes to `main` are blocked by the pre-push hook (`make install-hooks`) — changes land
+  via PR; the merge triggers the deploy with no manual step.
 
 ---
 
@@ -488,7 +521,10 @@ All jobs: `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
   (it has the live code): `docker exec trader-api sh -lc "cd backend/db/migrations && alembic upgrade head"`.
   `docker/init-db.sh` must keep its execute bit (`chmod +x`).
 - **Tests.** A pytest suite lives under `backend/tests/` (unit / integration / regression) and runs
-  **inside the `trader-api` container** against a separate database `autonomous_trader_test`:
+  **in a throwaway container from the app image with the working tree bind-mounted**
+  (`scripts/test.sh` — the live `trader-api` is the production container with baked code, so
+  exec-ing into it would test the deploy, not your edits) against a separate database
+  `autonomous_trader_test`:
   `make test` (full), `make test-unit` (fast, no DB), `make lint`, `make typecheck`. Test-only deps
   are in `backend/requirements-dev.txt` (not baked into the image). No test touches the real network
   (provider HTTP is mocked with `respx`). Full strategy: `docs/qa/testing-strategy.md`.

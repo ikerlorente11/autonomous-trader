@@ -85,3 +85,29 @@ def test_unknown_or_nonpositive_price_yields_zero() -> None:
     mgr = _mgr({"A": 0}, min_cash_pct=Decimal("0"))
     assert mgr.compute_position_size("A", Decimal("90"), Decimal("10000")) == Decimal("0")
     assert mgr.compute_position_size("MISSING", Decimal("90"), Decimal("10000")) == Decimal("0")
+
+
+def test_min_cash_reserve_holds_after_cash_is_partly_spent() -> None:
+    # Day 2+: cash 300 of total 1000 with a 20% reserve -> only 100 is spendable.
+    # The old min(cash, investable) degenerated to plain `cash` here and spent the
+    # reserve to zero over successive runs.
+    mgr = _mgr(
+        {"A": 10},
+        max_position_pct=Decimal("0.05"),
+        min_cash_pct=Decimal("0.20"),
+        max_open_positions=10,
+    )
+    sizes = mgr.size_positions([ranked("A", 90)], balance(300, equity=700))
+    assert sizes["A"] == Decimal("5.000000")  # 5% of 1000 = 50 <= spendable 100
+
+
+def test_min_cash_reserve_blocks_spend_at_reserve_floor() -> None:
+    # Cash exactly at the reserve: nothing is spendable, no order sized.
+    mgr = _mgr(
+        {"A": 10},
+        max_position_pct=Decimal("0.05"),
+        min_cash_pct=Decimal("0.20"),
+        max_open_positions=10,
+    )
+    sizes = mgr.size_positions([ranked("A", 90)], balance(200, equity=800))
+    assert sizes == {}

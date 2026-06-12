@@ -50,3 +50,10 @@ indicators:
   atr:
     period: 14
     sensitivity: 50.0
+  # 12-1 style price momentum (synthesis §3.1): return over `period` bars ending
+  # `skip` bars ago, logistic-squashed. The base carries NO weight for it, so it is
+  # computed and persisted in observation mode only; v4 activates it (P11 phase 1).
+  momentum:
+    period: 126
+    skip: 21
+    sensitivity: 5.0

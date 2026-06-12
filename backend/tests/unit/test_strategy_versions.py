@@ -14,6 +14,7 @@ def test_lists_v1_and_v2() -> None:
     assert "v1" in versions
     assert "v2" in versions
     assert "v3" in versions
+    assert "v4" in versions
 
 
 def test_v2_drops_atr_from_score() -> None:
@@ -55,6 +56,27 @@ def test_v3_is_v2_plus_rank_normalize() -> None:
     assert v3.trading.stop_min_distance_pct == 0.05
     assert v3.trading.allow_pyramiding is False
     assert v3.strategy_version != v2.strategy_version  # distinct version hash
+
+
+def test_v4_is_v3_plus_momentum_weight() -> None:
+    # v4 = v3 + P11 phase 1 (cross-sectional momentum in the composite). The base
+    # carries the indicator params but NO weight — observation mode only.
+    base = load_strategy_config()
+    v3 = load_strategy_config(label="v3")
+    v4 = load_strategy_config(label="v4")
+    assert "momentum" not in base.scoring.weights
+    assert "momentum" not in v3.scoring.weights
+    assert v4.scoring.weights["momentum"] == 0.40  # the v4 delta
+    assert base.indicators.momentum is not None  # params live in the base
+    assert v4.indicators.momentum == base.indicators.momentum
+    # inherits every v3 fix unchanged
+    assert v4.scoring.rank_normalize is True
+    assert v4.scoring.weights["atr"] == 0.0
+    assert v4.indicators.rsi.mode == "mean_reversion"
+    assert v4.indicators.ma_trend.extension_cap == 0.02
+    assert v4.trading.stop_reentry_cooldown_days == 3
+    assert v4.trading.allow_pyramiding is False
+    assert v4.strategy_version != v3.strategy_version  # distinct version hash
 
 
 def test_base_trading_defaults_are_unset() -> None:

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import pandas as pd
 import pytest
 
-from backend.analysis.indicators.momentum import RelativeStrengthIndex
+from backend.analysis.indicators.momentum import PriceMomentum, RelativeStrengthIndex
 from backend.analysis.indicators.moving_average import (
     ExponentialMovingAverage,
     SimpleMovingAverage,
@@ -83,6 +83,27 @@ def test_rsi_uptrend_scores_high_and_is_bounded() -> None:
 def test_rsi_short_data_score_none() -> None:
     rsi = RelativeStrengthIndex(period=14, overbought=70, oversold=30)
     assert rsi.latest_score(_df([10, 11, 12])) is None
+
+
+def test_price_momentum_uptrend_above_50_downtrend_below() -> None:
+    up = PriceMomentum(period=3, skip=1, sensitivity=5.0).latest_score(_df([10, 11, 12, 13, 14, 15]))
+    down = PriceMomentum(period=3, skip=1, sensitivity=5.0).latest_score(_df([15, 14, 13, 12, 11, 10]))
+    assert up is not None and up > 50.0
+    assert down is not None and down < 50.0
+
+
+def test_price_momentum_skip_ignores_recent_bars() -> None:
+    # period=2, skip=2: the score reads close[-3]/close[-5] — a crash in the final
+    # two bars (the skipped reversal window) must not move it.
+    calm = PriceMomentum(period=2, skip=2, sensitivity=5.0).latest_score(_df([10, 10, 12, 14, 14, 14]))
+    crash = PriceMomentum(period=2, skip=2, sensitivity=5.0).latest_score(_df([10, 10, 12, 14, 5, 4]))
+    assert calm is not None and crash is not None
+    assert crash == pytest.approx(calm)
+
+
+def test_price_momentum_short_data_none() -> None:
+    pm = PriceMomentum(period=126, skip=21, sensitivity=5.0)
+    assert pm.latest_score(_df([10.0] * 100)) is None
 
 
 def test_atr_score_bounded_and_short_data_none() -> None:

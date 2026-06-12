@@ -90,6 +90,51 @@ async def test_no_commission_by_default(db_session) -> None:
     assert await broker.get_cash() == Decimal("9499.5")  # 10000 - 100.1*5
 
 
+async def test_buy_with_insufficient_cash_rejected(db_session) -> None:
+    # A real broker rejects an unfunded buy; the paper double must too, or the
+    # slippage/commission overshoot drives the reconstructed cash ledger negative.
+    broker, _ = await _broker(db_session, deposit=100.0)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    order = await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    assert order.status is OrderState.REJECTED
+    assert "insufficient cash" in (order.reason or "")
+    assert await broker.get_cash() == Decimal("100")
+
+
+async def test_full_sell_clears_high_water_mark(db_session) -> None:
+    # The trailing-stop peak belongs to the trip that set it: a closed row keeping
+    # it would seed the NEXT entry's stop above the price that just stopped out,
+    # firing the stop on the first tick after re-entry (buy -> sell churn loop).
+    broker, pid = await _broker(db_session)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    pos = await get_position(db_session, pid, "AAPL")
+    pos.high_water_mark = Decimal("130")  # simulate the protective_sell ratchet
+    await db_session.flush()
+
+    await broker.place_order("AAPL", "sell", Decimal("5"), "market")
+    pos = await get_position(db_session, pid, "AAPL")
+    assert pos.high_water_mark is None
+
+
+async def test_reentry_buy_starts_fresh_position(db_session) -> None:
+    # Buying into a flat row is a new trip: stale peak dropped, avg_cost = the new
+    # fill (not blended with the closed trip's basis).
+    broker, pid = await _broker(db_session)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    await broker.place_order("AAPL", "buy", Decimal("5"), "market")
+    await broker.place_order("AAPL", "sell", Decimal("5"), "market")
+    pos = await get_position(db_session, pid, "AAPL")
+    pos.high_water_mark = Decimal("130")  # pre-fix data: stale peak on a flat row
+    await db_session.flush()
+
+    buy = await broker.place_order("AAPL", "buy", Decimal("2"), "market")
+    pos = await get_position(db_session, pid, "AAPL")
+    assert pos.qty == Decimal("2.000000")
+    assert pos.avg_cost == buy.price
+    assert pos.high_water_mark is None
+
+
 async def test_full_sell_clears_unrealized_pnl(db_session) -> None:
     # A closed (qty=0) row must not retain a stale unrealized P&L (diagnostics P8):
     # the app filters qty != 0, but raw/analytics sums over portfolio_positions would

@@ -1,0 +1,29 @@
+# Strategy version "v4" — built ON TOP of v3 (v4 = v3 + delta) so the A/B isolates the
+# v4 effect over v3. v3's keys (P1/P4/P5 + P7 + P2/P3/P6) are repeated and the v4-only
+# addition is marked. Rationale: docs/diagnostics/04-plan-v4.md.
+
+scoring:
+  weights:
+    # P1 (from v2): ATR out of the score — only sizing/stops use it.
+    atr: 0.0
+    # P11 phase 1 (v4 delta): cross-sectional price momentum enters the composite.
+    # With rank_normalize the sub-score is the symbol's momentum PERCENTILE across
+    # the day's universe — relative-strength momentum, the strongest documented
+    # single factor (synthesis §3.1). Renormalized: rsi .417 / ma .25 / momentum .333.
+    momentum: 0.40
+  # P7 (from v3): rank-normalize each weighted sub-score across the day's universe.
+  rank_normalize: true
+
+indicators:
+  rsi:
+    # P4 (from v2): contrarian RSI — oversold scores high.
+    mode: mean_reversion
+  ma_trend:
+    # P5 (from v2): cap the "how far above the MA" reward at +2% (trend gate, not a chase).
+    extension_cap: 0.02
+
+trading:
+  # P2/P3/P6 (from v2): re-entry cooldown, stop-distance floor, no pyramiding.
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.05
+  allow_pyramiding: false

@@ -84,10 +84,22 @@ class AtrParams(_Frozen):
     sensitivity: float
 
 
+class MomentumParams(_Frozen):
+    # P11 §3.1: return over `period` bars ending `skip` bars ago (12-1 style — the
+    # skip sidesteps the short-term reversal month). With rank_normalize (P7) its
+    # percentile is cross-sectional relative momentum.
+    period: int
+    skip: int = 21
+    sensitivity: float = 5.0
+
+
 class IndicatorParams(_Frozen):
     ma_trend: MaTrendParams
     rsi: RsiParams
     atr: AtrParams
+    # Optional so configs predating the signal stay valid; the engine only builds
+    # the indicator when the section exists.
+    momentum: MomentumParams | None = None
 
 
 class TradingConfig(_Frozen):

@@ -1,81 +1,108 @@
 #!/usr/bin/env bash
-# Deploy the latest origin/main onto this Raspberry Pi.
+# Deploy the latest origin/main onto this Raspberry Pi — PRODUCTION stack.
 #
-# The live stack runs the DEV compose with the source bind-mounted (..:/app), so a
-# `git pull` IS the deploy: uvicorn runs with --reload (api picks up automatically),
-# the Vite frontend has HMR, and only the scheduler (APScheduler, no --reload) needs
-# a restart. We therefore:
-#   1. fast-forward the live working tree to origin/master,
-#   2. rebuild the image ONLY when deps / Dockerfile changed,
-#   3. run the full test suite against the new code,
-#   4. ROLL BACK to the previous commit if the suite fails, so the running app is
-#      never LEFT on red code.
+# The live stack runs the base compose file only (docker/docker-compose.yml): the
+# image bakes the source AND the built SvelteKit frontend (FastAPI serves it on the
+# subdomain port, 8030), so EVERY change requires an image rebuild — there are no
+# bind-mounts in production. The flow is:
+#   1. fast-forward the working tree to origin/main (abort if the tree is dirty,
+#      so an unattended run can never wipe in-progress local work),
+#   2. docker compose build  — old containers keep serving while this runs,
+#   3. docker compose up -d  — init re-runs migrations, api/scheduler swap over,
+#   4. health-check the api;  on ANY failure roll back to the previous commit,
+#      rebuild and restore it, so the running app never stays on broken code.
 #
-# Caveat (inherent to bind-mounts + --reload): between the reset and the test result
-# the live api is already serving the new code. The rollback guarantees the end state
-# is always tested, not that there is zero exposure window. For zero exposure you'd
-# need an ephemeral test stack on a temp checkout — heavier on the Pi's RAM.
+# Tests are NOT run here: the GitHub-hosted CI (ci.yml) gates every PR/push to main
+# with the full suite, and the production image has neither dev deps nor the test
+# harness (those came from the dev bind-mount). CI is the gate; this is the deploy.
 #
-# Run manually:  APP_DIR=/home/raspberry/projects/autonomous-trader ./scripts/deploy.sh
+# Triggered automatically by .github/workflows/deploy.yml (self-hosted runner on
+# this Pi, on every push/merge to main) and by a cron fallback. Run manually:
+#   ./scripts/deploy.sh           # deploy if origin/main moved
+#   ./scripts/deploy.sh --force   # rebuild + restart even with no new commits
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/raspberry/projects/autonomous-trader}"
+# Last successfully deployed commit — the dedupe key for unattended runs. Comparing
+# against this (not HEAD) means a work-in-progress branch checked out locally never
+# makes cron think there is something new to deploy.
+STATE_FILE="${STATE_FILE:-$HOME/.local/state/autonomous-trader/deployed-sha}"
 
-# Reproduce EXACTLY how the live stack was launched: from the docker/ dir with both
-# compose files, which yields compose project name "docker" (matches the running
-# containers). Running compose from anywhere else would spawn a duplicate stack.
-#
-# --env-file ../.env is REQUIRED: compose interpolates ${API_PORT}/${FRONTEND_PORT} in
-# the `ports:` blocks from its own env file (looked up in the project dir, docker/), NOT
-# from the services' `env_file: ../.env` (that only sets in-container vars). Without it
-# both api and frontend fall back to the 8030 default and collide on the host port.
-dc() { ( cd "$APP_DIR/docker" && docker compose --env-file ../.env -f docker-compose.yml -f docker-compose.dev.yml "$@" ); }
+# Same launch shape as the live stack: from docker/ so the compose project name is
+# "docker" (matches the existing containers + the postgres_data volume).
+# --env-file ../.env is REQUIRED: compose interpolates ${API_PORT}/${DB_PORT} in the
+# `ports:` blocks from its own env file, NOT from the services' env_file.
+dc() { ( cd "$APP_DIR/docker" && docker compose --env-file ../.env -f docker-compose.yml "$@" ); }
 
-cd "$APP_DIR"
+API_PORT="$(grep -E '^API_PORT=' "$APP_DIR/.env" | tail -1 | cut -d= -f2)"
+HEALTH_URL="http://localhost:${API_PORT:-8030}/api/health"
 
-PREV="$(git rev-parse HEAD)"
-git fetch --prune origin
-git checkout main
-git reset --hard origin/main
-NEW="$(git rev-parse HEAD)"
+health_check() {
+  for _ in $(seq 1 18); do
+    if curl -fsS --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then return 0; fi
+    sleep 5
+  done
+  return 1
+}
 
-if [ "$PREV" = "$NEW" ]; then
-  echo "Already at ${NEW:0:8} — nothing to deploy."
+# Never overlap two deploys (Actions queues its own runs, but the cron fallback or a
+# manual run could race them).
+exec 9>"/tmp/autonomous-trader-deploy.lock"
+if ! flock -n 9; then
+  echo "Another deploy is in progress — skipping."
   exit 0
 fi
 
-echo "Deploying ${PREV:0:8} -> ${NEW:0:8}"
-CHANGED="$(git diff --name-only "$PREV" "$NEW")"
+cd "$APP_DIR"
 
-rollback() {
-  echo "::error::Tests failed — rolling back to ${PREV:0:8}"
-  git reset --hard "$PREV"
-  dc up -d
-  dc restart scheduler >/dev/null 2>&1 || true
-}
-
-# Runtime deps / Dockerfile changes are not picked up by the bind-mount + --reload
-# (those only ship source), so the image must be rebuilt.
-if echo "$CHANGED" | grep -qE '(^|/)requirements.*\.txt$|^docker/Dockerfile$|^pyproject\.toml$'; then
-  echo "Deps / Dockerfile changed — rebuilding the app image."
-  dc up -d --build
-else
-  dc up -d
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "::error::Working tree has uncommitted changes — refusing to deploy over them."
+  exit 1
 fi
 
-# Gate: run the suite against the new code; roll back if it fails.
-if ! ./scripts/test.sh; then
+git fetch --prune origin
+NEW="$(git rev-parse origin/main)"
+DEPLOYED="$(cat "$STATE_FILE" 2>/dev/null || true)"
+
+if [ "$DEPLOYED" = "$NEW" ] && [ "${1:-}" != "--force" ]; then
+  echo "Already deployed ${NEW:0:8} — nothing to do."
+  exit 0
+fi
+
+PREV="${DEPLOYED:-$(git rev-parse HEAD)}"
+git checkout -q main
+git reset --hard "$NEW"
+echo "Deploying ${PREV:0:8} -> ${NEW:0:8}"
+
+rollback() {
+  echo "::error::Deploy of ${NEW:0:8} failed — rolling back to ${PREV:0:8}"
+  git reset --hard "$PREV"
+  dc build
+  dc up -d --remove-orphans
+  if health_check; then
+    mkdir -p "$(dirname "$STATE_FILE")"
+    echo "$PREV" >"$STATE_FILE"
+    echo "Rollback OK — serving ${PREV:0:8}."
+  else
+    echo "::error::Rollback health check ALSO failed — manual intervention needed."
+  fi
+}
+
+if ! dc build; then
+  # Old containers were never touched; just restore the working tree.
+  echo "::error::Image build failed — containers still on ${PREV:0:8}."
+  git reset --hard "$PREV"
+  exit 1
+fi
+
+if ! dc up -d --remove-orphans || ! health_check; then
   rollback
   exit 1
 fi
 
-# Apply code that does NOT hot-reload: the scheduler.
-dc restart scheduler
+# Drop dangling layers from the superseded image (Pi disk budget).
+docker image prune -f >/dev/null 2>&1 || true
 
-# Frontend deps changed → its container reinstalls on start (npm install on launch).
-if echo "$CHANGED" | grep -qE '^frontend/package(-lock)?\.json$'; then
-  echo "Frontend deps changed — restarting frontend to reinstall."
-  dc restart frontend
-fi
-
-echo "Deploy OK — now at ${NEW:0:8}"
+mkdir -p "$(dirname "$STATE_FILE")"
+echo "$NEW" >"$STATE_FILE"
+echo "Deploy OK — now at ${NEW:0:8}, healthy at ${HEALTH_URL}"

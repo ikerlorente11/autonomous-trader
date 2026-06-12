@@ -122,6 +122,12 @@ def _today_utc_midnight() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def _today_utc() -> dt.date:
+    # Job gates must agree with the UTC run-id/asof stamps; naive date.today() is
+    # container-local and diverges around midnight if TZ is ever set non-UTC.
+    return dt.datetime.now(dt.timezone.utc).date()
+
+
 def _log_event(job: str, event: str, **fields: Any) -> None:
     payload = {
         "ts": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -237,7 +243,7 @@ def _latest_atr(rows) -> Decimal | None:
 # --------------------------------------------------------------------------- #
 async def fetch_macro_data() -> None:
     async with _job_context("fetch_macro_data") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -264,7 +270,7 @@ async def fetch_macro_data() -> None:
 
 async def fetch_news_sentiment() -> None:
     async with _job_context("fetch_news_sentiment") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -295,7 +301,7 @@ async def fetch_news_sentiment() -> None:
 
 async def fetch_market_data() -> None:
     async with _job_context("fetch_market_data") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -337,7 +343,7 @@ async def fetch_market_data() -> None:
 
 async def fetch_fundamentals() -> None:
     async with _job_context("fetch_fundamentals") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -370,7 +376,7 @@ async def fetch_fundamentals() -> None:
 # --------------------------------------------------------------------------- #
 async def run_analysis() -> None:
     async with _job_context("run_analysis") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -498,7 +504,7 @@ async def _ranked_for_engine(
 
 async def execute_paper_trades() -> None:
     async with _job_context("execute_paper_trades") as outcome:
-        today = dt.date.today()
+        today = _today_utc()
         if not is_trading_day(today):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
@@ -508,6 +514,13 @@ async def execute_paper_trades() -> None:
             if asof is None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "NO_SIGNALS"}
+                return
+            # If today's run_analysis failed or degraded, the latest analysis is
+            # yesterday's — trading on it would rescore stale bars while filling at
+            # the latest close. Skip; the misfire/retry path re-runs the pipeline.
+            if asof < _today_utc_midnight():
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "STALE_ANALYSIS", "asof": asof.isoformat()}
                 return
             portfolios = await list_portfolios(session, active_only=True)
             if not portfolios:
@@ -530,7 +543,12 @@ async def execute_paper_trades() -> None:
             failed: dict[str, str] = {}
             for portfolio in portfolios:
                 # Per-portfolio idempotency: don't double-trade one already traded today.
-                if await count_filled_orders_since(session, portfolio.id, midnight) > 0:
+                # Protective-sell fills don't count — an intraday stop-out must not
+                # block a later manual run of the daily execution.
+                if await count_filled_orders_since(
+                    session, portfolio.id, midnight,
+                    exclude_strategy_version=_PROTECTIVE_SELL_STRATEGY,
+                ) > 0:
                     skipped.append(portfolio.id)
                     continue
                 engine = engines[portfolio.strategy_label]
@@ -570,7 +588,7 @@ async def update_portfolio_nav() -> None:
     async with _job_context("update_portfolio_nav") as outcome:
         # P9: don't stamp a NAV/benchmark point on non-session days — it carried stale
         # weekend marks forward and skewed the day-by-day benchmark. Market days only.
-        if not is_trading_day(dt.date.today()):
+        if not is_trading_day(_today_utc()):
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
             return
@@ -665,6 +683,7 @@ async def protective_sell() -> None:
             atr_start = asof - dt.timedelta(days=_ATR_LOOKBACK_DAYS)
             triggered_total = 0
             per_portfolio: dict[str, int] = {}
+            failed: dict[str, str] = {}
             for portfolio in portfolios:
                 positions = await get_open_positions(session, portfolio.id)
                 if not positions:
@@ -694,45 +713,56 @@ async def protective_sell() -> None:
                     session, portfolio.id, strategy_version=_PROTECTIVE_SELL_STRATEGY
                 )
                 triggered = 0
-                for position in positions:
-                    price = live.get(position.symbol)
-                    if price is None:
-                        continue
-                    atr = _latest_atr(
-                        await get_bars_range(session, position.symbol, atr_start, asof)
-                    )
-                    new_hwm, hit = evaluate_trailing_stop(
-                        position.avg_cost, position.high_water_mark, price,
-                        pct=pct, atr=atr, atr_multiple=p_atr_mult,
-                        distance_factor=distance_factor,
-                        min_distance_pct=p_min_dist,
-                    )
-                    position.high_water_mark = new_hwm  # ratchet up, persisted on commit
-                    if not hit or panic_hold:
-                        continue
-                    # Mark today's bar at the live price so the simulated fill is realistic.
-                    await upsert_bars(
-                        session,
-                        [OHLCVBar(
-                            symbol=position.symbol, ts=asof, open=price, high=price,
-                            low=price, close=price, volume=0, adj_close=price,
-                        )],
-                    )
-                    order = await broker.place_order(
-                        position.symbol, "sell", position.qty, "market"
-                    )
-                    if order.status is OrderState.FILLED:
-                        triggered += 1
-                        _log_event(
-                            "protective_sell", "stop_triggered",
-                            portfolio_id=portfolio.id, symbol=position.symbol,
-                            avg_cost=str(position.avg_cost), peak=str(new_hwm),
-                            live_price=str(price), atr=str(atr) if atr is not None else None,
-                        )
-                per_portfolio[str(portfolio.id)] = triggered
-                triggered_total += triggered
+                # Same per-portfolio savepoint isolation as the other portfolio jobs:
+                # one bad position/price must not roll back every portfolio's stops
+                # and HWM ratchets for this tick — protection matters most exactly
+                # when the data is misbehaving.
+                try:
+                    async with session.begin_nested():
+                        for position in positions:
+                            price = live.get(position.symbol)
+                            if price is None:
+                                continue
+                            atr = _latest_atr(
+                                await get_bars_range(session, position.symbol, atr_start, asof)
+                            )
+                            new_hwm, hit = evaluate_trailing_stop(
+                                position.avg_cost, position.high_water_mark, price,
+                                pct=pct, atr=atr, atr_multiple=p_atr_mult,
+                                distance_factor=distance_factor,
+                                min_distance_pct=p_min_dist,
+                            )
+                            position.high_water_mark = new_hwm  # ratchet up, persisted on commit
+                            if not hit or panic_hold:
+                                continue
+                            # Mark today's bar at the live price so the simulated fill is realistic.
+                            await upsert_bars(
+                                session,
+                                [OHLCVBar(
+                                    symbol=position.symbol, ts=asof, open=price, high=price,
+                                    low=price, close=price, volume=0, adj_close=price,
+                                )],
+                            )
+                            order = await broker.place_order(
+                                position.symbol, "sell", position.qty, "market"
+                            )
+                            if order.status is OrderState.FILLED:
+                                triggered += 1
+                                _log_event(
+                                    "protective_sell", "stop_triggered",
+                                    portfolio_id=portfolio.id, symbol=position.symbol,
+                                    avg_cost=str(position.avg_cost), peak=str(new_hwm),
+                                    live_price=str(price), atr=str(atr) if atr is not None else None,
+                                )
+                    per_portfolio[str(portfolio.id)] = triggered
+                    triggered_total += triggered
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception("protective_sell failed for portfolio %s", portfolio.id)
 
             await session.commit()
+            if failed:
+                outcome.status = "degraded"
             outcome.detail = {
                 "stops_triggered": triggered_total,
                 "trailing_stop_pct": str(pct),
@@ -740,6 +770,7 @@ async def protective_sell() -> None:
                 "vix": str(vix_val) if vix_val is not None else None,
                 "panic_hold": panic_hold,
                 "per_portfolio": per_portfolio,
+                "failed": failed,
             }
 
 

@@ -59,7 +59,12 @@ class WeightedCompositeScorer:
             self._config.scoring.score_max,
             max(self._config.scoring.score_min, raw),
         )
-        if score >= self._config.ranker.min_score_to_act:
+        if present_weight == 0:
+            # No weighted signal present at all: zero information, not a low score.
+            # Exiting a held name on *low* coverage is policy; exiting on *no*
+            # coverage would liquidate on a data outage. Hold.
+            action = SignalAction.HOLD
+        elif score >= self._config.ranker.min_score_to_act:
             action = SignalAction.BUY
         elif score <= self._config.ranker.min_score_to_exit:
             action = SignalAction.SELL

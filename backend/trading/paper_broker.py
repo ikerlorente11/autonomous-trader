@@ -126,6 +126,15 @@ class PaperBroker:
                 )
             )
             return
+        if existing.qty <= 0:
+            # Re-entry into a flat row is a fresh position: the previous trip's
+            # high-water mark must not seed the new trailing stop, or the stop fires
+            # on the first tick (the old peak is, by construction, above the price
+            # that triggered the previous stop-out).
+            existing.qty = qty
+            existing.avg_cost = fill_price
+            existing.high_water_mark = None
+            return
         new_qty = existing.qty + qty
         existing.avg_cost = (
             (existing.qty * existing.avg_cost) + (qty * fill_price)
@@ -143,6 +152,9 @@ class PaperBroker:
             # already filters qty != 0, so NAV/equity were correct; this fixes the
             # raw column for anyone summing it without the filter.
             existing.unrealized_pnl = Decimal(0)
+            # And drop the peak for the same reason _apply_buy resets it: a closed
+            # trip's high-water mark is history, not state for the next entry.
+            existing.high_water_mark = None
 
     async def place_order(
         self, symbol: str, side: str, qty: Decimal, order_type: str
@@ -182,6 +194,18 @@ class PaperBroker:
         direction = Decimal(1) if side_enum is OrderSide.BUY else Decimal(-1)
         fill_price = market_price * (Decimal(1) + direction * self._slippage_pct)
         commission = self._commission_for(qty_dec, fill_price)
+
+        if side_enum is OrderSide.BUY:
+            # A real broker (the seam's swap target) rejects an unfunded buy; the
+            # paper double must too, or slippage/commission overshoot drives the
+            # reconstructed cash ledger negative.
+            cash = await self.get_cash()
+            cost = qty_dec * fill_price + commission
+            if cost > cash:
+                return await self._write_order(
+                    symbol, side, qty_dec, None, OrderState.REJECTED,
+                    f"insufficient cash ({cash:.2f} < {cost:.2f})", ts,
+                )
 
         order = await self._write_order(
             symbol, side, qty_dec, fill_price, OrderState.FILLED, "paper fill", ts,

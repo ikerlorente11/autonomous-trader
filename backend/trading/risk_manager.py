@@ -120,8 +120,12 @@ class FixedFractionalRiskManager:
     def size_positions(
         self, candidates: Sequence[RankedSymbol], balance: AccountBalance
     ) -> dict[str, Decimal]:
-        investable = balance.total * (Decimal(1) - self._min_cash_pct)
-        spendable = min(balance.cash, investable)
+        # The dry-powder reserve is MIN_CASH_PCT of *total*, held back from cash on
+        # every run — not a one-shot cap on the first day's spend. min(cash,
+        # investable) degenerated to plain `cash` as soon as cash dropped below the
+        # investable fraction, silently spending the reserve to zero.
+        reserve = balance.total * self._min_cash_pct
+        spendable = max(Decimal(0), balance.cash - reserve)
         slots = self._max_open_positions - self._open_position_count
         sizes: dict[str, Decimal] = {}
         for candidate in sorted(candidates, key=lambda c: c.rank):
