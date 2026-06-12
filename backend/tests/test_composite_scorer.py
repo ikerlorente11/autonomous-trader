@@ -71,11 +71,13 @@ def test_score_clipped_to_min(strategy_config: StrategyConfig) -> None:
 def test_no_known_indicators_falls_back_to_score_min(
     strategy_config: StrategyConfig,
 ) -> None:
+    # Zero coverage is zero information, not a low score: the action must be HOLD,
+    # never SELL — a data outage must not liquidate a held position.
     scorer = WeightedCompositeScorer(strategy_config)
     result = scorer.score("AAA", [_ind("not_a_signal", 99)], ASOF)
     assert result.score == Decimal("0.0000")
     assert result.data_completeness == Decimal("0.0000")
-    assert result.action is SignalAction.SELL
+    assert result.action is SignalAction.HOLD
 
 
 def test_action_hold_in_hysteresis_band(strategy_config: StrategyConfig) -> None:
