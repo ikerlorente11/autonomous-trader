@@ -1,0 +1,33 @@
+# Strategy version "m1" — microtrading control (intraday, same-session).
+#
+# The microtrading section reuses the base RSI/MA/ATR engine on 5-minute bars: the
+# run_micro job feeds intraday frames into the SAME score_universe path the daily
+# pipeline uses, so no new scorer is needed. m1 is the cost-robust control:
+#   - RSI mean-reversion: fade intraday extremes on liquid names (the documented
+#     short-horizon tendency at 5m on liquid symbols; research §intraday-technical).
+#   - rank_normalize: rank each sub-score across the day's sub-universe, so the
+#     act/exit gate is RELATIVE to the universe, not an absolute biased threshold.
+#   - ATR out of the composite (sizing/stops only).
+#   - no pyramiding.
+# Costs (SLIPPAGE_PCT spread proxy + COMMISSION_*) are GLOBAL and ON — every micro
+# version pays the same churn tax, so the A/B is fair. Nothing hardcoded; every knob
+# inherits from the base and only the deltas below differ.
+
+ranker:
+  # Disable the base "wait for a good moment" gate for micro: it is a DAILY 200-day
+  # bull/bear regime line, but run_micro feeds 5-minute frames, where ma_period=200 is
+  # a ~2.5-session intraday MA — a different thing. A proper daily regime gate for
+  # micro is a documented future refinement; here it is off (fail-open).
+  market_filter: null
+
+scoring:
+  weights:
+    atr: 0.0
+  rank_normalize: true
+
+indicators:
+  rsi:
+    mode: mean_reversion
+
+trading:
+  allow_pyramiding: false

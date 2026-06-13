@@ -41,6 +41,18 @@ class MarketBar(Base):
     adj_close: Mapped[Decimal] = mapped_column(PRICE)
 
 
+class IntradayBar(Base):
+    __tablename__ = "intraday_bars"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    open: Mapped[Decimal] = mapped_column(PRICE)
+    high: Mapped[Decimal] = mapped_column(PRICE)
+    low: Mapped[Decimal] = mapped_column(PRICE)
+    close: Mapped[Decimal] = mapped_column(PRICE)
+    volume: Mapped[int] = mapped_column(BigInteger)
+
+
 class SignalValue(Base):
     __tablename__ = "signal_values"
 
@@ -71,6 +83,7 @@ class Portfolio(Base):
     name: Mapped[str] = mapped_column(String(64), unique=True)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     strategy_label: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16), server_default=text("'daily'"))
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

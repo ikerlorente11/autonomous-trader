@@ -62,6 +62,23 @@ class OHLCVBar(_Frozen):
     adj_close: Decimal
 
 
+class IntradayBar(_Frozen):
+    """One intraday OHLCV bar (maps to ``intraday_bars``).
+
+    No ``adj_close``: providers don't split/dividend-adjust intraday bars, and
+    microtrading liquidates same-session so corporate-action adjustment is moot. The
+    bar interval is a table-wide config (``MICRO_BAR_INTERVAL``), not a per-row field,
+    so the shape mirrors ``MarketBar`` for ``Model(**row.__dict__)`` adapters."""
+
+    symbol: str
+    ts: dt.datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
 # --------------------------------------------------------------------------- #
 # Analysis outputs
 # --------------------------------------------------------------------------- #

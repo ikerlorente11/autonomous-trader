@@ -93,12 +93,38 @@ def balance(cash: float, *, equity: float = 0.0) -> AccountBalance:
 # --------------------------------------------------------------------------- #
 # DB-row seeders (used by integration tests; caller's transaction owns commit)
 # --------------------------------------------------------------------------- #
-async def seed_portfolio(session, *, name: str = "Test", deposit: float = 10_000.0) -> int:
+async def seed_portfolio(
+    session, *, name: str = "Test", deposit: float = 10_000.0, kind: str = "daily"
+) -> int:
     from backend.db.queries.portfolio_queries import create_portfolio
 
-    p = await create_portfolio(session, name, Decimal(str(deposit)))
+    p = await create_portfolio(session, name, Decimal(str(deposit)), kind=kind)
     await session.flush()
     return p.id
+
+
+async def seed_intraday_bars(
+    session, symbol: str, *, closes: Sequence[float], start: dt.datetime, step_min: int = 5
+) -> None:
+    """One intraday bar per ``step_min`` minutes from ``start`` (micro test fixture)."""
+    from backend.contracts import IntradayBar
+    from backend.data_ingestion.intraday_ingest import upsert_intraday_bars
+
+    bars = []
+    for i, c in enumerate(closes):
+        price = Decimal(str(c))
+        bars.append(
+            IntradayBar(
+                symbol=symbol,
+                ts=start + dt.timedelta(minutes=step_min * i),
+                open=price,
+                high=price,
+                low=price,
+                close=price,
+                volume=1000,
+            )
+        )
+    await upsert_intraday_bars(session, bars)
 
 
 async def seed_bars(session, symbol: str, *, closes: Sequence[float], start: dt.date = dt.date(2026, 5, 1)) -> None:

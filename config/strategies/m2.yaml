@@ -1,0 +1,22 @@
+# Strategy version "m2" — microtrading variant. Identical to m1 EXCEPT the ONE
+# variable under test: RSI follows intraday strength (momentum / "follow") instead of
+# fading it (mean-reversion). This isolates the core day-trading question — fade vs
+# follow intraday moves — exactly as the project's one-change-per-version discipline
+# requires. Everything else (rank_normalize, ATR out of score, no pyramiding, the
+# global cost model, the market_filter regime gate) is inherited unchanged from base.
+
+ranker:
+  # Same as m1: the base daily 200-day market filter is meaningless on 5-minute frames.
+  market_filter: null
+
+scoring:
+  weights:
+    atr: 0.0
+  rank_normalize: true
+
+indicators:
+  rsi:
+    mode: passthrough
+
+trading:
+  allow_pyramiding: false

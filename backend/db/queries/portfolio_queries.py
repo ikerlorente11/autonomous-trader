@@ -319,12 +319,20 @@ async def deactivate_watchlist_symbol(session: AsyncSession, symbol: str) -> boo
 # Portfolios + cash movements
 # --------------------------------------------------------------------------- #
 async def list_portfolios(
-    session: AsyncSession, *, active_only: bool = False
+    session: AsyncSession,
+    *,
+    active_only: bool = False,
+    kinds: Sequence[str] | None = None,
 ) -> Sequence[Portfolio]:
-    """All portfolios, ordered by id (creation order)."""
+    """All portfolios, ordered by id (creation order).
+
+    ``kinds`` filters by ``portfolios.kind`` — the daily pipeline passes ``("daily",)``
+    so it never trades a microtrading portfolio (and vice-versa)."""
     stmt: Select[tuple[Portfolio]] = select(Portfolio).order_by(Portfolio.id)
     if active_only:
         stmt = stmt.where(Portfolio.active.is_(True))
+    if kinds is not None:
+        stmt = stmt.where(Portfolio.kind.in_(list(kinds)))
     return (await session.scalars(stmt)).all()
 
 
@@ -359,11 +367,16 @@ async def resolve_default_portfolio_id(session: AsyncSession) -> int | None:
 
 
 async def create_portfolio(
-    session: AsyncSession, name: str, initial_deposit: Decimal
+    session: AsyncSession,
+    name: str,
+    initial_deposit: Decimal,
+    *,
+    kind: str = "daily",
 ) -> Portfolio:
     """Create a portfolio and, if positive, seed its budget as the first deposit.
+    ``kind`` is ``'daily'`` (traded by the daily pipeline) or ``'micro'`` (microtrading).
     Caller commits."""
-    portfolio = Portfolio(name=name, active=True)
+    portfolio = Portfolio(name=name, active=True, kind=kind)
     session.add(portfolio)
     await session.flush()
     if initial_deposit > 0:

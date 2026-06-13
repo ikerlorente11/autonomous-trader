@@ -25,6 +25,7 @@ def make_broker(
     portfolio_id: int,
     *,
     strategy_version: str | None = None,
+    intraday: bool = False,
 ) -> BrokerAdapter:
     name = os.environ.get("BROKER_ADAPTER", _DEFAULT_ADAPTER)
     try:
@@ -33,4 +34,6 @@ def make_broker(
         raise ValueError(
             f"unknown BROKER_ADAPTER={name!r}; registered: {sorted(_REGISTRY)}"
         ) from None
-    return cls(session, portfolio_id, strategy_version=strategy_version)
+    return cls(
+        session, portfolio_id, strategy_version=strategy_version, intraday=intraday
+    )

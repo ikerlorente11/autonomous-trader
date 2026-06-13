@@ -29,10 +29,14 @@ class MockRealBroker:
         portfolio_id: int,
         *,
         strategy_version: str | None = None,
+        intraday: bool = False,
     ) -> None:
         self._session = session
         self._portfolio_id = portfolio_id
         self._strategy_version = strategy_version
+        # Accepted for a uniform factory signature; the in-memory double doesn't price
+        # off bar tables, so intraday vs daily is a no-op here.
+        self._intraday = intraday
         raw = os.environ.get("STARTING_CASH")
         self._cash = Decimal(raw) if raw and raw.strip() else _DEFAULT_STARTING_CASH
         self._qty: dict[str, Decimal] = {}

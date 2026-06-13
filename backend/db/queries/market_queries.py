@@ -6,7 +6,13 @@ from collections.abc import Sequence
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.models import MacroSeries, MarketBar, MarketSentiment, SignalValue
+from backend.db.models import (
+    IntradayBar,
+    MacroSeries,
+    MarketBar,
+    MarketSentiment,
+    SignalValue,
+)
 
 
 async def count_bars_per_symbol(
@@ -23,6 +29,28 @@ async def count_bars_per_symbol(
         .group_by(MarketBar.symbol)
     )
     return {symbol: count for symbol, count in (await session.execute(stmt)).all()}
+
+
+async def avg_dollar_volume(
+    session: AsyncSession,
+    symbols: Sequence[str],
+    start: dt.datetime,
+    end: dt.datetime,
+) -> dict[str, float]:
+    """Average daily dollar-volume (avg of close×volume) per symbol over a window.
+
+    The liquidity proxy the microtrading universe is ranked by — day-tradeable names
+    are the liquid, tight-spread ones. Symbols with no bars in the window are absent."""
+    stmt = (
+        select(MarketBar.symbol, func.avg(MarketBar.close * MarketBar.volume))
+        .where(
+            MarketBar.symbol.in_(symbols),
+            MarketBar.ts >= start,
+            MarketBar.ts <= end,
+        )
+        .group_by(MarketBar.symbol)
+    )
+    return {symbol: float(value) for symbol, value in (await session.execute(stmt)).all()}
 
 
 async def get_bars_range(
@@ -76,6 +104,35 @@ async def get_latest_bars(
         .where(MarketBar.symbol.in_(symbols))
         .distinct(MarketBar.symbol)
         .order_by(MarketBar.symbol, MarketBar.ts.desc())
+    )
+    return (await session.scalars(stmt)).all()
+
+
+async def get_intraday_bars_range(
+    session: AsyncSession, symbol: str, start: dt.datetime, end: dt.datetime
+) -> Sequence[IntradayBar]:
+    """Intraday OHLCV bars for one symbol over a time range (micro scoring input)."""
+    stmt: Select[tuple[IntradayBar]] = (
+        select(IntradayBar)
+        .where(
+            IntradayBar.symbol == symbol,
+            IntradayBar.ts >= start,
+            IntradayBar.ts <= end,
+        )
+        .order_by(IntradayBar.ts)
+    )
+    return (await session.scalars(stmt)).all()
+
+
+async def get_latest_intraday_bars(
+    session: AsyncSession, symbols: Sequence[str]
+) -> Sequence[IntradayBar]:
+    """Most recent intraday bar per symbol (micro fill price / valuation snapshot)."""
+    stmt: Select[tuple[IntradayBar]] = (
+        select(IntradayBar)
+        .where(IntradayBar.symbol.in_(symbols))
+        .distinct(IntradayBar.symbol)
+        .order_by(IntradayBar.symbol, IntradayBar.ts.desc())
     )
     return (await session.scalars(stmt)).all()
 

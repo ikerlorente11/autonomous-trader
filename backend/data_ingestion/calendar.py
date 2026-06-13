@@ -49,6 +49,26 @@ def is_market_open_now(
     return open_ts <= moment <= close_ts
 
 
+def is_near_market_close(
+    within_minutes: int, *, calendar: str | None = None, now: dt.datetime | None = None
+) -> bool:
+    """True if the market is open AND within ``within_minutes`` of today's close (UTC).
+
+    The microtrading EOD-flatten job uses this to liquidate same-session positions just
+    before the close — DST-robust because it reads the exchange's actual close time, not
+    a fixed UTC clock. ``now`` is injectable for tests."""
+    moment = now or dt.datetime.now(dt.timezone.utc)
+    cal = mcal.get_calendar(calendar or _calendar_name())
+    schedule = cal.schedule(start_date=moment.date(), end_date=moment.date())
+    if schedule.empty:
+        return False
+    open_ts = schedule.iloc[0]["market_open"].to_pydatetime()
+    close_ts = schedule.iloc[0]["market_close"].to_pydatetime()
+    if not (open_ts <= moment <= close_ts):
+        return False
+    return (close_ts - moment) <= dt.timedelta(minutes=within_minutes)
+
+
 def previous_trading_day(day: dt.date, *, calendar: str | None = None) -> dt.date:
     """The most recent session strictly before ``day``."""
     window_start = day - dt.timedelta(days=10)

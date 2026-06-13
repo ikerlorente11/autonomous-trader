@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
-from backend.contracts import OHLCVBar
+from backend.contracts import IntradayBar, OHLCVBar
 
 
 @runtime_checkable
@@ -32,6 +32,24 @@ class MarketDataProvider(Protocol):
     ) -> Mapping[str, Decimal]: ...
 
     async def get_available_symbols(self) -> list[str]: ...
+
+
+@runtime_checkable
+class IntradayMarketDataProvider(Protocol):
+    """Intraday OHLCV bars for the microtrading section (yfinance → Twelve Data → …).
+
+    A separate seam from ``MarketDataProvider``: cadence and history differ, ``interval``
+    is a parameter (5m/15m), and the DTO has no ``adj_close``. ``configured`` lets the
+    fallback chain skip a provider whose key is absent without raising — the project's
+    degrade-don't-fail rule."""
+
+    name: str
+
+    def configured(self) -> bool: ...
+
+    async def fetch_intraday_bars(
+        self, symbols: Sequence[str], *, interval: str, lookback_days: int
+    ) -> Mapping[str, list[IntradayBar]]: ...
 
 
 @runtime_checkable

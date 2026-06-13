@@ -25,18 +25,47 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MISFIRE_GRACE = 3600
 _DEFAULT_PROTECTIVE_SELL_INTERVAL_MIN = 15
+_DEFAULT_MICRO_INTRADAY_INTERVAL_MIN = 5
+_DEFAULT_MICRO_RUN_INTERVAL_MIN = 15
+_DEFAULT_MICRO_EOD_FLATTEN_CHECK_MIN = 5
+_TRUTHY = {"1", "true", "yes", "on"}
 
 
 def _protective_sell_enabled() -> bool:
-    return os.environ.get("PROTECTIVE_SELL_ENABLED", "true").strip().lower() in {
-        "1", "true", "yes", "on",
-    }
+    return os.environ.get("PROTECTIVE_SELL_ENABLED", "true").strip().lower() in _TRUTHY
 
 
 def _protective_sell_interval_min() -> int:
     raw = os.environ.get("PROTECTIVE_SELL_INTERVAL_MIN")
     if raw is None or raw.strip() == "":
         return _DEFAULT_PROTECTIVE_SELL_INTERVAL_MIN
+    return int(raw)
+
+
+def _micro_enabled() -> bool:
+    # Off by default: the microtrading section is opt-in and must not poll providers
+    # (or touch the Pi budget) until the owner enables it.
+    return os.environ.get("MICRO_ENABLED", "false").strip().lower() in _TRUTHY
+
+
+def _micro_intraday_interval_min() -> int:
+    raw = os.environ.get("MICRO_INTRADAY_INTERVAL_MIN")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_MICRO_INTRADAY_INTERVAL_MIN
+    return int(raw)
+
+
+def _micro_run_interval_min() -> int:
+    raw = os.environ.get("MICRO_RUN_INTERVAL_MIN")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_MICRO_RUN_INTERVAL_MIN
+    return int(raw)
+
+
+def _micro_eod_flatten_check_min() -> int:
+    raw = os.environ.get("MICRO_EOD_FLATTEN_CHECK_MIN")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_MICRO_EOD_FLATTEN_CHECK_MIN
     return int(raw)
 
 
@@ -83,6 +112,28 @@ def build_scheduler() -> AsyncIOScheduler:
             JOBS["protective_sell"],
             trigger=IntervalTrigger(minutes=_protective_sell_interval_min()),
             id="protective_sell",
+            replace_existing=True,
+        )
+    # Microtrading interval jobs — market-hours-gated, opt-in (MICRO_ENABLED). The jobs
+    # self-gate (data poll & run_micro no-op outside market hours; eod_flatten only acts
+    # near the close), so coalesce/max_instances=1 prevent overlap.
+    if _micro_enabled():
+        scheduler.add_job(
+            JOBS["fetch_intraday_bars"],
+            trigger=IntervalTrigger(minutes=_micro_intraday_interval_min()),
+            id="fetch_intraday_bars",
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            JOBS["run_micro"],
+            trigger=IntervalTrigger(minutes=_micro_run_interval_min()),
+            id="run_micro",
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            JOBS["micro_eod_flatten"],
+            trigger=IntervalTrigger(minutes=_micro_eod_flatten_check_min()),
+            id="micro_eod_flatten",
             replace_existing=True,
         )
     return scheduler

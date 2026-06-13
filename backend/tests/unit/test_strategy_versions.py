@@ -17,6 +17,30 @@ def test_lists_v1_and_v2() -> None:
     assert "v4" in versions
     assert "v5" in versions
     assert "v6" in versions
+    assert "m1" in versions  # microtrading control
+    assert "m2" in versions  # microtrading variant
+
+
+def test_micro_m1_is_mean_reversion_rank_normalized() -> None:
+    base = load_strategy_config()
+    m1 = load_strategy_config(label="m1")
+    assert m1.indicators.rsi.mode == "mean_reversion"  # fade intraday extremes
+    assert m1.scoring.rank_normalize is True  # relative across the sub-universe
+    assert m1.scoring.weights["atr"] == 0.0  # ATR out of the composite
+    assert m1.trading.allow_pyramiding is False
+    assert m1.strategy_version != base.strategy_version
+
+
+def test_micro_m2_differs_from_m1_only_in_rsi_mode() -> None:
+    # The single A/B variable: fade (m1) vs follow (m2) intraday moves.
+    m1 = load_strategy_config(label="m1")
+    m2 = load_strategy_config(label="m2")
+    assert m1.indicators.rsi.mode == "mean_reversion"
+    assert m2.indicators.rsi.mode == "passthrough"  # the only delta
+    assert m2.scoring.rank_normalize == m1.scoring.rank_normalize
+    assert m2.scoring.weights["atr"] == m1.scoring.weights["atr"]
+    assert m2.trading.allow_pyramiding == m1.trading.allow_pyramiding
+    assert m2.strategy_version != m1.strategy_version
 
 
 def test_v2_drops_atr_from_score() -> None:

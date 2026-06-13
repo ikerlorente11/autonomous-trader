@@ -517,6 +517,35 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > A user-facing plain-language explanation of the versions and their differences lives on the
 > dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 
+> **Microtrading section — intraday, same-session (post-Phase-5, opt-in).** A second
+> trading track that buys and sells within the SAME session ("microinversiones diarias"),
+> parallel to the daily-swing system and **off by default** (`MICRO_ENABLED=false`). It is
+> **portfolio-scoped, not a parallel codebase**: `portfolios.kind` (`daily`|`micro`,
+> migration `0011`) discriminates; the daily pipeline (`execute_paper_trades`,
+> `protective_sell`) filters `kind='daily'`, so micro portfolios are touched ONLY by the
+> micro jobs. Migration `0012` seeds `micro-500` / `micro-100k` (kind `micro`, version `m1`).
+> **Data:** a new `intraday_bars` hypertable (5m, migration `0010`, 120-day retention) fed by
+> an interval job `fetch_intraday_bars` (market-hours-gated) via the `IntradayMarketDataProvider`
+> seam — a fallback chain **yfinance_intraday → Alpaca free IEX (`ALPACA_API_KEY_ID/SECRET`) →
+> Twelve Data**, each degrading cleanly when its key is absent (Finnhub free does NOT serve
+> intraday candles). The polled sub-universe is the **top-N most-liquid** watchlist names
+> (`select_micro_universe`, ranked by avg dollar-volume). **Strategy:** reuses the SAME engine
+> on 5-minute frames — no new scorer. Versions are overlays `config/strategies/m1.yaml`
+> (control: RSI mean-reversion / *fade*, rank-normalize, ATR out of score) and `m2.yaml`
+> (one-variable contrast: RSI `passthrough` / *follow*); both disable the base `market_filter`
+> (a daily 200-day line, meaningless on 5m frames — a daily micro regime gate is a future
+> refinement). **Execution:** interval job `run_micro` scores the sub-universe and trades every
+> micro portfolio under its own version; `micro_eod_flatten` liquidates all micro positions in
+> the last `MICRO_EOD_FLATTEN_WITHIN_MIN` minutes of the session (no overnight risk, DST-robust
+> via the exchange calendar). **The `BrokerAdapter` seam is unchanged**: intraday pricing
+> (PaperBroker/PortfolioManager value off `intraday_bars`) is a **constructor flag**, never part
+> of `place_order`; `qty` stays `Decimal`. Costs are the existing global model (`SLIPPAGE_PCT`
+> spread proxy + `COMMISSION_*`), ON for every version. **Calibration caveat:** there is no free
+> multi-regime intraday backtest (yfinance ~60d of 5m = one regime), so micro versions are
+> validated by **forward-test in paper**, persisting 5m bars from day one — not by backtest.
+> Research: `docs/research/10-microtrading-intraday-technical.md`, `11-…-catalysts-data.md`,
+> `12-…-risk-costs-execution.md`.
+
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.

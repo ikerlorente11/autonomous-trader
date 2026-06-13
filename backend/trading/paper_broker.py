@@ -27,7 +27,10 @@ from backend.contracts import (
     Position,
 )
 from backend.db.models import PortfolioPosition, TradeOrder
-from backend.db.queries.market_queries import get_latest_bars
+from backend.db.queries.market_queries import (
+    get_latest_bars,
+    get_latest_intraday_bars,
+)
 from backend.db.queries.portfolio_queries import (
     compute_cash,
     get_open_positions,
@@ -53,10 +56,15 @@ class PaperBroker:
         portfolio_id: int,
         *,
         strategy_version: str | None = None,
+        intraday: bool = False,
     ) -> None:
         self._session = session
         self._portfolio_id = portfolio_id
         self._strategy_version = strategy_version
+        # Microtrading prices off intraday_bars; daily off market_bars. A constructor
+        # arg (like portfolio_id), NOT part of place_order — the BrokerAdapter seam is
+        # unchanged. Default False keeps the daily path byte-for-byte identical.
+        self._intraday = intraday
         self._slippage_pct = _decimal_env("SLIPPAGE_PCT", _DEFAULT_SLIPPAGE_PCT)
         # P10: a commission model so churn has a visible cost in the A/B. Global (env),
         # not per-version: a trade cost is a market reality every version pays equally.
@@ -66,9 +74,14 @@ class PaperBroker:
             "COMMISSION_PER_ORDER", _DEFAULT_COMMISSION_PER_ORDER
         )
 
+    async def _latest_closes(self, symbols: list[str]) -> dict[str, Decimal]:
+        if not symbols:
+            return {}
+        fetch = get_latest_intraday_bars if self._intraday else get_latest_bars
+        return {bar.symbol: bar.close for bar in await fetch(self._session, symbols)}
+
     async def _latest_close(self, symbol: str) -> Decimal | None:
-        bars = await get_latest_bars(self._session, [symbol])
-        return bars[0].close if bars else None
+        return (await self._latest_closes([symbol])).get(symbol)
 
     def _commission_for(self, qty: Decimal, fill_price: Decimal) -> Decimal:
         return qty * fill_price * self._commission_pct + self._commission_per_order
@@ -239,10 +252,7 @@ class PaperBroker:
         cash = await self.get_cash()
         positions = await get_open_positions(self._session, self._portfolio_id)
         symbols = [p.symbol for p in positions]
-        prices: dict[str, Decimal] = {}
-        if symbols:
-            for bar in await get_latest_bars(self._session, symbols):
-                prices[bar.symbol] = bar.close
+        prices = await self._latest_closes(symbols)
         equity = sum(
             (p.qty * prices.get(p.symbol, p.avg_cost) for p in positions),
             Decimal(0),

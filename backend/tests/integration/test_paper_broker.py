@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -12,6 +13,7 @@ from backend.tests import factories as f
 from backend.trading.paper_broker import PaperBroker
 
 pytestmark = pytest.mark.integration
+UTC = dt.timezone.utc
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +38,20 @@ async def test_buy_fills_creates_position_and_spends_cash(db_session) -> None:
     assert pos.qty == Decimal("5.000000")
     # cash 10000 - 100.1*5 = 9499.5 ; equity 5*100 = 500 ; total 9999.5 (slippage cost)
     assert await broker.get_account_balance() == Decimal("9999.5")
+
+
+async def test_intraday_broker_fills_from_intraday_bars(db_session) -> None:
+    # Same symbol has a stale daily close and a fresh intraday close; an intraday broker
+    # must price off intraday_bars (the seam: a constructor flag, not place_order).
+    pid = await f.seed_portfolio(db_session, deposit=10_000.0, kind="micro")
+    await f.seed_latest_bar(db_session, "AAPL", close=100)  # daily close
+    await f.seed_intraday_bars(
+        db_session, "AAPL", closes=[100, 105], start=dt.datetime(2026, 6, 1, 15, 0, tzinfo=UTC)
+    )
+    broker = PaperBroker(db_session, pid, intraday=True)
+    order = await broker.place_order("AAPL", "buy", Decimal("2"), "market")
+    assert order.status is OrderState.FILLED
+    assert order.price == Decimal("105.105000")  # 105 (intraday) * (1 + 0.001), not 100
 
 
 async def test_sell_more_than_held_is_rejected(db_session) -> None:

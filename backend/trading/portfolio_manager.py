@@ -23,6 +23,7 @@ from backend.db.queries.market_queries import (
     get_close_after,
     get_close_asof,
     get_latest_bars,
+    get_latest_intraday_bars,
 )
 from backend.db.queries.portfolio_queries import (
     compute_cash,
@@ -43,17 +44,23 @@ class PortfolioManager:
         session: AsyncSession,
         portfolio_id: int,
         config: StrategyConfig | None = None,
+        *,
+        intraday: bool = False,
     ) -> None:
         self._broker = broker
         self._session = session
         self._portfolio_id = portfolio_id
         self._config = config
+        # Microtrading marks/sizes off intraday_bars; daily off market_bars. The
+        # benchmark line stays daily (SPY daily close) regardless. Default False keeps
+        # the daily path unchanged.
+        self._intraday = intraday
 
     async def _latest_prices(self, symbols: Sequence[str]) -> dict[str, Decimal]:
         if not symbols:
             return {}
-        bars = await get_latest_bars(self._session, symbols)
-        return {bar.symbol: bar.close for bar in bars}
+        fetch = get_latest_intraday_bars if self._intraday else get_latest_bars
+        return {bar.symbol: bar.close for bar in await fetch(self._session, symbols)}
 
     async def _account_balance(self) -> AccountBalance:
         # Cash, equity and total all come from the broker — never the DB ledger directly

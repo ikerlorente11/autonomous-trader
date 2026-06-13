@@ -26,6 +26,7 @@ import pandas as pd
 from backend.analysis.config import load_strategy_config
 from backend.analysis.engine import DefaultAnalysisEngine
 from backend.analysis.indicators.volatility import AverageTrueRangeIndicator
+from backend.analysis.micro.universe import select_micro_universe
 from backend.analysis.performance.settle import settle_due_signals
 from backend.analysis.scoring.persistence import (
     persist_algorithm_signals,
@@ -50,6 +51,7 @@ from backend.contracts import (
 )
 from backend.data_ingestion.calendar import (
     is_market_open_now,
+    is_near_market_close,
     is_trading_day,
     nth_prior_trading_day,
 )
@@ -58,6 +60,12 @@ from backend.data_ingestion.fundamentals_ingest import (
     ingest_fundamentals,
 )
 from backend.data_ingestion.ingest import ingest_daily_bars, upsert_bars
+from backend.data_ingestion.intraday_ingest import (
+    ingest_intraday_bars,
+    micro_bar_interval,
+    micro_lookback_days,
+    micro_max_symbols,
+)
 from backend.data_ingestion.macro_ingest import (
     ingest_macro_series,
     macro_data_configured,
@@ -76,6 +84,7 @@ from backend.db.queries.macro_queries import get_latest_macro_values
 from backend.db.queries.market_queries import (
     count_bars_per_symbol,
     get_bars_range,
+    get_intraday_bars_range,
     get_latest_bars,
 )
 from backend.db.queries.news_queries import get_recent_news_counts
@@ -117,6 +126,9 @@ _INCREMENTAL_LOOKBACK_DAYS = 5
 # reads the low-scored end to find SELL signals on names it currently holds, so a
 # larger watchlist must not truncate exits. Comfortably above the 50-symbol target.
 _RANK_LIMIT = 500
+# The daily pipeline trades only daily-swing portfolios; microtrading portfolios
+# (kind='micro') are traded by the future intraday jobs, never here.
+_DAILY_KINDS = ("daily",)
 
 
 def _today_utc_midnight() -> dt.datetime:
@@ -534,7 +546,9 @@ async def execute_paper_trades() -> None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "STALE_ANALYSIS", "asof": asof.isoformat()}
                 return
-            portfolios = await list_portfolios(session, active_only=True)
+            portfolios = await list_portfolios(
+                session, active_only=True, kinds=_DAILY_KINDS
+            )
             if not portfolios:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "no_active_portfolios"}
@@ -693,7 +707,9 @@ async def protective_sell() -> None:
                 panic_hold = False  # operator opted to always protect
 
         async with async_session() as session:
-            portfolios = await list_portfolios(session, active_only=True)
+            portfolios = await list_portfolios(
+                session, active_only=True, kinds=_DAILY_KINDS
+            )
             if not portfolios:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "no_active_portfolios"}
@@ -793,6 +809,206 @@ async def protective_sell() -> None:
             }
 
 
+async def fetch_intraday_bars() -> None:
+    """Poll intraday bars for the microtrading sub-universe during market hours (M1).
+
+    An interval job (like ``protective_sell``), NOT part of the daily JOB_SCHEDULE:
+    registered in ``scheduler/main.py`` and gated by ``MICRO_ENABLED``. Idempotent
+    upsert, capped sub-universe, degrades when a provider key is absent. Builds the
+    forward-test history the micro versions will calibrate against; nothing trades yet."""
+    async with _job_context("fetch_intraday_bars") as outcome:
+        if not is_market_open_now():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            return
+        interval = micro_bar_interval()
+        lookback = micro_lookback_days()
+        async with async_session() as session:
+            watchlist = await get_active_watchlist(session)
+            all_symbols = [w.symbol for w in watchlist]
+            if not all_symbols:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "empty_watchlist"}
+                return
+            # Sub-universe = the most-liquid day-tradeable names (caps free-tier credits
+            # + Pi I/O). Degrade to the first N if no daily-bar history exists yet to
+            # rank by — the data still flows so liquidity history can build.
+            cap = micro_max_symbols()
+            symbols = await select_micro_universe(
+                session, all_symbols, _today_utc_midnight(), limit=cap
+            )
+            if not symbols:
+                symbols = all_symbols[:cap]
+            written = await ingest_intraday_bars(
+                session, symbols, interval=interval, lookback_days=lookback
+            )
+            await session.commit()
+        empty = [s for s, n in written.items() if n == 0]
+        outcome.status = "degraded" if empty else "success"
+        outcome.detail = {
+            "interval": interval,
+            "symbols_requested": len(symbols),
+            "rows_written": sum(written.values()),
+            "symbols_empty": empty,
+        }
+
+
+_MICRO_KINDS = ("micro",)
+_MICRO_EOD_STRATEGY = "micro_eod_flatten"
+_DEFAULT_EOD_FLATTEN_WITHIN_MIN = 10
+
+
+def _micro_eod_flatten_within_min() -> int:
+    try:
+        return max(1, int(os.environ.get("MICRO_EOD_FLATTEN_WITHIN_MIN", "")))
+    except ValueError:
+        return _DEFAULT_EOD_FLATTEN_WITHIN_MIN
+
+
+async def _micro_frames(
+    session, symbols: list[str], start: dt.datetime, end: dt.datetime
+) -> dict[str, pd.DataFrame]:
+    """Intraday OHLCV frames per symbol for micro scoring (same shape as daily frames,
+    so the existing engine indicators compute on 5-minute bars unchanged)."""
+    frames: dict[str, pd.DataFrame] = {}
+    for symbol in symbols:
+        rows = await get_intraday_bars_range(session, symbol, start, end)
+        if rows:
+            frames[symbol] = _bars_to_frame(rows)
+    return frames
+
+
+async def run_micro() -> None:
+    """Score the micro sub-universe on intraday bars and trade every micro portfolio.
+
+    Interval job, market-hours-gated, opt-in (``MICRO_ENABLED``). Reuses the daily
+    engine/scorer on 5-minute frames and the unchanged ``BrokerAdapter`` seam (broker +
+    manager priced intraday). No once-per-day guard — micro trades repeatedly; churn is
+    bounded by no-pyramiding (held names aren't re-bought) and available cash."""
+    async with _job_context("run_micro") as outcome:
+        if not is_market_open_now():
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            return
+        asof = dt.datetime.now(dt.timezone.utc)
+        start = asof - dt.timedelta(days=micro_lookback_days())
+        async with async_session() as session:
+            portfolios = await list_portfolios(
+                session, active_only=True, kinds=_MICRO_KINDS
+            )
+            if not portfolios:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_micro_portfolios"}
+                return
+            watchlist = await get_active_watchlist(session)
+            universe = await select_micro_universe(
+                session,
+                [w.symbol for w in watchlist],
+                _today_utc_midnight(),
+                limit=micro_max_symbols(),
+            )
+            frames = await _micro_frames(session, universe, start, asof)
+            if not frames:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_intraday_bars"}
+                return
+            engines: dict[str | None, DefaultAnalysisEngine] = {}
+            ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
+            for label in {p.strategy_label for p in portfolios}:
+                engine = _engine_for_label(label)
+                engines[label] = engine
+                _, scores = engine.score_universe(frames, asof)
+                scores.sort(key=lambda s: s.score, reverse=True)
+                ranked_by_label[label] = [
+                    RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores)
+                ]
+            total_orders = 0
+            per_portfolio: dict[str, int] = {}
+            failed: dict[str, str] = {}
+            for portfolio in portfolios:
+                engine = engines[portfolio.strategy_label]
+                ranked = ranked_by_label[portfolio.strategy_label]
+                try:
+                    async with session.begin_nested():
+                        broker = make_broker(
+                            session, portfolio.id,
+                            strategy_version=engine.strategy_version, intraday=True,
+                        )
+                        manager = PortfolioManager(
+                            broker, session, portfolio.id,
+                            config=_config_for_label(portfolio.strategy_label),
+                            intraday=True,
+                        )
+                        orders = await manager.execute_signals(ranked)
+                    per_portfolio[str(portfolio.id)] = len(orders)
+                    total_orders += len(orders)
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception("run_micro failed for portfolio %s", portfolio.id)
+            await session.commit()
+            if failed:
+                outcome.status = "degraded"
+            outcome.detail = {
+                "universe": len(frames),
+                "orders": total_orders,
+                "per_portfolio": per_portfolio,
+                "failed": failed,
+            }
+
+
+async def micro_eod_flatten() -> None:
+    """Liquidate every micro position before the close (no overnight micro risk).
+
+    Interval job that acts only in the last ``MICRO_EOD_FLATTEN_WITHIN_MIN`` minutes of
+    the session (DST-robust via the exchange calendar). Idempotent: once flat there is
+    nothing left to sell on the next tick. Sells via the unchanged ``place_order`` seam."""
+    async with _job_context("micro_eod_flatten") as outcome:
+        if not is_near_market_close(_micro_eod_flatten_within_min()):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "NOT_NEAR_CLOSE"}
+            return
+        async with async_session() as session:
+            portfolios = await list_portfolios(
+                session, active_only=True, kinds=_MICRO_KINDS
+            )
+            if not portfolios:
+                outcome.status = "skipped"
+                outcome.detail = {"reason": "no_micro_portfolios"}
+                return
+            total_sold = 0
+            per_portfolio: dict[str, int] = {}
+            failed: dict[str, str] = {}
+            for portfolio in portfolios:
+                try:
+                    async with session.begin_nested():
+                        broker = make_broker(
+                            session, portfolio.id,
+                            strategy_version=_MICRO_EOD_STRATEGY, intraday=True,
+                        )
+                        sold = 0
+                        for position in await broker.get_positions():
+                            if position.qty > 0:
+                                await broker.place_order(
+                                    position.symbol, "sell", position.qty, "market"
+                                )
+                                sold += 1
+                    per_portfolio[str(portfolio.id)] = sold
+                    total_sold += sold
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception(
+                        "micro_eod_flatten failed for portfolio %s", portfolio.id
+                    )
+            await session.commit()
+            if failed:
+                outcome.status = "degraded"
+            outcome.detail = {
+                "positions_sold": total_sold,
+                "per_portfolio": per_portfolio,
+                "failed": failed,
+            }
+
+
 JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "fetch_macro_data": fetch_macro_data,
     "fetch_news_sentiment": fetch_news_sentiment,
@@ -802,6 +1018,9 @@ JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "execute_paper_trades": execute_paper_trades,
     "update_portfolio_nav": update_portfolio_nav,
     "protective_sell": protective_sell,
+    "fetch_intraday_bars": fetch_intraday_bars,
+    "run_micro": run_micro,
+    "micro_eod_flatten": micro_eod_flatten,
 }
 
 
