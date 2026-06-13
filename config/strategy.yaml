@@ -21,6 +21,17 @@ ranker:
   min_score_to_exit: 45.0
   # Symbols whose available-signal fraction is below this are dropped as low-coverage.
   min_data_completeness: 0.5
+  # "Wait for a good moment" entry gate (shared by ALL versions): block NEW buys
+  # (BUY -> HOLD) on days the benchmark closes below its long moving average — i.e.
+  # when the broad market's primary trend is down. Exits/holds are never blocked.
+  # Governs the first run / a freshly reset portfolio too, so no version piles in at
+  # a bad market moment regardless of which names rank best. 200-day SMA is the
+  # standard, robust bull/bear regime line (100d tested ~equal; 200 chosen for
+  # out-of-sample robustness). Calibration: docs/diagnostics/06-plan-filtro-mercado.md.
+  market_filter:
+    benchmark: SPY
+    ma_period: 200
+    kind: sma
 
 scoring:
   # Bounds the final composite (0–100). Sub-scores outside are clipped.

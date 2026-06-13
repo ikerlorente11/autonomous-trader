@@ -7,7 +7,11 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from backend.analysis.config import load_strategy_config
+from backend.analysis.config import (
+    MarketFilterConfig,
+    RankerConfig,
+    load_strategy_config,
+)
 from backend.analysis.engine import DefaultAnalysisEngine
 
 pytestmark = pytest.mark.unit
@@ -79,3 +83,60 @@ def test_regime_unknown_means_no_effect() -> None:
     _, none_score = engine.score_universe(frames, ASOF, regime_score=None)
     _, neutral = engine.score_universe(frames, ASOF)
     assert none_score[0].score == neutral[0].score
+
+
+def _trend_frame(closes: list[float]) -> pd.DataFrame:
+    idx = pd.date_range("2024-06-01", periods=len(closes), freq="D")
+    c = pd.Series(closes, index=idx, dtype="float64")
+    return pd.DataFrame(
+        {"open": c, "high": c + 1, "low": c - 1, "close": c, "volume": 1_000_000}, index=idx
+    )
+
+
+def _engine_with_filter(ma_period: int = 5):
+    base = load_strategy_config()
+    cfg = base.model_copy(
+        update={
+            "ranker": RankerConfig(
+                min_score_to_act=base.ranker.min_score_to_act,
+                min_score_to_exit=base.ranker.min_score_to_exit,
+                min_data_completeness=base.ranker.min_data_completeness,
+                market_filter=MarketFilterConfig(benchmark="SPY", ma_period=ma_period, kind="sma"),
+            )
+        }
+    )
+    return DefaultAnalysisEngine(cfg)
+
+
+def test_market_filter_blocks_entries_in_downtrend() -> None:
+    # SPY below its MA: a strong name that would BUY is downgraded to HOLD.
+    up = [100.0] * 10 + [101, 102, 103, 104, 105]      # AAA: clearly above its MA -> BUY
+    spy_down = [200.0 - i for i in range(15)]           # SPY: falling -> below MA
+    engine = _engine_with_filter(ma_period=5)
+    _, scores = engine.score_universe(
+        {"AAA": _trend_frame(up), "SPY": _trend_frame(spy_down)}, ASOF
+    )
+    aaa = next(s for s in scores if s.symbol == "AAA")
+    assert aaa.action.value == "hold"
+    assert "market filter" in (aaa.reason or "")
+
+
+def test_market_filter_allows_entries_in_uptrend() -> None:
+    up = [100.0] * 10 + [101, 102, 103, 104, 105]
+    spy_up = [100.0 + i for i in range(15)]             # SPY rising -> above MA
+    engine = _engine_with_filter(ma_period=5)
+    no_filter = DefaultAnalysisEngine(load_strategy_config())
+    frames = {"AAA": _trend_frame(up), "SPY": _trend_frame(spy_up)}
+    _, filtered = engine.score_universe(frames, ASOF)
+    _, plain = no_filter.score_universe(frames, ASOF)
+    a_f = next(s for s in filtered if s.symbol == "AAA")
+    a_p = next(s for s in plain if s.symbol == "AAA")
+    assert a_f.action == a_p.action  # uptrend -> filter is a no-op
+
+
+def test_market_filter_fails_open_without_benchmark() -> None:
+    # No SPY in the universe: entries are allowed (never block on missing data).
+    up = [100.0] * 10 + [101, 102, 103, 104, 105]
+    engine = _engine_with_filter(ma_period=5)
+    _, scores = engine.score_universe({"AAA": _trend_frame(up)}, ASOF)
+    assert "market filter" not in (scores[0].reason or "")

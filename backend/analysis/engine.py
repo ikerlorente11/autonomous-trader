@@ -25,7 +25,7 @@ from backend.analysis.indicators.moving_average import (
 from backend.analysis.indicators.volatility import AverageTrueRangeIndicator
 from backend.analysis.scoring.composite_scorer import WeightedCompositeScorer
 from backend.analysis.scoring.symbol_ranker import ScoreRanker
-from backend.contracts import IndicatorResult, RankedSymbol, SymbolScore
+from backend.contracts import IndicatorResult, RankedSymbol, SignalAction, SymbolScore
 
 if TYPE_CHECKING:
     from pandas import DataFrame
@@ -177,6 +177,26 @@ class DefaultAnalysisEngine:
         clamped = max(0.0, min(100.0, regime_score))
         return cfg.floor + (cfg.ceil - cfg.floor) * clamped / 100.0
 
+    def _market_uptrend(self, bars: Mapping[str, DataFrame]) -> bool:
+        """True when the benchmark closes at/above its long MA — i.e. it is a "good
+        moment" to be opening positions. Fail-open: True when the filter is off or
+        the benchmark lacks enough history (never block entries on missing data)."""
+        cfg = self._config.ranker.market_filter
+        if cfg is None:
+            return True
+        df = bars.get(cfg.benchmark)
+        if df is None or len(df) < cfg.ma_period:
+            return True
+        close = df["close"].astype(float)
+        if cfg.kind == "ema":
+            ma = close.ewm(span=cfg.ma_period, adjust=False).mean()
+        else:
+            ma = close.rolling(cfg.ma_period).mean()
+        last_ma = ma.iloc[-1]
+        if last_ma != last_ma:  # NaN guard
+            return True
+        return float(close.iloc[-1]) >= float(last_ma)
+
     def score_universe(
         self,
         bars: Mapping[str, DataFrame],
@@ -219,11 +239,22 @@ class DefaultAnalysisEngine:
         if self._config.scoring.rank_normalize:
             per_symbol = rank_normalize_results(per_symbol, self._rank_normalize_targets())
         multiplier = self._regime_multiplier(regime_score)
+        market_ok = self._market_uptrend(bars)
         indicators: list[IndicatorResult] = []
         scores: list[SymbolScore] = []
         for symbol, results in per_symbol.items():
             indicators.extend(results[: bar_counts[symbol]])
-            scores.append(self._scorer.score(symbol, results, asof, multiplier=multiplier))
+            score = self._scorer.score(symbol, results, asof, multiplier=multiplier)
+            # "Wait for a good moment": in a market downtrend, suppress NEW entries
+            # (BUY -> HOLD) while still allowing exits. Governs the first run too.
+            if not market_ok and score.action is SignalAction.BUY:
+                score = score.model_copy(
+                    update={
+                        "action": SignalAction.HOLD,
+                        "reason": (score.reason or "") + " | market filter: downtrend",
+                    }
+                )
+            scores.append(score)
         return indicators, scores
 
     def score_symbol(

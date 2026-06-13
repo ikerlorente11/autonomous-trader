@@ -501,6 +501,19 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > without a backtest. `scripts/backfill_bars.py` (idempotent) extends bar history (currently 62
 > symbols since 2023-04); the watchlist is still runtime data, never hardcoded.
 
+> **Market entry filter — "wait for a good moment" (post-Phase-5).** `ranker.market_filter`
+> (optional `MarketFilterConfig`: `benchmark` SPY, `ma_period` 200, `kind` sma/ema) is a
+> universe-wide, ABSOLUTE entry gate: on days the benchmark closes below its long MA (broad
+> downtrend) the engine downgrades every BUY to HOLD in `score_universe` — exits and holds are
+> never blocked. It governs the **first run / a freshly reset portfolio** exactly like any other
+> day, so a portfolio sits in cash until the market trend is up, independent of which names rank
+> best (the piece the per-symbol score — absolute in v1/v2, relative/rank-normalized in v3-v6 —
+> could not provide: there is **no forced day-1 allocation**, entries were always score-gated, but
+> rank-normalized versions always find a relative "best" so they would enter on day 1 regardless
+> of the market). Fail-open: missing benchmark/history never blocks. Lives in the **base config**
+> so all versions inherit it; the backtester captures it (it calls `score_universe`). Calibration
+> + rationale: `docs/diagnostics/06-plan-filtro-mercado.md`.
+
 > A user-facing plain-language explanation of the versions and their differences lives on the
 > dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 

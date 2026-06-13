@@ -94,6 +94,11 @@
 	<p class="note">{@html t('info.versions.note')}</p>
 </Card>
 
+<Card title={t('info.timing.title')} caption={t('info.timing.caption')} span="full">
+	<p>{@html t('info.timing.p1')}</p>
+	<p>{@html t('info.timing.p2')}</p>
+</Card>
+
 <Card title={t('info.limits.title')} span="full">
 	<p class="warn">{@html t('info.limits.text')}</p>
 </Card>

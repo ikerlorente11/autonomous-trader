@@ -43,10 +43,26 @@ class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class MarketFilterConfig(_Frozen):
+    # "Wait for a good moment" gate: block NEW entries (BUY -> HOLD) on days the
+    # benchmark closes below its own long moving average — i.e. when the broad
+    # market's primary trend is down. Exits and holds are never blocked, so a
+    # downtrend still lets positions be cut. Universe-wide and absolute, so it
+    # governs the FIRST run exactly like any other (a freshly reset portfolio
+    # stays in cash until the market trend is up), independent of which names
+    # rank best — the piece the per-symbol score (absolute or rank-normalized)
+    # could not provide. None = off. Fail-open: if the benchmark bar/history is
+    # missing, entries are allowed (never block on absent data).
+    benchmark: str = "SPY"
+    ma_period: int = 200
+    kind: Literal["sma", "ema"] = "sma"
+
+
 class RankerConfig(_Frozen):
     min_score_to_act: float
     min_score_to_exit: float
     min_data_completeness: float
+    market_filter: MarketFilterConfig | None = None
 
 
 class RegimeMultiplierConfig(_Frozen):
