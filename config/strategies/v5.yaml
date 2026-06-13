@@ -1,0 +1,32 @@
+# Strategy version "v5" — built ON TOP of v4 (v5 = v4 + delta) so the A/B isolates the
+# v5 effect over v4. v4's keys are repeated and the v5-only addition is marked.
+# Rationale: docs/diagnostics/05-plan-v5-v6.md.
+
+scoring:
+  weights:
+    # P1 (from v2): ATR out of the score — only sizing/stops use it.
+    atr: 0.0
+    # P11 phase 1 (from v4): cross-sectional price momentum.
+    momentum: 0.40
+  # P7 (from v3): rank-normalize each weighted sub-score across the day's universe.
+  rank_normalize: true
+  # P11 phase 2 (v5 delta): scale the composite by the day's macro regime score —
+  # risk-off (0) damps every score to 75% so fewer names clear the buy gate; full
+  # risk-on (100) nudges them 5% up. Linear in between; unknown regime = no effect.
+  regime_multiplier:
+    floor: 0.75
+    ceil: 1.05
+
+indicators:
+  rsi:
+    # P4 (from v2): contrarian RSI — oversold scores high.
+    mode: mean_reversion
+  ma_trend:
+    # P5 (from v2): cap the "how far above the MA" reward at +2% (trend gate, not a chase).
+    extension_cap: 0.02
+
+trading:
+  # P2/P3/P6 (from v2): re-entry cooldown, stop-distance floor, no pyramiding.
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.05
+  allow_pyramiding: false

@@ -15,6 +15,8 @@ def test_lists_v1_and_v2() -> None:
     assert "v2" in versions
     assert "v3" in versions
     assert "v4" in versions
+    assert "v5" in versions
+    assert "v6" in versions
 
 
 def test_v2_drops_atr_from_score() -> None:
@@ -91,3 +93,34 @@ def test_base_trading_defaults_are_unset() -> None:
 def test_unknown_label_raises() -> None:
     with pytest.raises(FileNotFoundError):
         load_strategy_config(label="does-not-exist")
+
+def test_v5_is_v4_plus_regime_multiplier() -> None:
+    # v5 = v4 + P11 phase 2 (macro regime multiplier). Off everywhere below v5.
+    v4 = load_strategy_config(label="v4")
+    v5 = load_strategy_config(label="v5")
+    assert v4.scoring.regime_multiplier is None
+    assert v5.scoring.regime_multiplier is not None  # the v5 delta
+    assert v5.scoring.regime_multiplier.floor == 0.75
+    assert v5.scoring.regime_multiplier.ceil == 1.05
+    # inherits every v4 piece unchanged
+    assert v5.scoring.weights["momentum"] == 0.40
+    assert v5.scoring.rank_normalize is True
+    assert v5.indicators.rsi.mode == "mean_reversion"
+    assert v5.trading.allow_pyramiding is False
+    assert v5.strategy_version != v4.strategy_version
+
+
+def test_v6_is_v5_plus_fundamental_weights() -> None:
+    # v6 = v5 + fundamentals activation (quality / revenue_accel / earnings_accel).
+    v5 = load_strategy_config(label="v5")
+    v6 = load_strategy_config(label="v6")
+    for sid in ("quality", "revenue_accel", "earnings_accel"):
+        assert sid not in v5.scoring.weights
+    assert v6.scoring.weights["quality"] == 0.15  # the v6 delta
+    assert v6.scoring.weights["revenue_accel"] == 0.10
+    assert v6.scoring.weights["earnings_accel"] == 0.10
+    # inherits every v5 piece unchanged
+    assert v6.scoring.regime_multiplier == v5.scoring.regime_multiplier
+    assert v6.scoring.weights["momentum"] == 0.40
+    assert v6.scoring.rank_normalize is True
+    assert v6.strategy_version != v5.strategy_version

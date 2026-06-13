@@ -34,6 +34,7 @@ from backend.analysis.scoring.persistence import (
 from backend.analysis.signals.fundamental.signals import compute_fundamental_signals
 from backend.analysis.signals.macro.regime import (
     MACRO_REGIME_SIGNAL_ID,
+    RegimeResult,
     classify_from_macro,
     regime_series_ids,
 )
@@ -393,53 +394,32 @@ async def run_analysis() -> None:
                 if not rows or not _bars_fresh(rows, cutoff):
                     continue
                 frames[entry.symbol] = _bars_to_frame(rows)
+            # Fundamentals/news per symbol + the macro regime: persisted in observation
+            # mode for every version AND offered to the engine — a version only uses
+            # what its config weights (extras) / enables (regime multiplier), so the
+            # base composite stays unchanged (P11 activation is config, not code).
+            extras, regime = await _universe_extras(session, list(frames), asof)
             # P7: one universe pass — rank-normalizes weighted sub-scores when the config
             # enables it (the base config does not, so the persisted set stays raw).
-            indicators, scores = engine.score_universe(frames, asof)
+            indicators, scores = engine.score_universe(
+                frames, asof, extra_signals=extras, regime_score=regime.score
+            )
             indicators = list(indicators)
-            for symbol in frames:
-                # Fundamental signals (OBSERVATION ONLY): recorded as signal_values,
-                # not fed to the scorer, so the action is unchanged. Empty until the
-                # fundamentals ingestion job (C3b) populates fundamentals_quarterly.
-                fundamentals = await get_recent_fundamentals(session, symbol)
-                if fundamentals:
-                    fund_scores = compute_fundamental_signals(
-                        [fr.line_items for fr in fundamentals]
+            for symbol, extra in extras.items():
+                indicators.extend(
+                    IndicatorResult(
+                        symbol=symbol,
+                        ts=asof,
+                        signal_id=signal_id,
+                        value=Decimal(str(round(value, 8))),
                     )
-                    indicators.extend(
-                        IndicatorResult(
-                            symbol=symbol,
-                            ts=asof,
-                            signal_id=signal_id,
-                            value=Decimal(str(round(value, 8))),
-                        )
-                        for signal_id, value in fund_scores.items()
-                    )
-                # News buzz (OBSERVATION ONLY): abnormal news flow, recorded but not
-                # scored. Empty until the news job populates news_sentiment.
-                buzz = news_buzz_score(
-                    await get_recent_news_counts(session, symbol)
+                    for signal_id, value in extra.items()
                 )
-                if buzz is not None:
-                    indicators.append(
-                        IndicatorResult(
-                            symbol=symbol,
-                            ts=asof,
-                            signal_id=NEWS_BUZZ_SIGNAL_ID,
-                            value=Decimal(str(round(buzz, 8))),
-                        )
-                    )
             if not scores:
                 outcome.status = "degraded"
                 outcome.detail = {"reason": "NO_SIGNALS", "symbols_scored": 0}
                 _log_event("run_analysis", "NO_SIGNALS")
                 return
-            # Macro regime (OBSERVATION ONLY): record a market-wide regime score as a
-            # per-symbol signal_value. It is NOT passed to the scorer, so scores and
-            # actions are unchanged; activating it later is a deliberate config change.
-            regime = classify_from_macro(
-                await get_latest_macro_values(session, regime_series_ids(), asof)
-            )
             if regime.score is not None:
                 regime_value = Decimal(str(round(regime.score, 8)))
                 indicators.extend(
@@ -466,6 +446,32 @@ async def run_analysis() -> None:
             }
 
 
+async def _universe_extras(
+    session, symbols: list[str], asof: dt.datetime
+) -> tuple[dict[str, dict[str, float]], "RegimeResult"]:
+    """Non-bar signals for the universe: fundamentals + news buzz per symbol, plus the
+    market-wide macro regime. DB reads only (compute jobs never touch the network).
+    One shared computation feeds run_analysis persistence, every version's scoring
+    (via ``score_universe(extra_signals=...)``) and the regime multiplier."""
+    extras: dict[str, dict[str, float]] = {}
+    for symbol in symbols:
+        per: dict[str, float] = {}
+        fundamentals = await get_recent_fundamentals(session, symbol)
+        if fundamentals:
+            per.update(
+                compute_fundamental_signals([fr.line_items for fr in fundamentals])
+            )
+        buzz = news_buzz_score(await get_recent_news_counts(session, symbol))
+        if buzz is not None:
+            per[NEWS_BUZZ_SIGNAL_ID] = buzz
+        if per:
+            extras[symbol] = per
+    regime = classify_from_macro(
+        await get_latest_macro_values(session, regime_series_ids(), asof)
+    )
+    return extras, regime
+
+
 def _config_for_label(label: str | None):
     """Resolve a portfolio's strategy version to a config. Falls back to the base config
     if the variant file is missing so a portfolio never stops trading on a typo'd label."""
@@ -481,7 +487,11 @@ def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
 
 
 async def _ranked_for_engine(
-    session, engine: DefaultAnalysisEngine, asof: dt.datetime
+    session,
+    engine: DefaultAnalysisEngine,
+    asof: dt.datetime,
+    extras: dict[str, dict[str, float]] | None = None,
+    regime_score: float | None = None,
 ) -> list[RankedSymbol]:
     """Score the watchlist under one engine's config and return the top signals by
     score (mirrors get_top_ranked_signals, but per strategy version, scored in memory
@@ -497,7 +507,9 @@ async def _ranked_for_engine(
         frames[entry.symbol] = _bars_to_frame(rows)
     # P7: score the whole universe in one pass so rank-normalization (when this version
     # enables it) sees every symbol; mirrors run_analysis via the same engine method.
-    _, scores = engine.score_universe(frames, asof)
+    _, scores = engine.score_universe(
+        frames, asof, extra_signals=extras, regime_score=regime_score
+    )
     scores.sort(key=lambda s: s.score, reverse=True)
     return [RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores[:_RANK_LIMIT])]
 
@@ -529,12 +541,19 @@ async def execute_paper_trades() -> None:
                 return
             # Each distinct strategy version is scored once; portfolios on the same
             # version share its ranked set. v1 vs v2 thus trade different decisions.
+            # Extras (fundamentals/news + macro regime) are computed once and shared.
+            watchlist = await get_active_watchlist(session)
+            extras, regime = await _universe_extras(
+                session, [w.symbol for w in watchlist], asof
+            )
             engines: dict[str | None, DefaultAnalysisEngine] = {}
             ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
             for label in {p.strategy_label for p in portfolios}:
                 engine = _engine_for_label(label)
                 engines[label] = engine
-                ranked_by_label[label] = await _ranked_for_engine(session, engine, asof)
+                ranked_by_label[label] = await _ranked_for_engine(
+                    session, engine, asof, extras=extras, regime_score=regime.score
+                )
             midnight = _today_utc_midnight()
             total_orders = 0
             per_portfolio: dict[str, int] = {}

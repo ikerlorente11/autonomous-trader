@@ -12,7 +12,15 @@ RUN_UNIT := docker run --rm -v $(CURDIR):/app -w /app \
 RUN_DB   := docker run --rm -v $(CURDIR):/app -w /app \
 	--network $(NETWORK) --env-file $(CURDIR)/.env $(IMAGE)
 
-.PHONY: test test-unit test-int test-reg lint typecheck cov install-hooks
+.PHONY: test test-unit test-int test-reg lint typecheck cov install-hooks backtest
+
+# e.g.: make backtest LABELS=v3,v4,v5 START=2024-09-02
+LABELS ?= v1,v3,v4,v5,v6
+START  ?= 2024-09-02
+backtest:                   ## replay strategy versions over stored history
+	docker run --rm -v $(CURDIR):/app -w /app -e PYTHONPATH=/app \
+		--network $(NETWORK) --env-file $(CURDIR)/.env $(IMAGE) \
+		python -m backend.backtest --labels $(LABELS) --start $(START)
 
 test:                       ## full suite (unit + integration + regression)
 	./scripts/test.sh

@@ -49,6 +49,14 @@ class RankerConfig(_Frozen):
     min_data_completeness: float
 
 
+class RegimeMultiplierConfig(_Frozen):
+    # P11 phase 2: scale every composite by the day's macro regime score before the
+    # action thresholds — risk-off damps entries, risk-on lets them through. Linear:
+    # regime 0 -> `floor`, regime 100 -> `ceil`; unknown regime -> 1.0 (no effect).
+    floor: float = 0.75
+    ceil: float = 1.05
+
+
 class ScoringConfig(_Frozen):
     score_min: float
     score_max: float
@@ -59,6 +67,8 @@ class ScoringConfig(_Frozen):
     # normalization happens one layer above the per-symbol scorer (engine.score_universe).
     # False = current behaviour (raw sub-scores); the base/v1/v2 configs leave it off.
     rank_normalize: bool = False
+    # P11 phase 2 (v5+): None = off (base behaviour, multiplier 1.0).
+    regime_multiplier: RegimeMultiplierConfig | None = None
 
 
 class MaTrendParams(_Frozen):

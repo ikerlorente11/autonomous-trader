@@ -54,5 +54,11 @@ def clip_0_100(value: float) -> float:
 
 
 def logistic_0_100(z: float) -> float:
-    """Map any real ``z`` to (0, 100), centred at 50 when ``z == 0``."""
-    return 100.0 / (1.0 + math.exp(-z))
+    """Map any real ``z`` to (0, 100), centred at 50 when ``z == 0``.
+
+    Numerically stable: extreme inputs saturate to 0/100 instead of overflowing
+    ``math.exp`` (a data glitch must degrade a score, never crash a run)."""
+    if z >= 0:
+        return 100.0 / (1.0 + math.exp(-min(z, 700.0)))
+    ez = math.exp(max(z, -700.0))
+    return 100.0 * ez / (1.0 + ez)

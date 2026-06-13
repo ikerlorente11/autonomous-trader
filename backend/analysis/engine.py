@@ -164,26 +164,66 @@ class DefaultAnalysisEngine:
     def _rank_normalize_targets(self) -> set[str]:
         return {sid for sid, w in self._config.scoring.weights.items() if w > 0}
 
+    def weighted_extra_ids(self) -> set[str]:
+        """Non-bar signal ids this version weights (e.g. ``quality`` in v6) — the
+        extras a caller must supply for the composite to use them."""
+        bar_ids = {ind.signal_id for ind in self._indicators}
+        return self._rank_normalize_targets() - bar_ids
+
+    def _regime_multiplier(self, regime_score: float | None) -> float:
+        cfg = self._config.scoring.regime_multiplier
+        if cfg is None or regime_score is None:
+            return 1.0
+        clamped = max(0.0, min(100.0, regime_score))
+        return cfg.floor + (cfg.ceil - cfg.floor) * clamped / 100.0
+
     def score_universe(
-        self, bars: Mapping[str, DataFrame], asof: dt.datetime
+        self,
+        bars: Mapping[str, DataFrame],
+        asof: dt.datetime,
+        extra_signals: Mapping[str, Mapping[str, float]] | None = None,
+        regime_score: float | None = None,
     ) -> tuple[list[IndicatorResult], list[SymbolScore]]:
         """Compute indicators and composite scores for the whole universe in one pass,
         applying cross-sectional rank-normalization (P7) when the config enables it.
         Both ``run_analysis`` and ``execute_paper_trades`` go through this so the two
         paths can never diverge; with ``rank_normalize`` off it equals per-symbol scoring.
-        Computing sub-scores once also avoids the double compute of calling
-        ``compute_indicators`` and ``score_symbol`` separately."""
+
+        ``extra_signals`` (``{symbol: {signal_id: value}}``) feeds non-bar signals
+        (fundamentals, news) into the composite — only ids this version *weights* are
+        merged, so versions without those weights are byte-for-byte unchanged.
+        ``regime_score`` drives the P11 regime multiplier when the version enables it.
+        The returned indicator list contains only bar-derived signals — extras are
+        persisted by their own producers (observation mode), never double-written."""
         per_symbol = {
             symbol: self._symbol_indicators(symbol, frame, asof)
             for symbol, frame in bars.items()
         }
+        bar_counts = {symbol: len(results) for symbol, results in per_symbol.items()}
+        extra_ids = self.weighted_extra_ids()
+        if extra_signals and extra_ids:
+            for symbol, results in per_symbol.items():
+                extras = extra_signals.get(symbol)
+                if not extras:
+                    continue
+                results.extend(
+                    IndicatorResult(
+                        symbol=symbol,
+                        ts=asof,
+                        signal_id=signal_id,
+                        value=Decimal(str(round(float(value), 8))),
+                    )
+                    for signal_id, value in extras.items()
+                    if signal_id in extra_ids
+                )
         if self._config.scoring.rank_normalize:
             per_symbol = rank_normalize_results(per_symbol, self._rank_normalize_targets())
+        multiplier = self._regime_multiplier(regime_score)
         indicators: list[IndicatorResult] = []
         scores: list[SymbolScore] = []
         for symbol, results in per_symbol.items():
-            indicators.extend(results)
-            scores.append(self._scorer.score(symbol, results, asof))
+            indicators.extend(results[: bar_counts[symbol]])
+            scores.append(self._scorer.score(symbol, results, asof, multiplier=multiplier))
         return indicators, scores
 
     def score_symbol(

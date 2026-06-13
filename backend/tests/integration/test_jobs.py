@@ -60,8 +60,11 @@ async def _latest_run(job: str) -> JobRun | None:
 
 
 async def test_fetch_market_data_writes_bars_and_records_success(
-    clean_db, respx_mock: respx.MockRouter
+    clean_db, respx_mock: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Pin the calendar open: the job is market-day-gated, so without this the test
+    # would skip (and fail the bar assertion) whenever it runs on a weekend/holiday.
+    monkeypatch.setattr(jobs, "is_trading_day", lambda _d: True)
     await _seed_watchlist("AAPL")
     respx_mock.get(url__regex=r".*/chart/AAPL(\?.*)?$").mock(
         return_value=httpx.Response(200, json=_yahoo_payload())

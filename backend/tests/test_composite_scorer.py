@@ -112,3 +112,17 @@ def test_low_coverage_does_not_block_sell(strategy_config: StrategyConfig) -> No
     result = scorer.score("AAA", [_ind("atr", 10)], ASOF)
     assert float(result.data_completeness or 0) < 0.5
     assert result.action is SignalAction.SELL
+
+
+def test_multiplier_scales_score_before_thresholds(
+    strategy_config: StrategyConfig,
+) -> None:
+    # P11 phase 2: the regime multiplier damps/boosts the blended score; the
+    # action gates then apply to the scaled value.
+    scorer = WeightedCompositeScorer(strategy_config)
+    base = scorer.score("AAA", [_ind("rsi", 80)], ASOF)
+    damped = scorer.score("AAA", [_ind("rsi", 80)], ASOF, multiplier=0.75)
+    assert damped.score == Decimal("60.0000")  # 80 * 0.75
+    assert base.score == Decimal("80.0000")
+    boosted = scorer.score("AAA", [_ind("rsi", 99)], ASOF, multiplier=1.05)
+    assert boosted.score == Decimal("100.0000")  # clipped at score_max

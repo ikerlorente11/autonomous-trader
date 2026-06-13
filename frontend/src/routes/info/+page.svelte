@@ -88,6 +88,8 @@
 		<li>{@html t('info.versions.li2')}</li>
 		<li>{@html t('info.versions.li3')}</li>
 		<li>{@html t('info.versions.li4')}</li>
+		<li>{@html t('info.versions.li5')}</li>
+		<li>{@html t('info.versions.li6')}</li>
 	</ul>
 	<p class="note">{@html t('info.versions.note')}</p>
 </Card>

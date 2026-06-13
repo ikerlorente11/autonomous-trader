@@ -73,7 +73,13 @@ def acceleration_score(values: Sequence[float | None]) -> float | None:
     temp = _float_env("FUND_ACCEL_TEMP", 0.05)
     if temp <= 0:
         return 50.0
-    return 100.0 / (1.0 + math.exp(-accel / temp))
+    # Numerically stable logistic: a huge swing (tiny YoY base) must saturate to
+    # 0/100, not overflow math.exp (seen on real quarterly data in the backtester).
+    z = accel / temp
+    if z >= 0:
+        return 100.0 / (1.0 + math.exp(-min(z, 700.0)))
+    ez = math.exp(max(z, -700.0))
+    return 100.0 * ez / (1.0 + ez)
 
 
 def quality_score(quarters: Sequence[Mapping[str, object]]) -> float | None:

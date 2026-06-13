@@ -34,7 +34,11 @@ class WeightedCompositeScorer:
         self._total_weight = sum(self._weights.values())
 
     def score(
-        self, symbol: str, indicators: Sequence[IndicatorResult], asof: dt.datetime
+        self,
+        symbol: str,
+        indicators: Sequence[IndicatorResult],
+        asof: dt.datetime,
+        multiplier: float = 1.0,
     ) -> SymbolScore:
         snapshot: dict[str, float] = {}
         weighted_sum = 0.0
@@ -52,7 +56,9 @@ class WeightedCompositeScorer:
             present_weight / self._total_weight if self._total_weight > 0 else 0.0
         )
         if present_weight > 0:
-            raw = weighted_sum / present_weight
+            # P11 phase 2: the regime multiplier scales the blended score before the
+            # action thresholds (engine computes it; 1.0 when the version has it off).
+            raw = (weighted_sum / present_weight) * multiplier
         else:
             raw = self._config.scoring.score_min
         score = min(

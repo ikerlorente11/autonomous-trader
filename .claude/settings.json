@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -fsS http://localhost:8030/*)",
+      "Bash(curl -s http://localhost:8030/*)",
+      "Bash(curl -fsS --max-time 5 http://localhost:8030/*)",
+      "Bash(ruff check *)",
+      "Bash(docker stats *)",
+      "Bash(docker compose ls)",
+      "Bash(crontab -l)",
+      "Bash(git fetch origin *)",
+      "Bash(make test-unit)",
+      "Bash(make lint)"
+    ]
+  }
+}

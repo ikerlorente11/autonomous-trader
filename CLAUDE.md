@@ -480,6 +480,27 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > SELL, stale-analysis gate): `docs/diagnostics/04-plan-v4.md`. **v2 never trades** (composite ≈49
 > vs absolute gate 60 — anticipated in 03-plan-v3.md): kept active only as a cash-like baseline.
 
+> **v5 / v6 — P11 phase 2 + fundamentals activation (post-Phase-5).** The engine now accepts
+> non-bar signals: `score_universe(bars, asof, extra_signals=, regime_score=)` merges
+> fundamentals/news values into the composite **only for versions that weight them**, and a
+> per-version `scoring.regime_multiplier` (linear `floor`->`ceil` over the 0-100 macro regime
+> score) scales every composite before the action thresholds. `jobs._universe_extras()` computes
+> fundamentals + news buzz + the macro regime once per day (DB reads only) and feeds persistence
+> (observation mode, unchanged), every version's scoring and the multiplier. **v5 = v4 +
+> regime_multiplier (0.75/1.05)**; **v6 = v5 + fundamental weights** (`quality 0.15,
+> revenue_accel 0.10, earnings_accel 0.10`). Base/v1-v4 are byte-for-byte unchanged.
+> Rationale + calibration: `docs/diagnostics/05-plan-v5-v6.md`.
+
+> **Backtester (post-Phase-5).** `backend/backtest/` replays the LIVE pipeline (same engine,
+> sizing, stop maths, env knobs) over stored bars day-by-day: signals on data through d-1, fills
+> at d's open +/- slippage, daily-bar trailing-stop approximation with historical VIX, fundamentals
+> lagged 45 days, macro regime recomputed per day from `macro_series`. Run it in a throwaway
+> container: `docker run --rm -v "$PWD":/app -w /app -e PYTHONPATH=/app --network docker_default
+> --env-file .env docker-api:latest python -m backend.backtest --labels v1,v3,v4,v5,v6 --start
+> 2024-09-02`. **Strategy changes are calibrated here before going live** — no new version ships
+> without a backtest. `scripts/backfill_bars.py` (idempotent) extends bar history (currently 62
+> symbols since 2023-04); the watchlist is still runtime data, never hardcoded.
+
 > A user-facing plain-language explanation of the versions and their differences lives on the
 > dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 
