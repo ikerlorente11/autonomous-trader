@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { portfolioApi, algorithmsApi, systemApi, marketApi } from '$lib/api/endpoints';
+	import { portfolioApi, portfolioByIdApi, algorithmsApi, systemApi, marketApi } from '$lib/api/endpoints';
+	import { getActiveMicroPortfolioId } from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, num, percent, qty, toNum } from '$lib/utils/format';
 	import { band, percentMetrics, signedMetrics, metricTooltips } from '$lib/utils/thresholds';
@@ -21,6 +22,29 @@
 	const summary = createResource(() => portfolioApi.summary(), { intervalMs: REFRESH });
 	const signals = createResource(() => algorithmsApi.signals(20), { intervalMs: REFRESH });
 	const performance = createResource(() => portfolioApi.performance(), { intervalMs: REFRESH });
+
+	// Parallel micro track: a compact companion shown alongside the daily portfolio so
+	// the header's Micro switcher drives something visible here too. Full detail: /micro.
+	const microId = getActiveMicroPortfolioId();
+	const microSummary = createResource(
+		() => (microId == null ? Promise.resolve(null) : portfolioByIdApi.summary(microId)),
+		{ intervalMs: 60_000 }
+	);
+	const microTrades = createResource(
+		() => (microId == null ? Promise.resolve([]) : portfolioByIdApi.trades(microId, 50)),
+		{ intervalMs: 60_000 }
+	);
+	let microPnlPct = $derived.by(() => {
+		const s = microSummary.data;
+		if (!s) return null;
+		const c = toNum(s.contributed_capital);
+		const tot = toNum(s.total);
+		return c == null || tot == null || c <= 0 ? null : (tot / c - 1) * 100;
+	});
+	let microTradesToday = $derived.by(() => {
+		const today = new Date().toISOString().slice(0, 10);
+		return (microTrades.data ?? []).filter((tr) => tr.ts.slice(0, 10) === today).length;
+	});
 
 	let navRange = $state<NavRange>('90d');
 	const navRanges: readonly NavRange[] = ['7d', '30d', '90d', '1y', 'all'];
@@ -225,6 +249,38 @@
 		deltaClass={summary.data ? ((toNum(summary.data.total_pnl) ?? 0) >= 0 ? 'gain' : 'loss') : 'flat'}
 	/>
 </section>
+
+{#if microId != null}
+	<Card title={t('home.micro.title')} caption={t('home.micro.caption')} span="full">
+		{#snippet actions()}
+			<a class="preset" href="/micro">{t('home.micro.detail')}</a>
+		{/snippet}
+		<div class="micro-strip">
+			<div class="ms-item">
+				<span class="ms-label">{t('home.micro.who')}</span>
+				<span class="ms-value">{microSummary.data?.name ?? '—'}</span>
+			</div>
+			<div class="ms-item">
+				<span class="ms-label">NAV</span>
+				<span class="ms-value">{microSummary.data ? money(microSummary.data.total) : '—'}</span>
+			</div>
+			<div class="ms-item">
+				<span class="ms-label">{t('home.micro.pnl')}</span>
+				<span class="ms-value" class:gain={(microPnlPct ?? 0) > 0} class:loss={(microPnlPct ?? 0) < 0}>
+					{microPnlPct !== null ? percent(microPnlPct) : '—'}
+				</span>
+			</div>
+			<div class="ms-item">
+				<span class="ms-label">{t('home.micro.openPos')}</span>
+				<span class="ms-value">{microSummary.data?.positions_count ?? '—'}</span>
+			</div>
+			<div class="ms-item">
+				<span class="ms-label">{t('home.micro.tradesToday')}</span>
+				<span class="ms-value">{microTradesToday}</span>
+			</div>
+		</div>
+	</Card>
+{/if}
 
 <Card
 	title={selectedSymbol ? t('home.chart.priceTitle', { symbol: selectedSymbol }) : t('home.chart.navTitle')}
@@ -477,6 +533,35 @@
 	}
 	dd.warn {
 		color: var(--color-warn);
+	}
+	.micro-strip {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: var(--space-3);
+	}
+	.ms-item {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.ms-label {
+		font-size: var(--text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-2);
+	}
+	.ms-value {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: var(--text-base);
+		color: var(--color-text-0);
+		font-weight: var(--weight-semibold);
+	}
+	.ms-value.gain {
+		color: var(--color-gain);
+	}
+	.ms-value.loss {
+		color: var(--color-loss);
 	}
 	@media (max-width: 1100px) {
 		.cards {
