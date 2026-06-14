@@ -4,20 +4,87 @@ import datetime as dt
 import math
 
 import pandas as pd
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analysis.performance.metrics import signal_accuracy
 from backend.api.deps import get_session
-from backend.api.schemas import ExperimentEntry, SignalAccuracySummary, SignalEntry
+from backend.api.schemas import (
+    ExperimentEntry,
+    PortfolioComparisonView,
+    PortfolioStatsView,
+    SignalAccuracySummary,
+    SignalEntry,
+    SignificanceView,
+)
 from backend.db.queries.portfolio_queries import (
     get_latest_analysis_ts,
     get_settled_signals,
     get_top_ranked_signals,
 )
-from backend.experiments.comparator import ExperimentComparator
+from backend.experiments.comparator import (
+    ExperimentComparator,
+    PortfolioComparator,
+    PortfolioStats,
+    SignificanceResult,
+)
 
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])
+
+
+def _finite(value: float) -> float | None:
+    return value if math.isfinite(value) else None
+
+
+def _stats_view(s: PortfolioStats) -> PortfolioStatsView:
+    return PortfolioStatsView(
+        portfolio_id=s.portfolio_id,
+        name=s.name,
+        strategy_label=s.strategy_label,
+        n_days=s.n_days,
+        total_return=_finite(s.total_return),
+        cagr=_finite(s.cagr),
+        sharpe=_finite(s.sharpe),
+        max_drawdown=_finite(s.max_drawdown),
+        pnl_pct=_finite(s.pnl_pct),
+        final_nav=_finite(s.final_nav),
+        contributed=s.contributed,
+    )
+
+
+def _sig_view(s: SignificanceResult) -> SignificanceView:
+    return SignificanceView(
+        p_value=_finite(s.p_value),
+        statistic=_finite(s.statistic),
+        ci_low=_finite(s.ci_low),
+        ci_high=_finite(s.ci_high),
+        significant=s.significant,
+    )
+
+
+@router.get("/compare", response_model=PortfolioComparisonView)
+async def compare_portfolios(
+    a: int = Query(..., description="portfolio id A"),
+    b: int = Query(..., description="portfolio id B"),
+    alpha: float = Query(default=0.05, gt=0.0, lt=0.5),
+    session: AsyncSession = Depends(get_session),
+) -> PortfolioComparisonView:
+    """Statistical A/B of two portfolios over their overlapping NAV history: bootstrap
+    on daily-return means + Jobson-Korkie on Sharpe, with a power-gated verdict."""
+    if a == b:
+        raise HTTPException(status_code=400, detail="pick two distinct portfolios")
+    result = await PortfolioComparator(session).compare_portfolios(a, b, alpha=alpha)
+    if result is None:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    return PortfolioComparisonView(
+        a=_stats_view(result.a),
+        b=_stats_view(result.b),
+        paired_days=result.paired_days,
+        returns_significance=_sig_view(result.returns_significance),
+        sharpe_significance=_sig_view(result.sharpe_significance),
+        verdict=result.verdict.value,
+        notes=result.notes,
+    )
 
 
 @router.get("/signals", response_model=list[SignalEntry])

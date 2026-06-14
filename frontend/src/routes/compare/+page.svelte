@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { portfoliosApi } from '$lib/api/endpoints';
-	import type { NavRange, PortfolioSnapshot } from '$lib/api/types';
+	import { algorithmsApi, portfoliosApi } from '$lib/api/endpoints';
+	import type { NavRange, PortfolioComparison, PortfolioSnapshot } from '$lib/api/types';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import ComparisonChart from '$lib/charts/ComparisonChart.svelte';
 	import type { CompareSeries } from '$lib/charts/ComparisonChart.svelte';
@@ -15,6 +15,37 @@
 	let range = $state<NavRange>('all');
 	const ranges: readonly NavRange[] = ['7d', '30d', '90d', '1y', 'all'];
 	let mode = $state<'pct' | 'abs'>('pct');
+
+	// Statistical A/B verdict between two chosen portfolios.
+	let aId = $state<number | null>(null);
+	let bId = $state<number | null>(null);
+	let cmp = $state<PortfolioComparison | null>(null);
+	let cmpError = $state<string | null>(null);
+
+	// Default the picker to the first two portfolios once the list arrives.
+	$effect(() => {
+		const ps = portfolios.data ?? [];
+		if (aId === null && ps.length >= 1) aId = ps[0].id;
+		if (bId === null && ps.length >= 2) bId = ps[1].id;
+	});
+
+	async function runComparison() {
+		cmpError = null;
+		cmp = null;
+		if (aId === null || bId === null || aId === bId) {
+			cmpError = t('compare.ab.pickTwo');
+			return;
+		}
+		try {
+			cmp = await algorithmsApi.compare(aId, bId);
+		} catch (e) {
+			cmpError = e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	const pct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(2)}%`);
+	const num = (v: number | null, d = 2) => (v == null ? '—' : v.toFixed(d));
+	const verdictKey = (v: string) => `compare.ab.verdict.${v}`;
 
 	interface Loaded {
 		id: number;
@@ -80,6 +111,58 @@
 	</Region>
 </Card>
 
+<Card title={t('compare.ab.title')} caption={t('compare.ab.caption')} span="full">
+	<div class="controls">
+		<label class="ab-pick">
+			A
+			<select bind:value={aId}>
+				{#each portfolios.data ?? [] as p (p.id)}
+					<option value={p.id}>{p.strategy_label ? `${p.name} (${p.strategy_label})` : p.name}</option>
+				{/each}
+			</select>
+		</label>
+		<label class="ab-pick">
+			B
+			<select bind:value={bId}>
+				{#each portfolios.data ?? [] as p (p.id)}
+					<option value={p.id}>{p.strategy_label ? `${p.name} (${p.strategy_label})` : p.name}</option>
+				{/each}
+			</select>
+		</label>
+		<button class="seg-btn run" onclick={runComparison}>{t('compare.ab.run')}</button>
+	</div>
+
+	{#if cmpError}
+		<p class="ab-note">{cmpError}</p>
+	{:else if cmp}
+		<div class="verdict" class:sig={cmp.returns_significance.significant}>
+			{t(verdictKey(cmp.verdict))}
+		</div>
+		<table class="ab-table">
+			<thead>
+				<tr>
+					<th></th>
+					<th>{cmp.a.strategy_label ?? cmp.a.name} (A)</th>
+					<th>{cmp.b.strategy_label ?? cmp.b.name} (B)</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr><td>{t('compare.ab.pnl')}</td><td>{pct(cmp.a.pnl_pct)}</td><td>{pct(cmp.b.pnl_pct)}</td></tr>
+				<tr><td>{t('compare.ab.totalReturn')}</td><td>{pct(cmp.a.total_return)}</td><td>{pct(cmp.b.total_return)}</td></tr>
+				<tr><td>Sharpe</td><td>{num(cmp.a.sharpe)}</td><td>{num(cmp.b.sharpe)}</td></tr>
+				<tr><td>{t('compare.ab.maxDD')}</td><td>{pct(cmp.a.max_drawdown)}</td><td>{pct(cmp.b.max_drawdown)}</td></tr>
+			</tbody>
+		</table>
+		<p class="ab-note">
+			{t('compare.ab.pairedDays')}: {cmp.paired_days} ·
+			{t('compare.ab.pReturns')}: {num(cmp.returns_significance.p_value, 3)} ·
+			{t('compare.ab.pSharpe')}: {num(cmp.sharpe_significance.p_value, 3)}
+		</p>
+	{:else}
+		<p class="ab-note">{t('compare.ab.hint')}</p>
+	{/if}
+</Card>
+
 <style>
 	.page-title {
 		font-size: var(--text-xl);
@@ -113,5 +196,59 @@
 		background: var(--color-accent, var(--color-text-0));
 		color: var(--color-bg-0);
 		font-weight: var(--weight-semibold);
+	}
+	.ab-pick {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--text-sm);
+		color: var(--color-text-1);
+	}
+	.ab-pick select {
+		background: var(--color-bg-1);
+		border: 1px solid var(--color-bg-4);
+		color: var(--color-text-0);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-2);
+		font-size: var(--text-sm);
+	}
+	.seg-btn.run {
+		background: var(--color-accent, var(--color-text-0));
+		color: var(--color-bg-0);
+		font-weight: var(--weight-semibold);
+		border-radius: var(--radius-sm);
+	}
+	.verdict {
+		font-weight: var(--weight-semibold);
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-md);
+		background: var(--color-bg-1);
+		border: 1px solid var(--color-bg-4);
+		margin-bottom: var(--space-3);
+		display: inline-block;
+	}
+	.verdict.sig {
+		border-color: var(--color-accent, var(--color-text-0));
+	}
+	.ab-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--text-sm);
+	}
+	.ab-table th,
+	.ab-table td {
+		text-align: right;
+		padding: var(--space-1) var(--space-3);
+		border-bottom: 1px solid var(--color-bg-2);
+	}
+	.ab-table th:first-child,
+	.ab-table td:first-child {
+		text-align: left;
+		color: var(--color-text-1);
+	}
+	.ab-note {
+		font-size: var(--text-sm);
+		color: var(--color-text-2);
+		margin-top: var(--space-3);
 	}
 </style>

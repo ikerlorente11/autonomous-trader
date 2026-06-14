@@ -9,10 +9,21 @@ from decimal import Decimal
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.analysis.performance import metrics
 from backend.db.models import ExperimentRun
+from backend.db.queries.portfolio_queries import (
+    compute_contributed_capital,
+    get_nav_history,
+    get_portfolio,
+)
+
+# Minimum paired sessions before a verdict is anything but INSUFFICIENT_EVIDENCE —
+# below this there is no statistical power (diagnostics: "≥20 sesiones por brazo").
+_MIN_PAIRED_DAYS = 20
 
 # Significance-test parameters. Kept module-level so tests are deterministic and
 # the magic numbers live in one named place.
@@ -282,4 +293,127 @@ class ExperimentComparator:
             ci_low=diff - zCrit * seUnpooled,
             ci_high=diff + zCrit * seUnpooled,
             significant=pValue < alpha,
+        )
+
+
+@dataclass(frozen=True)
+class PortfolioStats:
+    portfolio_id: int
+    name: str
+    strategy_label: str | None
+    n_days: int
+    total_return: float
+    cagr: float
+    sharpe: float
+    max_drawdown: float
+    final_nav: float
+    contributed: float
+
+    @property
+    def pnl_pct(self) -> float:
+        """Return on contributed capital — the live A/B metric (vs net deposits)."""
+        if self.contributed <= 0:
+            return float("nan")
+        return self.final_nav / self.contributed - 1.0
+
+
+@dataclass(frozen=True)
+class PortfolioComparison:
+    a: PortfolioStats
+    b: PortfolioStats
+    paired_days: int
+    returns_significance: SignificanceResult
+    sharpe_significance: SignificanceResult
+    verdict: ComparisonVerdict
+    notes: list[str] = field(default_factory=list)
+
+
+class PortfolioComparator(ExperimentComparator):
+    """Statistical A/B of two live portfolios over their overlapping NAV history.
+
+    Reuses the significance machinery (bootstrap on daily-return means, Jobson-Korkie
+    on Sharpe) but feeds it the real ``portfolio_nav`` series, since the live pipeline
+    compares by portfolio (each runs a strategy version), not by ``experiment_runs``.
+    """
+
+    async def _nav_frame(self, portfolio_id: int) -> pd.DataFrame:
+        far_past = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        far_future = dt.datetime(2100, 1, 1, tzinfo=dt.timezone.utc)
+        rows = await get_nav_history(self._session, portfolio_id, far_past, far_future)
+        return pd.DataFrame(
+            {"ts": [r.ts for r in rows], "total": [float(r.total) for r in rows]}
+        )
+
+    async def _stats(self, portfolio_id: int) -> PortfolioStats | None:
+        portfolio = await get_portfolio(self._session, portfolio_id)
+        if portfolio is None:
+            return None
+        nav = await self._nav_frame(portfolio_id)
+        series = metrics._nav_series(nav)
+        contributed = float(await compute_contributed_capital(self._session, portfolio_id))
+        return PortfolioStats(
+            portfolio_id=portfolio_id,
+            name=portfolio.name,
+            strategy_label=portfolio.strategy_label,
+            n_days=int(len(series)),
+            total_return=metrics.total_return(nav).pct,
+            cagr=metrics.cagr(nav),
+            sharpe=metrics.sharpe_ratio(nav),
+            max_drawdown=metrics.max_drawdown(nav).max_drawdown,
+            final_nav=float(series.iloc[-1]) if len(series) else float("nan"),
+            contributed=contributed,
+        )
+
+    async def _paired_returns(
+        self, a_id: int, b_id: int
+    ) -> tuple[list[float], list[float]]:
+        """Daily returns of both portfolios aligned on their common session dates —
+        the Sharpe (Jobson-Korkie) test needs paired, equal-length series."""
+        ra = metrics.daily_returns(await self._nav_frame(a_id))
+        rb = metrics.daily_returns(await self._nav_frame(b_id))
+        ra.index = pd.to_datetime(ra.index).normalize()
+        rb.index = pd.to_datetime(rb.index).normalize()
+        common = ra.index.intersection(rb.index)
+        return [float(x) for x in ra.loc[common]], [float(x) for x in rb.loc[common]]
+
+    async def compare_portfolios(
+        self, a_id: int, b_id: int, alpha: float = 0.05
+    ) -> PortfolioComparison | None:
+        stats_a = await self._stats(a_id)
+        stats_b = await self._stats(b_id)
+        if stats_a is None or stats_b is None:
+            return None
+
+        ret_a, ret_b = await self._paired_returns(a_id, b_id)
+        paired = len(ret_a)
+        notes: list[str] = []
+
+        if paired < _MIN_PAIRED_DAYS:
+            notes.append(
+                f"only {paired} paired sessions (< {_MIN_PAIRED_DAYS}); not enough power"
+            )
+            return PortfolioComparison(
+                a=stats_a, b=stats_b, paired_days=paired,
+                returns_significance=_NAN_SIGNIFICANCE,
+                sharpe_significance=_NAN_SIGNIFICANCE,
+                verdict=ComparisonVerdict.INSUFFICIENT_EVIDENCE, notes=notes,
+            )
+
+        returns_sig = self._significance_returns(ret_a, ret_b, alpha)
+        sharpe_sig = self._significance_sharpe(ret_a, ret_b, alpha)
+
+        if returns_sig.significant:
+            # statistic = mean(a) - mean(b): positive -> A's daily returns are higher.
+            verdict = (
+                ComparisonVerdict.A_BETTER
+                if returns_sig.statistic > 0
+                else ComparisonVerdict.B_BETTER
+            )
+        else:
+            verdict = ComparisonVerdict.NO_SIGNIFICANT_DIFFERENCE
+
+        return PortfolioComparison(
+            a=stats_a, b=stats_b, paired_days=paired,
+            returns_significance=returns_sig, sharpe_significance=sharpe_sig,
+            verdict=verdict, notes=notes,
         )

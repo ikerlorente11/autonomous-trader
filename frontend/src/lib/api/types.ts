@@ -200,6 +200,41 @@ export interface ExperimentEntry {
 	notes: string | null;
 }
 
+// backend/api/schemas.py::PortfolioStatsView
+export interface PortfolioStatsView {
+	portfolio_id: number;
+	name: string;
+	strategy_label: string | null;
+	n_days: number;
+	total_return: number | null;
+	cagr: number | null;
+	sharpe: number | null;
+	max_drawdown: number | null;
+	pnl_pct: number | null;
+	final_nav: number | null;
+	contributed: number;
+}
+
+// backend/api/schemas.py::SignificanceView
+export interface SignificanceView {
+	p_value: number | null;
+	statistic: number | null;
+	ci_low: number | null;
+	ci_high: number | null;
+	significant: boolean;
+}
+
+// backend/api/schemas.py::PortfolioComparisonView
+export interface PortfolioComparison {
+	a: PortfolioStatsView;
+	b: PortfolioStatsView;
+	paired_days: number;
+	returns_significance: SignificanceView;
+	sharpe_significance: SignificanceView;
+	verdict: string;
+	notes: string[];
+}
+
 // backend/api/schemas.py::JobStatus
 export interface JobStatus {
 	job: string;

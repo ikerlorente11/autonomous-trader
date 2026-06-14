@@ -153,6 +153,38 @@ class ExperimentEntry(BaseModel):
     notes: str | None = None
 
 
+class PortfolioStatsView(BaseModel):
+    portfolio_id: int
+    name: str
+    strategy_label: str | None = None
+    n_days: int
+    total_return: float | None = None
+    cagr: float | None = None
+    sharpe: float | None = None
+    max_drawdown: float | None = None
+    pnl_pct: float | None = None
+    final_nav: float | None = None
+    contributed: float
+
+
+class SignificanceView(BaseModel):
+    p_value: float | None = None
+    statistic: float | None = None
+    ci_low: float | None = None
+    ci_high: float | None = None
+    significant: bool
+
+
+class PortfolioComparisonView(BaseModel):
+    a: PortfolioStatsView
+    b: PortfolioStatsView
+    paired_days: int
+    returns_significance: SignificanceView
+    sharpe_significance: SignificanceView
+    verdict: str
+    notes: list[str] = Field(default_factory=list)
+
+
 class JobStatus(BaseModel):
     job: str
     status: str | None = None

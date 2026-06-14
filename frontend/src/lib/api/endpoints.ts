@@ -12,6 +12,7 @@ import type {
 	PerformanceMetrics,
 	PeriodPerformance,
 	Portfolio,
+	PortfolioComparison,
 	PortfolioSnapshot,
 	PortfolioSummary,
 	Position,
@@ -136,7 +137,9 @@ export const tradesApi = {
 export const algorithmsApi = {
 	signals: (limit = 20, f?: F) =>
 		api.get<SignalEntry[]>('/algorithms/signals', { params: { limit }, fetcher: f }),
-	experiments: (f?: F) => api.get<ExperimentEntry[]>('/algorithms/experiments', { fetcher: f })
+	experiments: (f?: F) => api.get<ExperimentEntry[]>('/algorithms/experiments', { fetcher: f }),
+	compare: (a: number, b: number, f?: F) =>
+		api.get<PortfolioComparison>('/algorithms/compare', { params: { a, b }, fetcher: f })
 };
 
 export const systemApi = {
