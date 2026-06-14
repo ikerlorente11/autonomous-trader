@@ -38,6 +38,7 @@ class Portfolio(BaseModel):
     name: str
     active: bool
     strategy_label: str | None = None
+    kind: str = "daily"
     created_at: dt.datetime
 
 
@@ -199,3 +200,4 @@ class SystemStatus(BaseModel):
     server_time: dt.datetime
     jobs: list[JobStatus]
     recent_errors: list[JobStatus]
+    micro_enabled: bool = False

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,4 +92,9 @@ async def system_status(
         for r in recent
         if r.status in {"failed", "degraded"}
     ]
-    return SystemStatus(server_time=now, jobs=jobs, recent_errors=errors)
+    micro_enabled = os.environ.get("MICRO_ENABLED", "false").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    return SystemStatus(
+        server_time=now, jobs=jobs, recent_errors=errors, micro_enabled=micro_enabled
+    )

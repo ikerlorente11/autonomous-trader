@@ -32,6 +32,22 @@ async def test_system_status_lists_all_jobs(api_client) -> None:
     }
 
 
+async def test_system_status_exposes_micro_enabled(api_client) -> None:
+    r = await api_client.get("/api/system/status")
+    assert r.status_code == 200
+    assert "micro_enabled" in r.json()  # the /micro section reads this
+
+
+async def test_portfolio_list_exposes_kind(api_client, db_session) -> None:
+    # The split daily/micro switcher filters on `kind`, so the API must return it.
+    await f.seed_portfolio(db_session, name="kind-check", deposit=500)
+    r = await api_client.get("/api/portfolios")
+    assert r.status_code == 200
+    rows = r.json()
+    assert rows and all("kind" in p for p in rows)
+    assert any(p["kind"] == "daily" for p in rows)
+
+
 async def test_watchlist_returns_seeded_symbol(api_client, db_session) -> None:
     await upsert_watchlist_symbol(db_session, "AAPL")  # same session the API reads
     r = await api_client.get("/api/market/watchlist")

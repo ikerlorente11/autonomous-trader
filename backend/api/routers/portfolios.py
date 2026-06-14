@@ -50,6 +50,7 @@ def _to_schema(portfolio) -> PortfolioSchema:
         name=portfolio.name,
         active=portfolio.active,
         strategy_label=portfolio.strategy_label,
+        kind=portfolio.kind,
         created_at=portfolio.created_at,
     )
 

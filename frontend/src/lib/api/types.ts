@@ -26,6 +26,7 @@ export interface Portfolio {
 	name: string;
 	active: boolean;
 	strategy_label: string | null;
+	kind: string;
 	created_at: string;
 }
 
@@ -251,6 +252,7 @@ export interface SystemStatus {
 	server_time: string;
 	jobs: JobStatus[];
 	recent_errors: JobStatus[];
+	micro_enabled?: boolean;
 }
 
 // backend/api/schemas.py::RunTrigger

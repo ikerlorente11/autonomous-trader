@@ -103,6 +103,22 @@ export const portfoliosApi = {
 		api.get<CashMovement[]>(`/portfolios/${id}/movements`, { fetcher: f })
 };
 
+// Explicitly-scoped reads for a specific portfolio id (the micro section shows a
+// portfolio other than the global active daily one). Same endpoints, fixed id.
+export const portfolioByIdApi = {
+	summary: (id: number, f?: F) =>
+		api.get<PortfolioSummary>('/portfolio/summary', { params: { portfolio_id: id }, fetcher: f }),
+	positions: (id: number, f?: F) =>
+		api.get<Position[]>('/portfolio/positions', { params: { portfolio_id: id }, fetcher: f }),
+	nav: (id: number, range: NavRange, f?: F) =>
+		api.get<PortfolioSnapshot[]>('/portfolio/nav', {
+			params: { ...rangeWindow(range), portfolio_id: id },
+			fetcher: f
+		}),
+	trades: (id: number, limit = 50, f?: F) =>
+		api.get<TradeRecord[]>('/trades', { params: { portfolio_id: id, limit }, fetcher: f })
+};
+
 export const strategiesApi = {
 	list: (f?: F) => api.get<StrategyVersion[]>('/strategies', { fetcher: f })
 };

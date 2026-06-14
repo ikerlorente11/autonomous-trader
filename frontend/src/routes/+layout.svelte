@@ -6,7 +6,12 @@
 	import { page } from '$app/stores';
 	import { startSystemPolling, systemStatus, healthLevel } from '$lib/stores/systemStatus.svelte';
 	import { portfolioApi, portfoliosApi } from '$lib/api/endpoints';
-	import { getActivePortfolioId, setActivePortfolioId } from '$lib/stores/activePortfolio';
+	import {
+		getActivePortfolioId,
+		setActivePortfolioId,
+		getActiveMicroPortfolioId,
+		setActiveMicroPortfolioId
+	} from '$lib/stores/activePortfolio';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import { money, relativeFromNow } from '$lib/utils/format';
 	import { t, getLocale, setLocale, initLocale, LOCALES } from '$lib/i18n';
@@ -22,17 +27,36 @@
 	const summary = createResource(() => portfolioApi.summary(), { intervalMs: 300_000 });
 	const portfolios = createResource(() => portfoliosApi.list(), { intervalMs: 300_000 });
 
-	// Active portfolio for the switcher: stored choice, else the first listed.
-	let selectedId = $derived(getActivePortfolioId() ?? portfolios.data?.[0]?.id ?? null);
+	// Two parallel tracks: the DAILY portfolio drives the dashboard; the MICRO one
+	// drives /micro. Split the switcher so picking one never replaces the other, and
+	// a stored daily id that is actually a micro portfolio falls back to the first daily.
+	let dailyPortfolios = $derived((portfolios.data ?? []).filter((p) => p.kind !== 'micro'));
+	let microPortfolios = $derived((portfolios.data ?? []).filter((p) => p.kind === 'micro'));
+
+	let selectedId = $derived.by(() => {
+		const stored = getActivePortfolioId();
+		if (stored != null && dailyPortfolios.some((p) => p.id === stored)) return stored;
+		return dailyPortfolios[0]?.id ?? null;
+	});
+	let microSelectedId = $derived.by(() => {
+		const stored = getActiveMicroPortfolioId();
+		if (stored != null && microPortfolios.some((p) => p.id === stored)) return stored;
+		return microPortfolios[0]?.id ?? null;
+	});
 	function onSwitch(event: Event) {
 		const id = Number((event.currentTarget as HTMLSelectElement).value);
 		if (Number.isFinite(id) && id !== getActivePortfolioId()) setActivePortfolioId(id);
+	}
+	function onSwitchMicro(event: Event) {
+		const id = Number((event.currentTarget as HTMLSelectElement).value);
+		if (Number.isFinite(id) && id !== getActiveMicroPortfolioId()) setActiveMicroPortfolioId(id);
 	}
 
 	const nav = [
 		{ href: '/', labelKey: 'nav.dashboard', icon: 'grid' },
 		{ href: '/portfolios', labelKey: 'nav.portfolios', icon: 'wallet' },
 		{ href: '/compare', labelKey: 'nav.compare', icon: 'layers' },
+		{ href: '/micro', labelKey: 'nav.micro', icon: 'zap' },
 		{ href: '/market', labelKey: 'nav.market', icon: 'chart' },
 		{ href: '/trades', labelKey: 'nav.trades', icon: 'swap' },
 		{ href: '/reports', labelKey: 'nav.reports', icon: 'briefcase' },
@@ -114,14 +138,24 @@
 					>
 				{/each}
 			</div>
-			<div class="pf-switch">
+			<div class="pf-switch" title={t('layout.dailyPortfolio')}>
 				<Icon name="wallet" size={16} />
-				<select aria-label={t('layout.activePortfolio')} value={selectedId} onchange={onSwitch}>
-					{#each portfolios.data ?? [] as p (p.id)}
+				<select aria-label={t('layout.dailyPortfolio')} value={selectedId} onchange={onSwitch}>
+					{#each dailyPortfolios as p (p.id)}
 						<option value={p.id}>{p.name}</option>
 					{/each}
 				</select>
 			</div>
+			{#if microPortfolios.length > 0}
+				<div class="pf-switch micro" title={t('layout.microPortfolio')}>
+					<Icon name="zap" size={16} />
+					<select aria-label={t('layout.microPortfolio')} value={microSelectedId} onchange={onSwitchMicro}>
+						{#each microPortfolios as p (p.id)}
+							<option value={p.id}>{p.name}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
 			<div class="anchor">
 				<span class="anchor-label">NAV</span>
 				<span class="anchor-value" class:muted={!summary.data}>
@@ -325,6 +359,12 @@
 		border-radius: var(--radius-md);
 		padding: var(--space-1) var(--space-2);
 		font-size: var(--text-sm);
+	}
+	.pf-switch.micro {
+		color: var(--color-accent);
+	}
+	.pf-switch.micro select {
+		border-color: var(--color-accent-bg);
 	}
 	.anchor {
 		display: flex;
