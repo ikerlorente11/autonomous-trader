@@ -82,6 +82,15 @@ def _test_db_ready() -> None:
         )
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_costs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The test container inherits the prod .env (scripts/test.sh --env-file), so a
+    commission model activated in production would silently shift every cash/NAV
+    assertion. Cost knobs are opt-in per test; the ambient values never apply."""
+    monkeypatch.delenv("COMMISSION_PCT", raising=False)
+    monkeypatch.delenv("COMMISSION_PER_ORDER", raising=False)
+
+
 @pytest_asyncio.fixture
 async def db_session(_test_db_ready: None) -> AsyncIterator[AsyncSession]:
     conn = await engine.connect()

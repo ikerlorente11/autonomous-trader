@@ -36,6 +36,19 @@ export interface StrategyVersion {
 	strategy_version: string;
 }
 
+// backend/api/schemas.py::PortfolioCosts
+export interface PortfolioCosts {
+	portfolio_id: number;
+	fills: number;
+	buys: number;
+	sells: number;
+	buy_notional: string;
+	sell_notional: string;
+	realized_flow: string;
+	commission_total: string;
+	slippage_est: string;
+}
+
 // backend/api/schemas.py::CashMovement
 export interface CashMovement {
 	id: number;

@@ -80,3 +80,30 @@ async def test_patch_rename_still_works(api_client, db_session) -> None:
     r = await api_client.patch(f"/api/portfolios/{pid}", json={"name": "ab-new"})
     assert r.status_code == 200
     assert r.json()["name"] == "ab-new"
+
+
+async def test_portfolio_costs_attribution(api_client, db_session, monkeypatch) -> None:
+    # One buy + one sell with commissions on: the endpoint must split friction out.
+    monkeypatch.setenv("SLIPPAGE_PCT", "0")
+    monkeypatch.setenv("COMMISSION_PCT", "0.001")
+    from decimal import Decimal as D
+
+    from backend.trading.paper_broker import PaperBroker
+
+    pid = await f.seed_portfolio(db_session, name="costs-check", deposit=10_000)
+    await f.seed_latest_bar(db_session, "AAPL", close=100)
+    broker = PaperBroker(db_session, pid)
+    await broker.place_order("AAPL", "buy", D("10"), "market")
+    await broker.place_order("AAPL", "sell", D("10"), "market")
+    await db_session.commit()
+
+    r = await api_client.get(f"/api/portfolios/{pid}/costs")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["fills"] == 2 and body["buys"] == 1 and body["sells"] == 1
+    assert float(body["buy_notional"]) == 1000.0
+    assert float(body["commission_total"]) == 2.0  # 0.1% x 1000 x 2 sides
+    assert float(body["realized_flow"]) == 0.0
+
+    r404 = await api_client.get("/api/portfolios/999999/costs")
+    assert r404.status_code == 404

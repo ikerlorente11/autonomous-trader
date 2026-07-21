@@ -1,0 +1,20 @@
+# Strategy version "v7" — v3 + wider trailing stops. The live A/B and both backtest
+# windows showed death-by-stops in chop (v3: 13 stops on 40 trades, win% 18.8): the
+# ATR×2.5 stop with a 5% floor sat inside ordinary noise. v7 widens to ATR×3.5 with a
+# 7% floor — half the stop-outs, double the win%, ~30% fewer trades, and it turns
+# v3's 2-year bleed (−2.4%) into +5.1% while matching it in chop.
+# Calibration: docs/diagnostics/07-plan-v7-v8.md (candidate "c4", both windows).
+scoring:
+  weights:
+    atr: 0.0
+  rank_normalize: true
+indicators:
+  rsi:
+    mode: mean_reversion
+  ma_trend:
+    extension_cap: 0.02
+trading:
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.07
+  stop_atr_multiple: 3.5
+  allow_pyramiding: false

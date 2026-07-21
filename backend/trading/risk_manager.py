@@ -71,8 +71,19 @@ class FixedFractionalRiskManager:
         allow_fractional: bool | None = None,
         min_position_eur: Decimal | None = None,
         open_position_count: int = 0,
+        vol_target_pct: Decimal | None = None,
+        atr_by_symbol: Mapping[str, Decimal] | None = None,
+        stop_atr_multiple: Decimal | None = None,
     ) -> None:
         self._prices = prices
+        # Equal-risk sizing (per-version, config-driven): risk vol_target_pct of
+        # portfolio value per position with the stop distance (ATR × multiple) as the
+        # risk unit. Any missing piece (target, ATR, multiple) falls back to
+        # fixed-fractional for that symbol — sizing must never block an entry on
+        # absent volatility data.
+        self._vol_target_pct = vol_target_pct
+        self._atr_by_symbol = atr_by_symbol or {}
+        self._stop_atr_multiple = stop_atr_multiple
         self._max_position_pct = (
             max_position_pct
             if max_position_pct is not None
@@ -100,6 +111,19 @@ class FixedFractionalRiskManager:
         )
         self._open_position_count = open_position_count
 
+    def _vol_target_dollars(self, symbol: str, portfolio_value: Decimal) -> Decimal | None:
+        if self._vol_target_pct is None or self._vol_target_pct <= 0:
+            return None
+        atr = self._atr_by_symbol.get(symbol)
+        multiple = self._stop_atr_multiple
+        if atr is None or atr <= 0 or multiple is None or multiple <= 0:
+            return None
+        price = self._prices[symbol]
+        # qty = (value·target) / stop_distance, expressed as notional so the shared
+        # dust/fractional handling below applies unchanged.
+        risk_eur = portfolio_value * self._vol_target_pct
+        return (risk_eur / (atr * multiple)) * price
+
     def compute_position_size(
         self, symbol: str, score: Decimal, portfolio_value: Decimal
     ) -> Decimal:
@@ -107,6 +131,11 @@ class FixedFractionalRiskManager:
         if price is None or price <= 0:
             return Decimal(0)
         target_dollars = portfolio_value * self._max_position_pct
+        vol_dollars = self._vol_target_dollars(symbol, portfolio_value)
+        if vol_dollars is not None:
+            # MAX_POSITION_PCT stays as the notional ceiling: a very calm name must
+            # not concentrate the book just because its ATR is tiny.
+            target_dollars = min(target_dollars, vol_dollars)
         if target_dollars < self._min_position_eur:
             return Decimal(0)
         raw_qty = target_dollars / price
@@ -146,6 +175,17 @@ class FixedFractionalRiskManager:
 
 
 def make_risk_manager(
-    prices: Mapping[str, Decimal], *, open_position_count: int = 0
+    prices: Mapping[str, Decimal],
+    *,
+    open_position_count: int = 0,
+    vol_target_pct: Decimal | None = None,
+    atr_by_symbol: Mapping[str, Decimal] | None = None,
+    stop_atr_multiple: Decimal | None = None,
 ) -> FixedFractionalRiskManager:
-    return FixedFractionalRiskManager(prices, open_position_count=open_position_count)
+    return FixedFractionalRiskManager(
+        prices,
+        open_position_count=open_position_count,
+        vol_target_pct=vol_target_pct,
+        atr_by_symbol=atr_by_symbol,
+        stop_atr_multiple=stop_atr_multiple,
+    )

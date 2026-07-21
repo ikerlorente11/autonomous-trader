@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 
 from sqlalchemy.dialects.postgresql import insert
@@ -27,12 +27,15 @@ from backend.db.queries.market_queries import (
 )
 from backend.db.queries.portfolio_queries import (
     compute_cash,
+    count_filled_buys_since,
     get_first_nav,
     get_open_positions,
+    get_recently_bought_symbols,
     get_recently_sold_symbols,
 )
 from backend.trading.broker_adapter import BrokerAdapter
 from backend.trading.risk_manager import make_risk_manager
+from backend.trading.stops import atr_stop_multiple
 
 _BENCHMARK_SYMBOL = os.environ.get("BENCHMARK_SYMBOL", "SPY")
 
@@ -46,6 +49,7 @@ class PortfolioManager:
         config: StrategyConfig | None = None,
         *,
         intraday: bool = False,
+        atr_by_symbol: Mapping[str, Decimal] | None = None,
     ) -> None:
         self._broker = broker
         self._session = session
@@ -55,6 +59,9 @@ class PortfolioManager:
         # benchmark line stays daily (SPY daily close) regardless. Default False keeps
         # the daily path unchanged.
         self._intraday = intraday
+        # Raw ATR per symbol (supplied by the job that already holds the frames) —
+        # only consumed when the version's config asks for vol-targeted sizing.
+        self._atr_by_symbol = atr_by_symbol
 
     async def _latest_prices(self, symbols: Sequence[str]) -> dict[str, Decimal]:
         if not symbols:
@@ -92,11 +99,22 @@ class PortfolioManager:
         # Exits first: a held name whose score has decayed to a SELL is liquidated
         # in full. Doing this before sizing buys frees the freed cash for entries
         # (the broker flushes each fill, so the balance read below sees it).
+        # Minimum-hold (m3): a SIGNAL exit must not close a position younger than the
+        # window — 5m scores flip on noise and each round trip costs the spread.
+        # Protective stops and the EOD flatten sell via the broker directly, so risk
+        # controls are never delayed by this.
+        min_hold = self._config.trading.min_hold_minutes if self._config else None
+        too_young: set[str] = set()
+        if min_hold and min_hold > 0 and held:
+            since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=min_hold)
+            too_young = await get_recently_bought_symbols(
+                self._session, self._portfolio_id, since
+            )
         for signal in signals:
             if signal.score.action is not SignalAction.SELL:
                 continue
             position = held.get(signal.score.symbol)
-            if position is None:
+            if position is None or position.symbol in too_young:
                 continue
             order = await self._broker.place_order(
                 position.symbol, "sell", position.qty, "market"
@@ -106,16 +124,59 @@ class PortfolioManager:
         # Entries: size the buy candidates against current cash.
         buys = [s for s in signals if s.score.action is SignalAction.BUY]
         buys = await self._filter_entries(buys, held)
+        buys = await self._cap_daily_trades(buys)
         if buys:
             prices = await self._latest_prices([s.score.symbol for s in buys])
             balance = await self._account_balance()
-            risk = make_risk_manager(prices, open_position_count=len(open_positions))
+            risk = make_risk_manager(
+                prices,
+                open_position_count=len(open_positions),
+                **self._vol_sizing_kwargs(),
+            )
             sizes = risk.size_positions(buys, balance)
             for symbol, qty in sizes.items():
                 order = await self._broker.place_order(symbol, "buy", qty, "market")
                 orders.append(order)
 
         return orders
+
+    def _vol_sizing_kwargs(self) -> dict[str, object]:
+        """Equal-risk sizing knobs when the version's config enables them (and the
+        caller supplied ATRs); empty dict = fixed-fractional, byte-for-byte."""
+        trading = self._config.trading if self._config else None
+        if (
+            trading is None
+            or trading.vol_target_pct is None
+            or not self._atr_by_symbol
+        ):
+            return {}
+        multiple = (
+            Decimal(str(trading.stop_atr_multiple))
+            if trading.stop_atr_multiple is not None
+            else atr_stop_multiple()
+        )
+        return {
+            "vol_target_pct": Decimal(str(trading.vol_target_pct)),
+            "atr_by_symbol": self._atr_by_symbol,
+            "stop_atr_multiple": multiple,
+        }
+
+    async def _cap_daily_trades(self, buys: list[RankedSymbol]) -> list[RankedSymbol]:
+        """m3: cap signal-driven entries per session. Interval jobs re-run all day —
+        without a budget the strategy churns its round-trip cost regardless of edge."""
+        cap = self._config.trading.max_trades_per_day if self._config else None
+        if not cap or cap <= 0 or not buys:
+            return buys
+        midnight = dt.datetime.now(dt.timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        already = await count_filled_buys_since(
+            self._session, self._portfolio_id, midnight
+        )
+        remaining = cap - already
+        if remaining <= 0:
+            return []
+        return sorted(buys, key=lambda s: s.rank)[:remaining]
 
     async def _filter_entries(
         self, buys: list[RankedSymbol], held: dict[str, object]

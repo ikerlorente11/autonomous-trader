@@ -124,12 +124,44 @@ def _build_indicators(config: StrategyConfig) -> list[Indicator]:
     return indicators
 
 
+def _benchmark_above_ma(
+    bars: Mapping[str, DataFrame], benchmark: str, ma_period: int, kind: str
+) -> bool | None:
+    """Whether the benchmark closes at/above its own MA. None = unknowable (benchmark
+    absent or short history) — each caller picks its own fail-open behaviour."""
+    df = bars.get(benchmark)
+    if df is None or len(df) < ma_period:
+        return None
+    close = df["close"].astype(float)
+    if kind == "ema":
+        ma = close.ewm(span=ma_period, adjust=False).mean()
+    else:
+        ma = close.rolling(ma_period).mean()
+    last_ma = ma.iloc[-1]
+    if last_ma != last_ma:  # NaN guard
+        return None
+    return float(close.iloc[-1]) >= float(last_ma)
+
+
 class DefaultAnalysisEngine:
     def __init__(self, config: StrategyConfig | None = None) -> None:
         self._config = config or load_strategy_config()
         self._indicators = _build_indicators(self._config)
         self._scorer = WeightedCompositeScorer(self._config)
         self._ranker = ScoreRanker(self._config)
+        # v8: a regime-switch version delegates scoring to one of two full
+        # sub-strategies chosen per day by the benchmark's primary trend.
+        self._sub_engines: tuple[DefaultAnalysisEngine, DefaultAnalysisEngine] | None = None
+        switch = self._config.regime_switch
+        if switch is not None:
+            trend_cfg = load_strategy_config(label=switch.trend)
+            chop_cfg = load_strategy_config(label=switch.chop)
+            if trend_cfg.regime_switch is not None or chop_cfg.regime_switch is not None:
+                raise ValueError("regime_switch sub-strategies cannot nest a regime_switch")
+            self._sub_engines = (
+                DefaultAnalysisEngine(trend_cfg),
+                DefaultAnalysisEngine(chop_cfg),
+            )
 
     @property
     def strategy_version(self) -> str:
@@ -167,6 +199,10 @@ class DefaultAnalysisEngine:
     def weighted_extra_ids(self) -> set[str]:
         """Non-bar signal ids this version weights (e.g. ``quality`` in v6) — the
         extras a caller must supply for the composite to use them."""
+        if self._sub_engines is not None:
+            # Either leg may need extras depending on the day — the caller supplies
+            # the union; the active leg merges only what it weights.
+            return self._sub_engines[0].weighted_extra_ids() | self._sub_engines[1].weighted_extra_ids()
         bar_ids = {ind.signal_id for ind in self._indicators}
         return self._rank_normalize_targets() - bar_ids
 
@@ -184,18 +220,18 @@ class DefaultAnalysisEngine:
         cfg = self._config.ranker.market_filter
         if cfg is None:
             return True
-        df = bars.get(cfg.benchmark)
-        if df is None or len(df) < cfg.ma_period:
-            return True
-        close = df["close"].astype(float)
-        if cfg.kind == "ema":
-            ma = close.ewm(span=cfg.ma_period, adjust=False).mean()
-        else:
-            ma = close.rolling(cfg.ma_period).mean()
-        last_ma = ma.iloc[-1]
-        if last_ma != last_ma:  # NaN guard
-            return True
-        return float(close.iloc[-1]) >= float(last_ma)
+        above = _benchmark_above_ma(bars, cfg.benchmark, cfg.ma_period, cfg.kind)
+        return True if above is None else above
+
+    def _active_engine(self, bars: Mapping[str, DataFrame]) -> DefaultAnalysisEngine:
+        """The engine that scores today: self, or the regime-switch leg picked by the
+        benchmark trend. Unknown trend resolves to the chop leg (the defensive one)."""
+        if self._sub_engines is None:
+            return self
+        switch = self._config.regime_switch
+        assert switch is not None
+        above = _benchmark_above_ma(bars, switch.benchmark, switch.ma_period, switch.kind)
+        return self._sub_engines[0] if above else self._sub_engines[1]
 
     def score_universe(
         self,
@@ -215,6 +251,11 @@ class DefaultAnalysisEngine:
         ``regime_score`` drives the P11 regime multiplier when the version enables it.
         The returned indicator list contains only bar-derived signals — extras are
         persisted by their own producers (observation mode), never double-written."""
+        active = self._active_engine(bars)
+        if active is not self:
+            return active.score_universe(
+                bars, asof, extra_signals=extra_signals, regime_score=regime_score
+            )
         per_symbol = {
             symbol: self._symbol_indicators(symbol, frame, asof)
             for symbol, frame in bars.items()

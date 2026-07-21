@@ -514,6 +514,30 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > so all versions inherit it; the backtester captures it (it calls `score_universe`). Calibration
 > + rationale: `docs/diagnostics/06-plan-filtro-mercado.md`.
 
+> **v7 / v8 — regime-switch ensemble, equal-risk sizing, anti-churn knobs (2026-07 iteration).**
+> After the first live review (v3 the only profitable daily version; v1 −11.6% live despite
+> winning the long backtest — **regime dependence**, both verified by backtesting the live
+> window, which reproduced the live ranking): **v7** = v3 + wider trailing stops
+> (`stop_atr_multiple 3.5`, floor 7% — halves stop-outs, doubles win% in chop). **v8** = a new
+> `regime_switch` block on `StrategyConfig`: score the universe with the `trend` label's config
+> (v1) when the benchmark closes at/above its 100d MA and with the `chop` label's (v3)
+> otherwise; lives inside `DefaultAnalysisEngine` (sub-engines, no nesting, fail-open to the
+> chop leg), so run_analysis/execute/backtester need no special casing; v8's own `trading:`
+> knobs are NOT switched (v3's execution discipline in every regime — backtests showed most of
+> v1's live loss was execution, not signal). New optional `TradingConfig` knobs (all None=off):
+> `vol_target_pct` (equal-risk sizing: risk that fraction of value per position with stop
+> distance ATR×multiple as the risk unit; `MAX_POSITION_PCT` stays the notional ceiling;
+> missing ATR falls back to fixed-fractional), `max_trades_per_day` (per-session BUY budget)
+> and `min_hold_minutes` (signal exits can't close younger positions; protective stops/EOD
+> flatten exempt) — the last two power **micro m3** (low-frequency micro: m1's forward-test
+> showed ~zero gross edge eaten by ~26 round-trips/day of friction). Cost attribution:
+> `GET /api/portfolios/{id}/costs` (+ "Costes" button) splits commissions vs estimated
+> slippage vs realized flow. The phantom-sell race (run_micro × micro_eod_flatten duplicate
+> sells minting cash) is fixed by a shared asyncio lock + run_micro standing down in the
+> flatten window + a row-locked (`FOR UPDATE`) sell coverage check in PaperBroker; the
+> contaminated fills were voided and micro NAV history rebuilt from the ledgers.
+> Rationale/measurement: `docs/diagnostics/07-plan-v7-v8.md`.
+
 > A user-facing plain-language explanation of the versions and their differences lives on the
 > dashboard **`/info`** page (`frontend/src/routes/info`, i18n keys `info.versions.*`).
 
