@@ -10,6 +10,7 @@ the day rather than crashing the scheduler.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import json
 import logging
@@ -857,6 +858,12 @@ _MICRO_KINDS = ("micro",)
 _MICRO_EOD_STRATEGY = "micro_eod_flatten"
 _DEFAULT_EOD_FLATTEN_WITHIN_MIN = 10
 
+# run_micro and micro_eod_flatten are independent interval jobs on the same event
+# loop; near the close both can see the same live position and both sell it (each
+# session's coverage check reads a pre-commit snapshot → duplicate fill → phantom
+# cash). One lock serializes every micro trading section.
+_MICRO_TRADE_LOCK = asyncio.Lock()
+
 
 def _micro_eod_flatten_within_min() -> int:
     try:
@@ -890,9 +897,15 @@ async def run_micro() -> None:
             outcome.status = "skipped"
             outcome.detail = {"reason": "MARKET_CLOSED"}
             return
+        if is_near_market_close(_micro_eod_flatten_within_min()):
+            # Entering the flatten window: any buy here would be liquidated seconds
+            # later (pure churn), and a signal exit here would race the flatten sell.
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "EOD_FLATTEN_WINDOW"}
+            return
         asof = dt.datetime.now(dt.timezone.utc)
         start = asof - dt.timedelta(days=micro_lookback_days())
-        async with async_session() as session:
+        async with _MICRO_TRADE_LOCK, async_session() as session:
             portfolios = await list_portfolios(
                 session, active_only=True, kinds=_MICRO_KINDS
             )
@@ -967,7 +980,7 @@ async def micro_eod_flatten() -> None:
             outcome.status = "skipped"
             outcome.detail = {"reason": "NOT_NEAR_CLOSE"}
             return
-        async with async_session() as session:
+        async with _MICRO_TRADE_LOCK, async_session() as session:
             portfolios = await list_portfolios(
                 session, active_only=True, kinds=_MICRO_KINDS
             )

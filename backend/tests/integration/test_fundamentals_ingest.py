@@ -98,6 +98,34 @@ async def test_fetch_without_key_raises(monkeypatch: pytest.MonkeyPatch) -> None
         await FinnhubFundamentalsProvider().fetch_quarterly_statements(["AAPL"])
 
 
+async def test_fetch_isolates_per_symbol_failures(
+    monkeypatch: pytest.MonkeyPatch, respx_mock: respx.MockRouter
+) -> None:
+    # A tail-of-list 429 (rate-limit exhaustion) must not discard the symbols already
+    # fetched — that's what froze fundamentals for weeks in prod.
+    monkeypatch.setenv("FINNHUB_API_KEY", "test-key")
+    respx_mock.get(url__regex=_URL, params={"symbol": "AAPL"}).mock(
+        return_value=httpx.Response(200, json=_payload())
+    )
+    respx_mock.get(url__regex=_URL, params={"symbol": "WMT"}).mock(
+        return_value=httpx.Response(429)
+    )
+
+    out = await FinnhubFundamentalsProvider().fetch_quarterly_statements(["AAPL", "WMT"])
+
+    assert len(out["AAPL"]) == 1
+    assert "WMT" not in out
+
+
+async def test_fetch_raises_only_when_all_symbols_fail(
+    monkeypatch: pytest.MonkeyPatch, respx_mock: respx.MockRouter
+) -> None:
+    monkeypatch.setenv("FINNHUB_API_KEY", "test-key")
+    respx_mock.get(url__regex=_URL).mock(return_value=httpx.Response(429))
+    with pytest.raises(ProviderError):
+        await FinnhubFundamentalsProvider().fetch_quarterly_statements(["AAPL", "WMT"])
+
+
 async def test_upsert_fundamentals_is_idempotent(db_session) -> None:
     epoch = float(dt.datetime(2025, 6, 30, tzinfo=UTC).timestamp())
     statements = [{"period_end": epoch, "revenue": 180.0, "net_income": 20.0}]

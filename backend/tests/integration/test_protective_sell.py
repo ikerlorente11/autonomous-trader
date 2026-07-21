@@ -118,8 +118,14 @@ async def test_atr_stop_triggers_where_pct_would_not(
     async with async_session() as s:
         pid = await f.seed_portfolio(s, deposit=100_000)
         await f.seed_position(s, pid, "AAPL", qty=10, avg_cost=100, high_water_mark=None)
-        # 20 flat bars with a daily range of 2 -> ATR(14) ~ 2.0
-        await f.seed_bars(s, "AAPL", closes=[100.0] * 20, start=dt.date(2026, 5, 1))
+        # 20 flat bars with a daily range of 2 -> ATR(14) ~ 2.0. Seeded relative to
+        # today: the job only reads bars inside its _ATR_LOOKBACK_DAYS window, so a
+        # fixed start date rots as the calendar advances (ATR silently falls back
+        # to the pct stop and the assertion flips).
+        await f.seed_bars(
+            s, "AAPL", closes=[100.0] * 20,
+            start=dt.date.today() - dt.timedelta(days=25),
+        )
         await s.commit()
     # live 94: ATR distance 2.5*2=5 -> threshold 95 -> SELL; pct 8% threshold 92 -> would hold
     _route(respx_mock, "AAPL").mock(return_value=httpx.Response(200, json=_live_payload(94.0)))
