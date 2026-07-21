@@ -8,11 +8,10 @@ from decimal import Decimal
 import pytest
 
 from backend.analysis.config import load_strategy_config
-from backend.contracts import OrderSide, SignalAction
+from backend.contracts import OrderSide, RankedSymbol, SignalAction
 from backend.db.queries.portfolio_queries import get_position
 from backend.tests import factories as f
 from backend.tests.factories import symbol_score
-from backend.contracts import RankedSymbol
 from backend.trading.paper_broker import PaperBroker
 from backend.trading.portfolio_manager import PortfolioManager
 

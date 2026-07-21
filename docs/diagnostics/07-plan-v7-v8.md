@@ -29,9 +29,24 @@ donde v1 ganaba es **dependencia de régimen**, no un fallo del backtester: v1
 | **c4** | **stops ATR×3,5, floor 7%** | **−0,90%** | **7** | **36,4** | Retorno ≈ v3 con la mitad de stop-outs y el doble de win% — el perfil que buscamos |
 | c5 | cooldown 7d | −1,44% | 14 | 27,8 | Empeora — el cooldown largo pierde re-entradas buenas |
 
-Ventana larga multi-régimen (2024-09-02 → 2026-07-21): **[PENDIENTE — en ejecución]**.
-Criterio de selección: la candidata debe **mejorar o igualar a v3 en la ventana
-lateral Y en la larga**. v7 se lanza solo si sobrevive a ambas.
+Ventana larga multi-régimen (2024-09-02 → 2026-07-21, SPY +34,4%, **con comisiones
+0,05% activas**):
+
+| Versión | Retorno | maxDD | Trades | Stops | Win% | Veredicto |
+|---|---|---|---|---|---|---|
+| v1 | +28,41% | −14,0% | 728 | 222 | 34,7 | Gana en tendencia — pero −11,6% en el lateral vivo |
+| v3 | −2,45% | −9,9% | 676 | 226 | 42,5 | Sangra 2 años en tendencia |
+| c1 | +0,14% | −1,4% | 63 | 18 | 41,9 | No juega — descartada |
+| c2 | +0,89% | −7,0% | 641 | 211 | 43,7 | Mejora a v3, lejos de v1 — descartada |
+| **c4** | **+5,08%** | −8,9% | 475 | 122 | **45,1** | **→ se lanza como v7** |
+| v8 | +1,43% | −9,6% | 674 | 267 | 38,0 | Bate a v3 en ambas — se lanza |
+| s1 | −1,16% | −8,5% | 676 | 226 | 42,5 | Pierde el lateral — descartada |
+
+Criterio de selección aplicado: mejorar o igualar a v3 en **ambas** ventanas.
+**v7 (=c4)** y **v8** lo cumplen; el resto no. Nota honesta: nadie se acerca a SPY
+(+34%) en tendencia — v1 es la única próxima y su perfil en lateral es inaceptable.
+La combinación "señales v1 + pirámide solo en pata trend de v8" queda como candidata
+**v9** (una variable, futuro experimento).
 
 ## 3. v8 — ensemble adaptativo al régimen (desarrollo nuevo)
 
@@ -56,6 +71,11 @@ v3** (cooldown/floor/no-pyramiding, knobs propios de v8) — y esa combinación 
 el −6,64% de v1 puro en −0,56%. La mayor parte de la pérdida de v1 en vivo era
 **ejecución, no señal**.
 
+**Resultado ventana larga:** v8 +1,43% vs v3 −2,45% → bate a v3 en ambas ventanas y
+**se lanza**. Pero queda lejísimos del v1 puro en tendencia (+28,4%): la misma
+disciplina que salva el lateral capa la subida — v1 ganaba POR el churn piramidado
+(728 trades). Futura **v9** (una variable): permitir pirámide solo en la pata trend.
+
 ## 4. s1 — sizing por volatilidad (equal-risk, desarrollo nuevo)
 
 Hoy cada posición es un % fijo del valor (5%): un trade de un nombre volátil arriesga
@@ -68,10 +88,14 @@ ventanas de backtest.
 **Calibración:** con target 1% el techo del 5% ligaba para todo nombre con ATR < 8%
 del precio — es decir, para todos: `s1` era byte-a-byte v3. Recalibrado a **0,4%**
 (el techo liga bajo ATR ≈ 3,2% del precio: los tranquilos capan al 5%, los volátiles
-reducen — reductor de riesgo, nunca apalancamiento). **Resultado ventana lateral:**
-−1,17% vs v3 −0,72% (maxDD algo mejor). En lateral, encoger los volátiles encoge
-también los rebotes que explota la mean-reversion. Pendiente la ventana larga; si no
-la gana con claridad, s1 NO se lanza.
+reducen — reductor de riesgo, nunca apalancamiento).
+
+**Veredicto: DESCARTADA.** Lateral −1,17% vs v3 −0,72%; larga −1,16% vs v3 −2,45%.
+Mejora la larga pero pierde el lateral (encoger los volátiles encoge los rebotes que
+explota la mean-reversion) — no cumple el criterio de ambas ventanas. El **mecanismo**
+(`trading.vol_target_pct`) queda en el código, testeado y apagado por defecto, listo
+para futuras versiones (p. ej. sobre una base momentum, donde recortar volátiles no
+recorta la fuente del edge).
 
 ## 5. m3 — micro de baja frecuencia (desarrollo nuevo)
 

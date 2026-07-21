@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -10,8 +11,6 @@ from backend.contracts import AccountBalance, RankedSymbol, SignalAction, Symbol
 from backend.trading.risk_manager import FixedFractionalRiskManager
 
 pytestmark = pytest.mark.unit
-
-import datetime as dt
 
 _ASOF = dt.datetime(2026, 5, 29, tzinfo=dt.timezone.utc)
 

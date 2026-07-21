@@ -86,8 +86,9 @@ async def test_portfolio_costs_attribution(api_client, db_session, monkeypatch) 
     # One buy + one sell with commissions on: the endpoint must split friction out.
     monkeypatch.setenv("SLIPPAGE_PCT", "0")
     monkeypatch.setenv("COMMISSION_PCT", "0.001")
-    from backend.trading.paper_broker import PaperBroker
     from decimal import Decimal as D
+
+    from backend.trading.paper_broker import PaperBroker
 
     pid = await f.seed_portfolio(db_session, name="costs-check", deposit=10_000)
     await f.seed_latest_bar(db_session, "AAPL", close=100)
