@@ -112,10 +112,16 @@ async def get_filled_orders(
 
 
 async def get_position(
-    session: AsyncSession, portfolio_id: int, symbol: str
+    session: AsyncSession, portfolio_id: int, symbol: str, *, for_update: bool = False
 ) -> PortfolioPosition | None:
-    """Single position row by (portfolio, symbol) (broker upsert read)."""
-    return await session.get(PortfolioPosition, (portfolio_id, symbol))
+    """Single position row by (portfolio, symbol) (broker upsert read).
+
+    ``for_update`` row-locks the position so a concurrent seller in another session
+    blocks here and re-reads the post-commit qty — the sell coverage check cannot be
+    defeated by a read of a pre-commit snapshot (the phantom-sell race)."""
+    return await session.get(
+        PortfolioPosition, (portfolio_id, symbol), with_for_update=for_update or None
+    )
 
 
 async def compute_cash(session: AsyncSession, portfolio_id: int) -> Decimal:

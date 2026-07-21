@@ -196,7 +196,12 @@ class PaperBroker:
             )
 
         if side_enum is OrderSide.SELL:
-            position = await get_position(self._session, self._portfolio_id, symbol)
+            # Row-locked read: a concurrent seller (another job/process) holds the
+            # lock until commit, so this check sees the settled qty, never a stale
+            # snapshot — duplicate sells reject instead of minting phantom cash.
+            position = await get_position(
+                self._session, self._portfolio_id, symbol, for_update=True
+            )
             held = position.qty if position else Decimal(0)
             if held < qty_dec:
                 return await self._write_order(

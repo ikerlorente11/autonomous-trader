@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import logging
 import os
 import random
 from collections.abc import Mapping, Sequence
@@ -20,6 +21,8 @@ from collections.abc import Mapping, Sequence
 import httpx
 
 from backend.data_ingestion.errors import ProviderError
+
+logger = logging.getLogger(__name__)
 
 _NAME = "finnhub"
 _NEWS_URL = "https://finnhub.io/api/v1/company-news"
@@ -39,7 +42,10 @@ def _max_retries() -> int:
 
 
 def _throttle_seconds() -> float:
-    return int(os.environ.get("FINNHUB_THROTTLE_MS", "250")) / 1000.0
+    # Free tier allows 60 calls/min; 1100 ms ≈ 55/min keeps a full watchlist pass
+    # under the rolling window (250 ms = 240/min saturated it and starved the tail
+    # of the list with 429s no exponential backoff could recover from).
+    return int(os.environ.get("FINNHUB_THROTTLE_MS", "1100")) / 1000.0
 
 
 def _retry_after(resp: httpx.Response, default: float) -> float:
@@ -90,12 +96,25 @@ class FinnhubNewsProvider:
         key = _api_key()
         tickers = list(dict.fromkeys(symbols))
         out: dict[str, list[dict[str, float]]] = {}
+        failed: list[str] = []
         throttle = _throttle_seconds()
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             for idx, symbol in enumerate(tickers):
                 if idx and throttle > 0:
                     await asyncio.sleep(throttle)
-                out[symbol] = await self._fetch_one(client, symbol, key, since)
+                # One exhausted symbol must not discard every symbol already
+                # fetched — the whole batch used to be thrown away on the first
+                # tail-of-list 429, freezing the table for weeks.
+                try:
+                    out[symbol] = await self._fetch_one(client, symbol, key, since)
+                except ProviderError as exc:
+                    failed.append(symbol)
+                    logger.warning("skipping news for %s: %s", symbol, exc)
+        if failed and not out:
+            raise ProviderError(
+                f"Finnhub news fetch failed for all {len(failed)} symbols",
+                provider=_NAME,
+            )
         return out
 
     @staticmethod

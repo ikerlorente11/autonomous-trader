@@ -20,7 +20,9 @@ UTC = dt.timezone.utc
 @pytest.fixture(autouse=True)
 def _market_open(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(jobs, "is_market_open_now", lambda: True)
-    monkeypatch.setattr(jobs, "is_near_market_close", lambda *_a, **_k: True)
+    # Mid-session by default: run_micro must trade, flatten must no-op. Flatten
+    # tests patch is_near_market_close back to True locally.
+    monkeypatch.setattr(jobs, "is_near_market_close", lambda *_a, **_k: False)
     monkeypatch.setenv("SLIPPAGE_PCT", "0.001")
 
 
@@ -79,7 +81,30 @@ async def test_run_micro_skips_daily_portfolios(clean_db) -> None:
     assert await _orders(daily_pid, "buy") == []  # daily portfolios are never micro-traded
 
 
-async def test_micro_eod_flatten_liquidates_micro_positions(clean_db) -> None:
+async def test_run_micro_skips_inside_flatten_window(
+    clean_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # In the flatten window run_micro must stand down: a buy here is instant churn
+    # and a signal exit here races the flatten sell (the phantom-sell bug).
+    monkeypatch.setattr(jobs, "is_near_market_close", lambda *_a, **_k: True)
+    now = dt.datetime.now(UTC)
+    async with async_session() as s:
+        pid = await f.seed_portfolio(s, name="micro-window", deposit=10_000, kind="micro")
+        await f.seed_watchlist(s, "AAA")
+        await f.seed_bars(s, "AAA", closes=[50, 50, 50], start=(now - dt.timedelta(days=3)).date())
+        await f.seed_intraday_bars(
+            s, "AAA", closes=[float(50 + i) for i in range(40)], start=now - dt.timedelta(hours=4)
+        )
+        await s.commit()
+
+    await jobs.run_micro()
+    assert await _orders(pid, "buy") == []
+
+
+async def test_micro_eod_flatten_liquidates_micro_positions(
+    clean_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(jobs, "is_near_market_close", lambda *_a, **_k: True)
     now = dt.datetime.now(UTC)
     async with async_session() as s:
         pid = await f.seed_portfolio(s, name="micro-flat", deposit=10_000, kind="micro")

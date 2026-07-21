@@ -167,3 +167,33 @@ async def test_full_sell_clears_unrealized_pnl(db_session) -> None:
     pos = await get_position(db_session, pid, "AAPL")
     assert pos.qty == Decimal("0.000000")
     assert pos.unrealized_pnl == Decimal("0")
+
+
+async def test_concurrent_sells_fill_exactly_once(clean_db) -> None:
+    # The phantom-sell race: two sessions (run_micro exit + micro_eod_flatten) sell
+    # the same position concurrently. Each used to pass the coverage check against
+    # its own pre-commit snapshot and both filled, minting cash from nothing. The
+    # row-locked read must let exactly one fill and reject the other.
+    import asyncio
+
+    from backend.db.session import async_session
+
+    async with async_session() as s:
+        pid = await f.seed_portfolio(s, name="race", deposit=10_000)
+        await f.seed_position(s, pid, "AAA", qty=10, avg_cost=50)
+        await f.seed_latest_bar(s, "AAA", close=100)
+        await s.commit()
+
+    async def _sell() -> str:
+        async with async_session() as s:
+            broker = PaperBroker(s, pid)
+            order = await broker.place_order("AAA", "sell", Decimal("10"), "market")
+            await s.commit()
+            return order.status.value
+
+    results = await asyncio.gather(_sell(), _sell())
+    assert sorted(results) == ["filled", "rejected"]
+
+    async with async_session() as s:
+        pos = await get_position(s, pid, "AAA")
+        assert pos.qty == Decimal("0.000000")  # sold once, not driven negative

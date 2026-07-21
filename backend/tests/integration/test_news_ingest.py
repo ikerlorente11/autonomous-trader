@@ -102,6 +102,38 @@ async def test_fetch_without_key_raises(monkeypatch: pytest.MonkeyPatch) -> None
         )
 
 
+async def test_fetch_isolates_per_symbol_failures(
+    monkeypatch: pytest.MonkeyPatch, respx_mock: respx.MockRouter
+) -> None:
+    # A tail-of-list 429 (rate-limit exhaustion) must not discard the symbols already
+    # fetched — that's what froze news_sentiment for weeks in prod.
+    monkeypatch.setenv("FINNHUB_API_KEY", "test-key")
+    respx_mock.get(url__regex=_NEWS_URL, params={"symbol": "AAPL"}).mock(
+        return_value=httpx.Response(200, json=_finnhub_payload())
+    )
+    respx_mock.get(url__regex=_NEWS_URL, params={"symbol": "WMT"}).mock(
+        return_value=httpx.Response(429)
+    )
+
+    out = await FinnhubNewsProvider().fetch_news_sentiment(
+        ["AAPL", "WMT"], dt.datetime(2026, 5, 1, tzinfo=UTC)
+    )
+
+    assert out["AAPL"]
+    assert "WMT" not in out
+
+
+async def test_fetch_raises_only_when_all_symbols_fail(
+    monkeypatch: pytest.MonkeyPatch, respx_mock: respx.MockRouter
+) -> None:
+    monkeypatch.setenv("FINNHUB_API_KEY", "test-key")
+    respx_mock.get(url__regex=_NEWS_URL).mock(return_value=httpx.Response(429))
+    with pytest.raises(ProviderError):
+        await FinnhubNewsProvider().fetch_news_sentiment(
+            ["AAPL", "WMT"], dt.datetime(2026, 5, 1, tzinfo=UTC)
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Upsert idempotency
 # --------------------------------------------------------------------------- #
