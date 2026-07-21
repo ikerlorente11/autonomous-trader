@@ -1,6 +1,9 @@
-# CANDIDATE (backtest-only): v3 + equal-risk sizing — risk 1% of portfolio value per
-# position with the stop distance (ATR × multiple) as the risk unit, MAX_POSITION_PCT
-# still the notional ceiling. Calm names size up, volatile names size down.
+# CANDIDATE (backtest-only): v3 + equal-risk sizing — risk 0.4% of portfolio value
+# per position with the stop distance (ATR × multiple) as the risk unit,
+# MAX_POSITION_PCT still the notional ceiling. Calibration: the ceiling binds when
+# ATR < ~3.2% of price (target/(multiple·cap)), so calm names cap at 5% notional and
+# volatile ones size DOWN — a risk reducer, never leverage. (1% made the ceiling bind
+# for every name → byte-for-byte v3.)
 scoring:
   weights: {atr: 0.0}
   rank_normalize: true
@@ -11,4 +14,4 @@ trading:
   stop_reentry_cooldown_days: 3
   stop_min_distance_pct: 0.05
   allow_pyramiding: false
-  vol_target_pct: 0.01
+  vol_target_pct: 0.004

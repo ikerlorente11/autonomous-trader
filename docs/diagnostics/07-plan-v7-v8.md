@@ -49,14 +49,29 @@ regímenes**. v8 lo convierte en estrategia:
 - Vive dentro de `DefaultAnalysisEngine`, así que el backtester lo captura sin código
   aparte y `run_analysis`/`execute_paper_trades` no cambian.
 
+**Resultado ventana lateral (06-15→07-21):** v8 −0,56% vs v3 −0,72% (maxDD −2,52 vs
+−3,59; win% 38,5 vs 18,8). Hallazgo colateral importante: SPY estuvo sobre su MA100
+los 24 días, así que v8 ejecutó **las señales de v1 con la disciplina de ejecución de
+v3** (cooldown/floor/no-pyramiding, knobs propios de v8) — y esa combinación convierte
+el −6,64% de v1 puro en −0,56%. La mayor parte de la pérdida de v1 en vivo era
+**ejecución, no señal**.
+
 ## 4. s1 — sizing por volatilidad (equal-risk, desarrollo nuevo)
 
 Hoy cada posición es un % fijo del valor (5%): un trade de un nombre volátil arriesga
 3-4× más euros que uno tranquilo con el mismo stop ATR. Nuevo knob
 `trading.vol_target_pct`: se arriesga ese % del valor por posición usando la distancia
 del stop (ATR×múltiplo — el MISMO stop del protective-sell) como unidad de riesgo;
-`MAX_POSITION_PCT` queda como techo de nocional. Candidata `s1` = v3 + `vol_target_pct
-0.01`. Se lanza solo si sobrevive a ambas ventanas de backtest.
+`MAX_POSITION_PCT` queda como techo de nocional. Se lanza solo si sobrevive a ambas
+ventanas de backtest.
+
+**Calibración:** con target 1% el techo del 5% ligaba para todo nombre con ATR < 8%
+del precio — es decir, para todos: `s1` era byte-a-byte v3. Recalibrado a **0,4%**
+(el techo liga bajo ATR ≈ 3,2% del precio: los tranquilos capan al 5%, los volátiles
+reducen — reductor de riesgo, nunca apalancamiento). **Resultado ventana lateral:**
+−1,17% vs v3 −0,72% (maxDD algo mejor). En lateral, encoger los volátiles encoge
+también los rebotes que explota la mean-reversion. Pendiente la ventana larga; si no
+la gana con claridad, s1 NO se lanza.
 
 ## 5. m3 — micro de baja frecuencia (desarrollo nuevo)
 
