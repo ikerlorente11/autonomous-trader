@@ -1,0 +1,14 @@
+# CANDIDATE (backtest-only): v3 + equal-risk sizing — risk 1% of portfolio value per
+# position with the stop distance (ATR × multiple) as the risk unit, MAX_POSITION_PCT
+# still the notional ceiling. Calm names size up, volatile names size down.
+scoring:
+  weights: {atr: 0.0}
+  rank_normalize: true
+indicators:
+  rsi: {mode: mean_reversion}
+  ma_trend: {extension_cap: 0.02}
+trading:
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.05
+  allow_pyramiding: false
+  vol_target_pct: 0.01

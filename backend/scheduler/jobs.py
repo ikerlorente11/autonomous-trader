@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -499,16 +499,9 @@ def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
     return DefaultAnalysisEngine(_config_for_label(label))
 
 
-async def _ranked_for_engine(
-    session,
-    engine: DefaultAnalysisEngine,
-    asof: dt.datetime,
-    extras: dict[str, dict[str, float]] | None = None,
-    regime_score: float | None = None,
-) -> list[RankedSymbol]:
-    """Score the watchlist under one engine's config and return the top signals by
-    score (mirrors get_top_ranked_signals, but per strategy version, scored in memory
-    from the stored bars instead of the single persisted base set)."""
+async def _fresh_frames(session, asof: dt.datetime) -> dict[str, pd.DataFrame]:
+    """The watchlist's fresh bar frames for one execution pass — loaded ONCE and
+    shared by every version's scoring plus the ATR map (vol-targeted sizing)."""
     start = asof - dt.timedelta(days=_ANALYSIS_LOOKBACK_DAYS)
     cutoff = _bar_staleness_cutoff(asof)
     watchlist = await get_active_watchlist(session)
@@ -518,6 +511,33 @@ async def _ranked_for_engine(
         if not rows or not _bars_fresh(rows, cutoff):
             continue
         frames[entry.symbol] = _bars_to_frame(rows)
+    return frames
+
+
+def _frame_atr_map(frames: Mapping[str, pd.DataFrame]) -> dict[str, Decimal]:
+    """Raw ATR(14) per symbol from already-loaded frames — the risk unit for
+    vol-targeted sizing (same indicator/period the protective stop uses)."""
+    indicator = AverageTrueRangeIndicator(period=_ATR_PERIOD, sensitivity=1.0)
+    out: dict[str, Decimal] = {}
+    for symbol, df in frames.items():
+        if len(df) < _ATR_PERIOD + 1:
+            continue
+        series = indicator.compute(df).dropna()
+        if not series.empty:
+            out[symbol] = Decimal(str(float(series.iloc[-1])))
+    return out
+
+
+def _ranked_for_engine(
+    engine: DefaultAnalysisEngine,
+    frames: Mapping[str, pd.DataFrame],
+    asof: dt.datetime,
+    extras: dict[str, dict[str, float]] | None = None,
+    regime_score: float | None = None,
+) -> list[RankedSymbol]:
+    """Score the shared frames under one engine's config and return the top signals
+    by score (mirrors get_top_ranked_signals, but per strategy version, scored in
+    memory from the stored bars instead of the single persisted base set)."""
     # P7: score the whole universe in one pass so rank-normalization (when this version
     # enables it) sees every symbol; mirrors run_analysis via the same engine method.
     _, scores = engine.score_universe(
@@ -561,13 +581,15 @@ async def execute_paper_trades() -> None:
             extras, regime = await _universe_extras(
                 session, [w.symbol for w in watchlist], asof
             )
+            frames = await _fresh_frames(session, asof)
+            atr_map = _frame_atr_map(frames)
             engines: dict[str | None, DefaultAnalysisEngine] = {}
             ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
             for label in {p.strategy_label for p in portfolios}:
                 engine = _engine_for_label(label)
                 engines[label] = engine
-                ranked_by_label[label] = await _ranked_for_engine(
-                    session, engine, asof, extras=extras, regime_score=regime.score
+                ranked_by_label[label] = _ranked_for_engine(
+                    engine, frames, asof, extras=extras, regime_score=regime.score
                 )
             midnight = _today_utc_midnight()
             total_orders = 0
@@ -599,6 +621,7 @@ async def execute_paper_trades() -> None:
                         manager = PortfolioManager(
                             broker, session, portfolio.id,
                             config=_config_for_label(portfolio.strategy_label),
+                            atr_by_symbol=atr_map,
                         )
                         orders = await manager.execute_signals(ranked)
                     per_portfolio[str(portfolio.id)] = len(orders)
@@ -925,6 +948,7 @@ async def run_micro() -> None:
                 outcome.status = "skipped"
                 outcome.detail = {"reason": "no_intraday_bars"}
                 return
+            atr_map = _frame_atr_map(frames)  # 5m ATR — the intraday risk unit
             engines: dict[str | None, DefaultAnalysisEngine] = {}
             ranked_by_label: dict[str | None, list[RankedSymbol]] = {}
             for label in {p.strategy_label for p in portfolios}:
@@ -951,6 +975,7 @@ async def run_micro() -> None:
                             broker, session, portfolio.id,
                             config=_config_for_label(portfolio.strategy_label),
                             intraday=True,
+                            atr_by_symbol=atr_map,
                         )
                         orders = await manager.execute_signals(ranked)
                     per_portfolio[str(portfolio.id)] = len(orders)

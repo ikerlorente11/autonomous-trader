@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +13,7 @@ from backend.api.schemas import (
     CashMovement as CashMovementSchema,
     CashMovementCreate,
     Portfolio as PortfolioSchema,
+    PortfolioCosts,
     PortfolioCreate,
     PortfolioUpdate,
     StrategyVersion,
@@ -17,6 +21,7 @@ from backend.api.schemas import (
 from backend.db.queries.portfolio_queries import (
     add_cash_movement,
     compute_cash,
+    compute_cost_summary,
     count_portfolios,
     create_portfolio,
     delete_portfolio,
@@ -190,3 +195,17 @@ async def movements(
     if await get_portfolio(session, portfolio_id) is None:
         raise HTTPException(status_code=404, detail="portfolio not found")
     return [_movement_to_schema(m) for m in await get_cash_movements(session, portfolio_id)]
+
+
+@router.get("/{portfolio_id}/costs", response_model=PortfolioCosts)
+async def costs(
+    portfolio_id: int = Path(...),
+    session: AsyncSession = Depends(get_session),
+) -> PortfolioCosts:
+    """Trading-friction attribution: gross realized flow vs commissions vs (estimated)
+    slippage — the diagnostic that separates "no edge" from "edge eaten by costs"."""
+    if await get_portfolio(session, portfolio_id) is None:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    slippage_pct = Decimal(os.environ.get("SLIPPAGE_PCT", "0.001") or "0")
+    summary = await compute_cost_summary(session, portfolio_id, slippage_pct)
+    return PortfolioCosts(portfolio_id=portfolio_id, **summary)

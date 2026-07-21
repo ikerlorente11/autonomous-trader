@@ -86,6 +86,22 @@ class StrategyVersion(BaseModel):
     strategy_version: str
 
 
+class PortfolioCosts(BaseModel):
+    """Cost attribution: how much of a portfolio's P&L is trading friction.
+    ``slippage_est`` derives from the CURRENT ``SLIPPAGE_PCT`` (fills embed slippage;
+    the pre-slippage price isn't stored), so it is an estimate, not a ledger."""
+
+    portfolio_id: int
+    fills: int
+    buys: int
+    sells: int
+    buy_notional: Decimal
+    sell_notional: Decimal
+    realized_flow: Decimal
+    commission_total: Decimal
+    slippage_est: Decimal
+
+
 class CashMovementCreate(BaseModel):
     amount: Decimal = Field(gt=0, le=_MAX_CASH)
     note: str | None = Field(default=None, max_length=256)

@@ -145,6 +145,9 @@ const es: Dict = {
 	'portfolios.action.withdraw': 'Retirar',
 	'portfolios.action.rename': 'Renombrar',
 	'portfolios.action.delete': 'Eliminar',
+	'portfolios.action.costs': 'Costes',
+	'portfolios.costs.summary':
+		'{name}: {fills} fills · comisiones {commission} € · slippage estimado {slippage} € · flujo realizado {flow} €',
 	'portfolios.prompt.rename': 'Nuevo nombre de la cartera',
 	'portfolios.prompt.delete': '¿Eliminar «{name}» y todas sus operaciones, posiciones e histórico? Esto no se puede deshacer.',
 	'portfolios.prompt.deposit': 'Importe a ingresar (EUR)',
@@ -514,6 +517,9 @@ const en: Dict = {
 	'portfolios.action.withdraw': 'Withdraw',
 	'portfolios.action.rename': 'Rename',
 	'portfolios.action.delete': 'Delete',
+	'portfolios.action.costs': 'Costs',
+	'portfolios.costs.summary':
+		'{name}: {fills} fills · commissions €{commission} · estimated slippage €{slippage} · realized flow €{flow}',
 	'portfolios.prompt.rename': 'New portfolio name',
 	'portfolios.prompt.delete': 'Delete "{name}" and all its trades, positions and history? This cannot be undone.',
 	'portfolios.prompt.deposit': 'Deposit amount (EUR)',

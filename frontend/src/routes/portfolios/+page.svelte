@@ -82,6 +82,26 @@
 		}
 	}
 
+	async function showCosts(id: number, name: string) {
+		busy = true;
+		msg = null;
+		try {
+			const c = await portfoliosApi.costs(id);
+			const eur = (v: string) => Number(v).toFixed(2);
+			msg = t('portfolios.costs.summary', {
+				name,
+				fills: String(c.fills),
+				commission: eur(c.commission_total),
+				slippage: eur(c.slippage_est),
+				flow: eur(c.realized_flow)
+			});
+		} catch (e) {
+			fail(e);
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function move(id: number, kind: 'deposit' | 'withdraw') {
 		const raw = prompt(t(kind === 'deposit' ? 'portfolios.prompt.deposit' : 'portfolios.prompt.withdraw'));
 		if (raw === null) return;
@@ -158,6 +178,7 @@
 									<button class="link" disabled={busy} onclick={() => move(p.id, 'deposit')}>{t('portfolios.action.deposit')}</button>
 									<button class="link" disabled={busy} onclick={() => move(p.id, 'withdraw')}>{t('portfolios.action.withdraw')}</button>
 									<button class="link" disabled={busy} onclick={() => rename(p.id, p.name)}>{t('portfolios.action.rename')}</button>
+									<button class="link" disabled={busy} onclick={() => showCosts(p.id, p.name)}>{t('portfolios.action.costs')}</button>
 									<button class="link danger" disabled={busy} onclick={() => remove(p.id, p.name)}>{t('portfolios.action.delete')}</button>
 								</td>
 							</tr>

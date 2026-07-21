@@ -1,0 +1,24 @@
+# Micro version "m3" — low-frequency micro. The m1 forward-test showed the 5m fade
+# signal is ~zero-edge BEFORE costs while ~26 round trips/day × ~0.3% round-trip cost
+# (slippage both sides + commissions) turned it into −8.5%/5wk. m3 keeps m1's signal
+# but attacks the cost bleed directly: few, better entries and no noise-flip exits.
+scoring:
+  weights: {atr: 0.0}
+  rank_normalize: true
+indicators:
+  rsi: {mode: mean_reversion}
+  ma_trend: {extension_cap: 0.02}
+ranker:
+  # Entries only on the strongest relative ranks (base gate is 60).
+  min_score_to_act: 75.0
+  # The base market_filter (daily SPY 200d) is meaningless on 5m frames — same
+  # reasoning as m1/m2.
+  market_filter: null
+trading:
+  stop_reentry_cooldown_days: 1
+  allow_pyramiding: false
+  # The anti-churn budget: at most 5 signal entries per session, and a position must
+  # be at least 60 minutes old before a SIGNAL exit may close it (protective stops
+  # and the EOD flatten are exempt — risk never waits).
+  max_trades_per_day: 5
+  min_hold_minutes: 60

@@ -33,6 +33,40 @@ async def get_open_positions(
     return (await session.scalars(stmt)).all()
 
 
+async def get_recently_bought_symbols(
+    session: AsyncSession,
+    portfolio_id: int,
+    since: dt.datetime,
+) -> set[str]:
+    """Symbols this portfolio bought (filled) at/after ``since`` — the minimum-hold
+    set (micro m3): a signal exit must not close a position younger than the hold
+    window (protective stops and EOD flatten bypass this — risk never waits)."""
+    stmt = (
+        select(TradeOrder.symbol)
+        .where(
+            TradeOrder.portfolio_id == portfolio_id,
+            func.lower(TradeOrder.side) == "buy",
+            func.lower(TradeOrder.status) == "filled",
+            TradeOrder.ts >= since,
+        )
+        .distinct()
+    )
+    return set((await session.scalars(stmt)).all())
+
+
+async def count_filled_buys_since(
+    session: AsyncSession, portfolio_id: int, since: dt.datetime
+) -> int:
+    """Filled BUY count at/after ``since`` — the max-trades-per-day budget (micro m3)."""
+    stmt = select(func.count()).where(
+        TradeOrder.portfolio_id == portfolio_id,
+        func.lower(TradeOrder.side) == "buy",
+        func.lower(TradeOrder.status) == "filled",
+        TradeOrder.ts >= since,
+    )
+    return int((await session.scalar(stmt)) or 0)
+
+
 async def get_recently_sold_symbols(
     session: AsyncSession,
     portfolio_id: int,
@@ -170,6 +204,47 @@ async def compute_contributed_capital(
     )
     stmt = select(net).where(CashMovement.portfolio_id == portfolio_id)
     return Decimal((await session.scalar(stmt)) or 0)
+
+
+async def compute_cost_summary(
+    session: AsyncSession, portfolio_id: int, slippage_pct: Decimal
+) -> dict[str, Decimal | int]:
+    """Trading-friction attribution over the filled-order ledger. Slippage is
+    estimated from ``slippage_pct``: a buy fills at market·(1+s) so its embedded
+    slippage is notional·s/(1+s); a sell at market·(1−s) embeds notional·s/(1−s)."""
+    side = func.lower(TradeOrder.side)
+    notional = TradeOrder.price * TradeOrder.qty
+    stmt = select(
+        func.count().label("fills"),
+        func.count().filter(side == "buy").label("buys"),
+        func.count().filter(side == "sell").label("sells"),
+        func.coalesce(func.sum(notional).filter(side == "buy"), 0).label("buy_notional"),
+        func.coalesce(func.sum(notional).filter(side == "sell"), 0).label("sell_notional"),
+        func.coalesce(func.sum(TradeOrder.commission), 0).label("commission_total"),
+    ).where(
+        TradeOrder.portfolio_id == portfolio_id,
+        func.lower(TradeOrder.status) == "filled",
+    )
+    row = (await session.execute(stmt)).one()
+    buy_notional = Decimal(row.buy_notional)
+    sell_notional = Decimal(row.sell_notional)
+    one = Decimal(1)
+    slippage_est = (
+        buy_notional * slippage_pct / (one + slippage_pct)
+        + sell_notional * slippage_pct / (one - slippage_pct)
+        if slippage_pct > 0
+        else Decimal(0)
+    )
+    return {
+        "fills": int(row.fills),
+        "buys": int(row.buys),
+        "sells": int(row.sells),
+        "buy_notional": buy_notional,
+        "sell_notional": sell_notional,
+        "realized_flow": sell_notional - buy_notional,
+        "commission_total": Decimal(row.commission_total),
+        "slippage_est": slippage_est,
+    }
 
 
 async def count_filled_orders_since(

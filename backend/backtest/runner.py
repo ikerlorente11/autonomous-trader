@@ -319,6 +319,10 @@ class Backtester:
                     if s.score.symbol not in last_sell
                     or (day - last_sell[s.score.symbol]).days > cooldown_days
                 ]
+            if trading.max_trades_per_day:
+                # One execution pass per day here, so the budget is a plain slice by
+                # rank (m3's live cap counts fills across the day's interval runs).
+                buys = sorted(buys, key=lambda s: s.rank)[: trading.max_trades_per_day]
             if buys:
                 # Live sizes against the latest stored close (d-1) and fills at the
                 # broker's price; here sizing uses d-1 close and fills at d's open.
@@ -332,8 +336,27 @@ class Backtester:
                     for sym, pos in positions.items()
                     if pos.qty > 0 and sym in day_rows
                 )
+                vol_kwargs: dict = {}
+                if trading.vol_target_pct is not None:
+                    # Prior-day raw ATR per candidate — the same series the stop uses,
+                    # mirroring the live _frame_atr_map wiring.
+                    atr_by_symbol: dict[str, Decimal] = {}
+                    for s in buys:
+                        sym = s.score.symbol
+                        atr_series = self._atr.get(sym)
+                        pos_idx = date_pos[sym].get(day) if sym in date_pos else None
+                        if atr_series is None or not pos_idx:
+                            continue
+                        prior = atr_series.iloc[pos_idx - 1]
+                        if not pd.isna(prior):
+                            atr_by_symbol[sym] = Decimal(str(float(prior)))
+                    vol_kwargs = {
+                        "vol_target_pct": Decimal(str(trading.vol_target_pct)),
+                        "atr_by_symbol": atr_by_symbol,
+                        "stop_atr_multiple": Decimal(str(atr_mult)),
+                    }
                 risk = FixedFractionalRiskManager(
-                    prices, open_position_count=open_count_before
+                    prices, open_position_count=open_count_before, **vol_kwargs
                 )
                 from backend.contracts import AccountBalance  # local import: tiny dataclass
 

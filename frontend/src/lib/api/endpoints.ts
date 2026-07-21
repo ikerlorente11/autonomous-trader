@@ -13,6 +13,7 @@ import type {
 	PeriodPerformance,
 	Portfolio,
 	PortfolioComparison,
+	PortfolioCosts,
 	PortfolioSnapshot,
 	PortfolioSummary,
 	Position,
@@ -100,7 +101,9 @@ export const portfoliosApi = {
 	withdraw: (id: number, amount: number, note?: string) =>
 		api.post<CashMovement>(`/portfolios/${id}/withdraw`, { amount, note }),
 	movements: (id: number, f?: F) =>
-		api.get<CashMovement[]>(`/portfolios/${id}/movements`, { fetcher: f })
+		api.get<CashMovement[]>(`/portfolios/${id}/movements`, { fetcher: f }),
+	costs: (id: number, f?: F) =>
+		api.get<PortfolioCosts>(`/portfolios/${id}/costs`, { fetcher: f })
 };
 
 // Explicitly-scoped reads for a specific portfolio id (the micro section shows a

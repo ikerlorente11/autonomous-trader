@@ -1,0 +1,19 @@
+# Strategy version "v8" — regime-switch ensemble (the live A/B's core finding turned
+# into a strategy): v1's absolute/momentum logic won the trending 2024-25 market while
+# v3's relative/mean-reversion wins the 2026 chop. v8 scores the universe with the
+# v1 config on days the benchmark closes at/above its 100-day MA (primary uptrend)
+# and with the v3 config otherwise. Sub-strategies are the existing overlays — no
+# duplicated parameters, one variable (the switch) vs both parents.
+regime_switch:
+  benchmark: SPY
+  ma_period: 100
+  kind: sma
+  trend: v1
+  chop: v3
+
+# Trading/stop knobs are NOT switched (they belong to this version, not the legs):
+# keep v3's protective profile for every regime.
+trading:
+  stop_reentry_cooldown_days: 3
+  stop_min_distance_pct: 0.05
+  allow_pyramiding: false

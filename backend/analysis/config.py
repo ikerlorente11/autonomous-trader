@@ -138,6 +138,32 @@ class TradingConfig(_Frozen):
     stop_min_distance_pct: float | None = None
     stop_atr_multiple: float | None = None
     allow_pyramiding: bool | None = None
+    # Equal-risk sizing: risk this fraction of portfolio value per position, with the
+    # position's stop distance (ATR × stop multiple) as the risk unit — a calm name
+    # sizes bigger than a volatile one for the same euro risk. None = fixed-fractional
+    # sizing (current behaviour). MAX_POSITION_PCT stays as the notional ceiling.
+    vol_target_pct: float | None = None
+    # Micro m3 anti-churn knobs (both None = off, no daily path change):
+    # cap on signal-driven BUY entries per session, and a minimum holding time before
+    # a signal exit may close a position (protective stops / EOD flatten are exempt —
+    # risk controls must never wait).
+    max_trades_per_day: int | None = None
+    min_hold_minutes: int | None = None
+
+
+class RegimeSwitchConfig(_Frozen):
+    """v8: pick a whole sub-strategy by the benchmark's primary trend. On days the
+    benchmark closes at/above its MA the ``trend`` label's config scores the universe
+    (momentum logic wins in trends); below it, ``chop``'s (mean-reversion wins in
+    ranges) — the live A/B's core finding: v1 won 2024-25 trending, v3 wins 2026 chop.
+    Sub-labels must not themselves declare a regime_switch (no nesting). Fail-open:
+    missing benchmark history resolves to ``chop`` (the defensive leg)."""
+
+    benchmark: str = "SPY"
+    ma_period: int = 100
+    kind: Literal["sma", "ema"] = "sma"
+    trend: str
+    chop: str
 
 
 class StrategyConfig(_Frozen):
@@ -146,6 +172,7 @@ class StrategyConfig(_Frozen):
     scoring: ScoringConfig
     indicators: IndicatorParams
     trading: TradingConfig = TradingConfig()
+    regime_switch: RegimeSwitchConfig | None = None
 
     @property
     def config_hash(self) -> str:
