@@ -5,6 +5,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from backend.db.models import (
     IntradayBar,
@@ -98,13 +99,22 @@ async def get_close_after(
 async def get_latest_bars(
     session: AsyncSession, symbols: Sequence[str]
 ) -> Sequence[MarketBar]:
-    """Most recent bar per symbol (portfolio valuation / ranking snapshot)."""
-    stmt: Select[tuple[MarketBar]] = (
-        select(MarketBar)
-        .where(MarketBar.symbol.in_(symbols))
-        .distinct(MarketBar.symbol)
-        .order_by(MarketBar.symbol, MarketBar.ts.desc())
+    """Most recent bar per symbol (portfolio valuation / ranking snapshot).
+
+    Deliberately a window function, NOT ``DISTINCT ON``: TimescaleDB 2.27's SkipScan
+    can return WRONG rows for multi-symbol ``DISTINCT ON (symbol) … ORDER BY ts DESC``
+    over a hypertable (value-set dependent; live incident 2026-07-22 — v7 sized and
+    marked positions at July-6 closes). row_number() never plans through SkipScan."""
+    rn = (
+        func.row_number()
+        .over(partition_by=MarketBar.symbol, order_by=MarketBar.ts.desc())
+        .label("rn")
     )
+    ranked = (
+        select(MarketBar, rn).where(MarketBar.symbol.in_(symbols)).subquery()
+    )
+    latest = aliased(MarketBar, ranked)
+    stmt: Select[tuple[MarketBar]] = select(latest).where(ranked.c.rn == 1)
     return (await session.scalars(stmt)).all()
 
 
@@ -127,13 +137,20 @@ async def get_intraday_bars_range(
 async def get_latest_intraday_bars(
     session: AsyncSession, symbols: Sequence[str]
 ) -> Sequence[IntradayBar]:
-    """Most recent intraday bar per symbol (micro fill price / valuation snapshot)."""
-    stmt: Select[tuple[IntradayBar]] = (
-        select(IntradayBar)
-        .where(IntradayBar.symbol.in_(symbols))
-        .distinct(IntradayBar.symbol)
-        .order_by(IntradayBar.symbol, IntradayBar.ts.desc())
+    """Most recent intraday bar per symbol (micro fill price / valuation snapshot).
+
+    Window function instead of ``DISTINCT ON`` — same SkipScan wrong-results hazard
+    as ``get_latest_bars`` (see that docstring)."""
+    rn = (
+        func.row_number()
+        .over(partition_by=IntradayBar.symbol, order_by=IntradayBar.ts.desc())
+        .label("rn")
     )
+    ranked = (
+        select(IntradayBar, rn).where(IntradayBar.symbol.in_(symbols)).subquery()
+    )
+    latest = aliased(IntradayBar, ranked)
+    stmt: Select[tuple[IntradayBar]] = select(latest).where(ranked.c.rn == 1)
     return (await session.scalars(stmt)).all()
 
 
@@ -186,11 +203,18 @@ async def get_market_sentiment(
 async def get_macro_regime_inputs(
     session: AsyncSession, series_ids: Sequence[str]
 ) -> Sequence[MacroSeries]:
-    """Latest value per requested macro series (regime classifier input)."""
-    stmt: Select[tuple[MacroSeries]] = (
-        select(MacroSeries)
-        .where(MacroSeries.series_id.in_(series_ids))
-        .distinct(MacroSeries.series_id)
-        .order_by(MacroSeries.series_id, MacroSeries.ts.desc())
+    """Latest value per requested macro series (regime classifier input).
+
+    Window function instead of ``DISTINCT ON`` — same SkipScan wrong-results hazard
+    as ``get_latest_bars`` (see that docstring)."""
+    rn = (
+        func.row_number()
+        .over(partition_by=MacroSeries.series_id, order_by=MacroSeries.ts.desc())
+        .label("rn")
     )
+    ranked = (
+        select(MacroSeries, rn).where(MacroSeries.series_id.in_(series_ids)).subquery()
+    )
+    latest = aliased(MacroSeries, ranked)
+    stmt: Select[tuple[MacroSeries]] = select(latest).where(ranked.c.rn == 1)
     return (await session.scalars(stmt)).all()
