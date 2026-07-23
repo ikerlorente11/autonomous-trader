@@ -54,14 +54,17 @@ WHERE n.portfolio_id = t.portfolio_id AND n.ts = t.ts
   AND ABS(n.equity - ROUND(COALESCE(t.equity_true, 0), 2)) > 0.01;
 
 -- Re-mark open positions at the true latest close (current_price /
--- unrealized_pnl were written from the same buggy reads).
+-- unrealized_pnl were written from the same buggy reads). DISTINCT ON here is
+-- safe: the wrong-results bug only manifested through asyncpg prepared plans,
+-- never through psql (verified during diagnosis).
 UPDATE portfolio_positions p
 SET current_price = b.close,
     unrealized_pnl = (b.close - p.avg_cost) * p.qty
-FROM LATERAL (
-  SELECT close FROM market_bars WHERE symbol = p.symbol ORDER BY ts DESC LIMIT 1
+FROM (
+  SELECT DISTINCT ON (symbol) symbol, close
+  FROM market_bars ORDER BY symbol, ts DESC
 ) b
-WHERE p.qty > 0;
+WHERE b.symbol = p.symbol AND p.qty > 0;
 
 -- Post-repair sanity: latest NAV per active portfolio.
 SELECT p.name, l.ts::date, ROUND(l.cash,2) AS cash, ROUND(l.equity,2) AS equity,
