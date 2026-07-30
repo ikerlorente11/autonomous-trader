@@ -499,6 +499,21 @@ def _engine_for_label(label: str | None) -> DefaultAnalysisEngine:
     return DefaultAnalysisEngine(_config_for_label(label))
 
 
+def _execution_config(label: str | None, engine: DefaultAnalysisEngine, frames):
+    """The config that governs a portfolio's ENTRY discipline today. Normally the
+    version's own; a regime-switch version with ``trading_from_leg`` (v9) adopts the
+    ACTIVE LEG's trading knobs — each regime runs the execution style that won it.
+    Only execute_paper_trades resolves this (protective stops stay on the version's
+    own config: protection is constant, entries adapt)."""
+    cfg = _config_for_label(label)
+    switch = cfg.regime_switch
+    if switch is not None and switch.trading_from_leg:
+        leg = engine.active_leg(frames)
+        if leg:
+            return _config_for_label(leg)
+    return cfg
+
+
 async def _fresh_frames(session, asof: dt.datetime) -> dict[str, pd.DataFrame]:
     """The watchlist's fresh bar frames for one execution pass — loaded ONCE and
     shared by every version's scoring plus the ATR map (vol-targeted sizing)."""
@@ -620,7 +635,9 @@ async def execute_paper_trades() -> None:
                         )
                         manager = PortfolioManager(
                             broker, session, portfolio.id,
-                            config=_config_for_label(portfolio.strategy_label),
+                            config=_execution_config(
+                                portfolio.strategy_label, engine, frames
+                            ),
                             atr_by_symbol=atr_map,
                         )
                         orders = await manager.execute_signals(ranked)

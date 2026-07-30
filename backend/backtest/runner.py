@@ -234,14 +234,24 @@ class Backtester:
     def run(self) -> BacktestResult:
         p = self._params
         trading = self._config.trading
-        allow_pyramiding = True if trading.allow_pyramiding is None else trading.allow_pyramiding
-        cooldown_days = trading.stop_reentry_cooldown_days or 0
+        # Stop parameters never switch legs (mirrors live: protection is constant).
         min_dist = float(trading.stop_min_distance_pct or 0.0)
         atr_mult = (
             float(trading.stop_atr_multiple)
             if trading.stop_atr_multiple is not None
             else p.stop_atr_multiple
         )
+        # v9 (trading_from_leg): entry discipline follows the day's active leg —
+        # resolved per day inside the loop, mirroring jobs._execution_config.
+        switch = self._config.regime_switch
+        leg_trading = {}
+        if switch is not None and switch.trading_from_leg:
+            from backend.analysis.config import load_strategy_config
+
+            leg_trading = {
+                leg: load_strategy_config(label=leg).trading
+                for leg in {switch.trend, switch.chop}
+            }
 
         all_days = sorted(
             {d.date() if hasattr(d, "date") else d for df in self._frames.values() for d in df.index}
@@ -286,6 +296,16 @@ class Backtester:
             scores.sort(key=lambda s: s.score, reverse=True)
             ranked = [RankedSymbol(rank=i + 1, score=s) for i, s in enumerate(scores)]
 
+            day_trading = trading
+            if leg_trading:
+                leg = self._engine.active_leg(slices)
+                if leg in leg_trading:
+                    day_trading = leg_trading[leg]
+            allow_pyramiding = (
+                True if day_trading.allow_pyramiding is None else day_trading.allow_pyramiding
+            )
+            cooldown_days = day_trading.stop_reentry_cooldown_days or 0
+
             open_count_before = sum(1 for pos in positions.values() if pos.qty > 0)
 
             # --- 2a. exits at the open --------------------------------------------
@@ -319,10 +339,10 @@ class Backtester:
                     if s.score.symbol not in last_sell
                     or (day - last_sell[s.score.symbol]).days > cooldown_days
                 ]
-            if trading.max_trades_per_day:
+            if day_trading.max_trades_per_day:
                 # One execution pass per day here, so the budget is a plain slice by
                 # rank (m3's live cap counts fills across the day's interval runs).
-                buys = sorted(buys, key=lambda s: s.rank)[: trading.max_trades_per_day]
+                buys = sorted(buys, key=lambda s: s.rank)[: day_trading.max_trades_per_day]
             if buys:
                 # Live sizes against the latest stored close (d-1) and fills at the
                 # broker's price; here sizing uses d-1 close and fills at d's open.
@@ -337,7 +357,7 @@ class Backtester:
                     if pos.qty > 0 and sym in day_rows
                 )
                 vol_kwargs: dict = {}
-                if trading.vol_target_pct is not None:
+                if day_trading.vol_target_pct is not None:
                     # Prior-day raw ATR per candidate — the same series the stop uses,
                     # mirroring the live _frame_atr_map wiring.
                     atr_by_symbol: dict[str, Decimal] = {}
@@ -351,7 +371,7 @@ class Backtester:
                         if not pd.isna(prior):
                             atr_by_symbol[sym] = Decimal(str(float(prior)))
                     vol_kwargs = {
-                        "vol_target_pct": Decimal(str(trading.vol_target_pct)),
+                        "vol_target_pct": Decimal(str(day_trading.vol_target_pct)),
                         "atr_by_symbol": atr_by_symbol,
                         "stop_atr_multiple": Decimal(str(atr_mult)),
                     }

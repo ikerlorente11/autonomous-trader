@@ -105,3 +105,28 @@ def test_v8_overlay_loads_and_declares_switch() -> None:
     assert cfg.regime_switch.chop == "v3"
     # extras are the union of both legs (v1/v3 weight none today, so empty)
     assert DefaultAnalysisEngine(cfg).weighted_extra_ids() == set()
+
+
+def test_active_leg_reports_the_scoring_leg() -> None:
+    n = 60
+    up = _universe([100.0 + i for i in range(n)])
+    down = _universe([200.0 - i for i in range(n)])
+    engine = _switch_engine()
+    assert engine.active_leg(up) == "v1"
+    assert engine.active_leg(down) == "v3"
+    up.pop("SPY")
+    assert engine.active_leg(up) == "v3"  # unknown trend -> defensive leg
+    plain = DefaultAnalysisEngine(load_strategy_config(label="v3"))
+    assert plain.active_leg(up) is None
+
+
+def test_v9_overlay_switches_entry_discipline() -> None:
+    cfg = load_strategy_config(label="v9")
+    assert cfg.regime_switch is not None and cfg.regime_switch.trading_from_leg
+    # v9's own trading block only pins protection; entry knobs live in the legs.
+    assert cfg.trading.stop_min_distance_pct == 0.05
+    assert cfg.trading.allow_pyramiding is None
+    trend = load_strategy_config(label=cfg.regime_switch.trend)
+    chop = load_strategy_config(label=cfg.regime_switch.chop)
+    assert trend.trading.allow_pyramiding is None      # v1: pyramiding allowed (default)
+    assert chop.trading.allow_pyramiding is False      # v3: disciplined

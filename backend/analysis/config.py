@@ -164,6 +164,14 @@ class RegimeSwitchConfig(_Frozen):
     kind: Literal["sma", "ema"] = "sma"
     trend: str
     chop: str
+    # v9: when True, the day's ENTRY discipline (pyramiding, cooldown, per-day caps,
+    # vol sizing) comes from the ACTIVE LEG's trading config instead of this
+    # version's own — v1's live loss was execution-not-signal, but its backtest
+    # trend gains came precisely from the churn that discipline forbids; this lets
+    # each regime run the execution style that historically won it. Protective-stop
+    # parameters do NOT switch: they stay on this version's own trading block
+    # (protection is constant, entries adapt).
+    trading_from_leg: bool = False
 
 
 class StrategyConfig(_Frozen):
