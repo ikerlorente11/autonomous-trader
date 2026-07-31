@@ -226,13 +226,29 @@ class DefaultAnalysisEngine:
     def active_leg(self, bars: Mapping[str, DataFrame]) -> str | None:
         """Label of the regime-switch leg that scores today; None for plain versions.
         Unknown trend resolves to the chop leg (the defensive one). Exposed so the
-        execution layer can adopt the leg's ENTRY discipline (trading_from_leg, v9)."""
+        execution layer can adopt the leg's ENTRY discipline (trading_from_leg, v9).
+
+        v10: with ``confirm_momentum_sessions`` set, being above the MA is not
+        enough — the benchmark must also have ADVANCED over that window
+        (return > confirm_min_return), so a market drifting sideways above its
+        still-rising average runs the defensive leg."""
         if self._sub_engines is None:
             return None
         switch = self._config.regime_switch
         assert switch is not None
         above = _benchmark_above_ma(bars, switch.benchmark, switch.ma_period, switch.kind)
-        return switch.trend if above else switch.chop
+        if not above:
+            return switch.chop
+        sessions = switch.confirm_momentum_sessions
+        if sessions:
+            df = bars.get(switch.benchmark)
+            if df is None or len(df) <= sessions:
+                return switch.chop  # unknowable confirmation -> defensive leg
+            close = df["close"].astype(float)
+            past = float(close.iloc[-1 - sessions])
+            if past <= 0 or float(close.iloc[-1]) / past - 1.0 <= switch.confirm_min_return:
+                return switch.chop
+        return switch.trend
 
     def _active_engine(self, bars: Mapping[str, DataFrame]) -> DefaultAnalysisEngine:
         """The engine that scores today: self, or the regime-switch leg picked by the

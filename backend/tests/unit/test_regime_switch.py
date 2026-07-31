@@ -140,3 +140,27 @@ def test_trading_from_leg_parses_and_defaults_off() -> None:
     chop = load_strategy_config(label=cfg.regime_switch.chop)
     assert trend.trading.allow_pyramiding is None      # v1: pyramiding allowed (default)
     assert chop.trading.allow_pyramiding is False      # v3: disciplined
+
+
+def test_confirm_momentum_gates_the_trend_leg() -> None:
+    # v10: above the MA but NOT advancing (flat drift) must run the chop leg;
+    # above the MA AND advancing runs the trend leg.
+    n = 80
+    cfg = load_strategy_config(label="v8").model_copy(
+        update={
+            "regime_switch": RegimeSwitchConfig(
+                benchmark="SPY", ma_period=5, kind="sma", trend="v1", chop="v3",
+                confirm_momentum_sessions=21,
+            )
+        }
+    )
+    engine = DefaultAnalysisEngine(cfg)
+    rising = _universe([100.0 + i for i in range(n)])
+    assert engine.active_leg(rising) == "v1"
+    # Drift: rallies early, then holds a flat plateau above its short MA — the
+    # 21-session return is ~0, so the confirmation fails.
+    drift = _universe([100.0 + min(i, 40) * 1.0 for i in range(n)])
+    assert engine.active_leg(drift) == "v3"
+    # Not enough history for the confirmation window -> defensive leg.
+    short = _universe([100.0 + i for i in range(15)])
+    assert engine.active_leg(short) == "v3"
