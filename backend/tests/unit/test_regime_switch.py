@@ -120,12 +120,22 @@ def test_active_leg_reports_the_scoring_leg() -> None:
     assert plain.active_leg(up) is None
 
 
-def test_v9_overlay_switches_entry_discipline() -> None:
-    cfg = load_strategy_config(label="v9")
-    assert cfg.regime_switch is not None and cfg.regime_switch.trading_from_leg
-    # v9's own trading block only pins protection; entry knobs live in the legs.
-    assert cfg.trading.stop_min_distance_pct == 0.05
-    assert cfg.trading.allow_pyramiding is None
+def test_trading_from_leg_parses_and_defaults_off() -> None:
+    # The v9 experiment was REJECTED by the two-window bake-off (the MA100 switch
+    # classifies the 2026 sideways grind as trend, so the aggressive leg ran all
+    # window — see docs/diagnostics/07-plan-v7-v8.md §v9). The MECHANISM stays,
+    # tested and off by default, for a future version with a better regime detector.
+    cfg = load_strategy_config(label="v8")
+    assert cfg.regime_switch is not None
+    assert cfg.regime_switch.trading_from_leg is False  # default: own knobs govern
+    switched = cfg.model_copy(
+        update={
+            "regime_switch": cfg.regime_switch.model_copy(
+                update={"trading_from_leg": True}
+            )
+        }
+    )
+    assert switched.regime_switch.trading_from_leg is True
     trend = load_strategy_config(label=cfg.regime_switch.trend)
     chop = load_strategy_config(label=cfg.regime_switch.chop)
     assert trend.trading.allow_pyramiding is None      # v1: pyramiding allowed (default)

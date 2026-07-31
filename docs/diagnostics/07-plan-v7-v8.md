@@ -140,3 +140,38 @@ pre-slippage no se almacena).
   segunda lectura (¿cae la fricción sin matar la señal?).
 - Un experimento = una variable: v7 (stops), v8 (conmutador), s1 (sizing), m3 (freno
   de churn) son separables y comparables contra v3/m1 directamente.
+
+## 9. v9 — ejecución por pata: RECHAZADA (resultado negativo documentado, 2026-07-30)
+
+v9 = v8 + `regime_switch.trading_from_leg`: la disciplina de ENTRADA (pirámide,
+cooldown, caps, sizing) la pone la pata activa del día; los stops no conmutan.
+Backtest a 2026-07-29, comisiones activas:
+
+| | Lateral (15-jun→29-jul, SPY −3,4%) | Larga (sep-24→29-jul, SPY +32,1%) |
+|---|---|---|
+| v7 | **+0,02%** | +6,91% |
+| v8 | −0,54% | +1,46% |
+| v9 | **−7,40%** | **+18,74%** |
+| v1 | −7,39% | +27,09% |
+
+**Por qué falla:** en la ventana lateral v9 es IDÉNTICA a v1 (mismos 72 trades,
+mismo −30,8% de maxDD): SPY nunca cerró bajo su MA100, el detector clasificó el
+grind lateral de 2026 como "tendencia" y la pata agresiva corrió todo el periodo.
+La MA100 **no distingue avance de deriva**; en v8 la disciplina fija enmascaraba
+el defecto — v9 lo desnuda. Y a la vez valida el mecanismo: en tendencia real la
+pirámide por pata captura +18,7% (12× el +1,5% de v8).
+
+**Decisión:** el overlay v9 NO existe (ninguna cartera puede elegirlo); el
+mecanismo `trading_from_leg` queda en el código, testeado y apagado por defecto.
+**Futura v10:** mismo mecanismo con detector de régimen más exigente para la pata
+agresiva (p. ej. precio ≥ MA100 **y** pendiente de la MA positiva a N sesiones, o
+momentum del benchmark > umbral) — un experimento, una variable.
+
+## 10. Cierre de la pista m2 (2026-07-30)
+
+Semana 22→29-jul: m2 −5,41% (650 fills; fricción 4.709 € en el libro 100k;
+señal bruta ≈ −1.100 € — pierde por señal Y por fricción). Desactivada con
+aprobación del operador sin esperar al plazo de 4 semanas: seguir quemando papel
+no aportaba información nueva. m1 (control) y m3 (baja frecuencia, señal bruta
+POSITIVA su primera semana: +113 € antes de 225 € de fricción) continúan hasta
+el veredicto del 18-ago.
