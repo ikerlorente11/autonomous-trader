@@ -1,0 +1,25 @@
+# Strategy version "v10" — the regime ensemble with an honest trend detector.
+# v9's post-mortem showed the mechanism (leg-switched entry discipline) captures the
+# trend upside but the MA100 test alone cannot tell an ADVANCING market from one
+# DRIFTING sideways above its still-rising average. v10 adds the confirmation: the
+# trend leg (v1 signals + v1 execution, pyramiding allowed) engages only when SPY is
+# above its 100d MA AND has advanced over the last 21 sessions; otherwise the day
+# runs the defensive leg (v3 signals + v3 brakes). Stops never switch.
+#
+# Selected from a 4-candidate sweep by beating v7 in ALL THREE windows —
+# chop +0.17% (v7 +0.02%), long +44.81% (v7 +6.91%, SPY +32.1%), and the
+# never-used-for-calibration validation window oct-23→aug-24: +23.74%, Sharpe 1.94,
+# maxDD −6.1% (v7 +2.71%). Full tables: docs/diagnostics/07-plan-v7-v8.md §11.
+regime_switch:
+  benchmark: SPY
+  ma_period: 100
+  kind: sma
+  trend: v1
+  chop: v3
+  trading_from_leg: true
+  confirm_momentum_sessions: 21
+  confirm_min_return: 0.0
+
+trading:
+  # Constant protection in every regime; entry knobs come from the active leg.
+  stop_min_distance_pct: 0.05
