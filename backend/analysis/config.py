@@ -172,6 +172,14 @@ class RegimeSwitchConfig(_Frozen):
     # parameters do NOT switch: they stay on this version's own trading block
     # (protection is constant, entries adapt).
     trading_from_leg: bool = False
+    # v10: extra confirmation before the TREND leg engages. The MA100 test alone
+    # cannot tell an advancing market from one drifting sideways above its (still
+    # rising) average — the failure that sank v9 (07-plan §9). When set, the trend
+    # leg additionally requires the benchmark's return over the last
+    # ``confirm_momentum_sessions`` bars to exceed ``confirm_min_return``;
+    # otherwise the day runs the chop leg. None = price-vs-MA only (v8/v9 rule).
+    confirm_momentum_sessions: int | None = None
+    confirm_min_return: float = 0.0
 
 
 class StrategyConfig(_Frozen):

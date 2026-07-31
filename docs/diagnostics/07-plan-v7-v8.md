@@ -175,3 +175,29 @@ aprobación del operador sin esperar al plazo de 4 semanas: seguir quemando pape
 no aportaba información nueva. m1 (control) y m3 (baja frecuencia, señal bruta
 POSITIVA su primera semana: +113 € antes de 225 € de fricción) continúan hasta
 el veredicto del 18-ago.
+
+## 11. v10 — el ensemble con detector honesto: SE LANZA (2026-07-31)
+
+v10 = mecanismo de v9 (`trading_from_leg`) + **confirmación de avance** para la pata
+agresiva: `confirm_momentum_sessions: 21` — SPY sobre su MA100 **y** con retorno
+positivo a 21 sesiones; si no, pata defensiva (v3). Sweep de 4 candidatas
+(detector × pata chop × stops); criterio: batir a v7 en **tres** ventanas, la
+tercera (oct-23→ago-24) jamás usada para calibrar:
+
+| | Lateral (SPY −3,4%) | Larga (SPY +32,1%) | Validación OOS (SPY +31,9%) |
+|---|---|---|---|
+| v7 | +0,02% | +6,91% | +2,71% (Sharpe −0,20) |
+| **v10 (=w1)** | **+0,17%** | **+44,81%** (Sharpe 0,81) | **+23,74%** (Sharpe **1,94**, maxDD −6,1%) |
+| w2 (chop=v7) | −1,15% ✗ | +61,51% | — |
+| w3 (mom63) | −7,40% ✗ | +1,79% | — |
+| w4 (mom42>2%) | −4,48% ✗ | +28,58% | — |
+
+Lecciones: (1) el momentum a 21 sesiones distingue avance de deriva donde la MA100
+y el mom63 no — el mom63 aún arrastraba el rally previo; (2) el alfa de la ventana
+larga no viene solo de piramidar la tendencia sino de **esquivar las correcciones**
+(la pata defensiva coge los retrocesos); (3) primera estrategia del proyecto que
+bate a SPY en la ventana larga (+44,8 vs +32,1). En la validación no bate a SPY
+(+23,7 vs +31,9) pero triplica el Sharpe de cualquier versión previa con el menor
+drawdown registrado. w2 (chop=v7) ganaba aún más en la larga pero pierde el lateral:
+descartada por el criterio — anotada como refinamiento posible si v10 confirma en
+vivo. Carteras: v10-500 / v10-100k.
