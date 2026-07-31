@@ -105,3 +105,38 @@ def test_v8_overlay_loads_and_declares_switch() -> None:
     assert cfg.regime_switch.chop == "v3"
     # extras are the union of both legs (v1/v3 weight none today, so empty)
     assert DefaultAnalysisEngine(cfg).weighted_extra_ids() == set()
+
+
+def test_active_leg_reports_the_scoring_leg() -> None:
+    n = 60
+    up = _universe([100.0 + i for i in range(n)])
+    down = _universe([200.0 - i for i in range(n)])
+    engine = _switch_engine()
+    assert engine.active_leg(up) == "v1"
+    assert engine.active_leg(down) == "v3"
+    up.pop("SPY")
+    assert engine.active_leg(up) == "v3"  # unknown trend -> defensive leg
+    plain = DefaultAnalysisEngine(load_strategy_config(label="v3"))
+    assert plain.active_leg(up) is None
+
+
+def test_trading_from_leg_parses_and_defaults_off() -> None:
+    # The v9 experiment was REJECTED by the two-window bake-off (the MA100 switch
+    # classifies the 2026 sideways grind as trend, so the aggressive leg ran all
+    # window — see docs/diagnostics/07-plan-v7-v8.md §v9). The MECHANISM stays,
+    # tested and off by default, for a future version with a better regime detector.
+    cfg = load_strategy_config(label="v8")
+    assert cfg.regime_switch is not None
+    assert cfg.regime_switch.trading_from_leg is False  # default: own knobs govern
+    switched = cfg.model_copy(
+        update={
+            "regime_switch": cfg.regime_switch.model_copy(
+                update={"trading_from_leg": True}
+            )
+        }
+    )
+    assert switched.regime_switch.trading_from_leg is True
+    trend = load_strategy_config(label=cfg.regime_switch.trend)
+    chop = load_strategy_config(label=cfg.regime_switch.chop)
+    assert trend.trading.allow_pyramiding is None      # v1: pyramiding allowed (default)
+    assert chop.trading.allow_pyramiding is False      # v3: disciplined

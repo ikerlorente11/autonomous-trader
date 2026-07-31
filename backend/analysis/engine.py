@@ -223,15 +223,26 @@ class DefaultAnalysisEngine:
         above = _benchmark_above_ma(bars, cfg.benchmark, cfg.ma_period, cfg.kind)
         return True if above is None else above
 
-    def _active_engine(self, bars: Mapping[str, DataFrame]) -> DefaultAnalysisEngine:
-        """The engine that scores today: self, or the regime-switch leg picked by the
-        benchmark trend. Unknown trend resolves to the chop leg (the defensive one)."""
+    def active_leg(self, bars: Mapping[str, DataFrame]) -> str | None:
+        """Label of the regime-switch leg that scores today; None for plain versions.
+        Unknown trend resolves to the chop leg (the defensive one). Exposed so the
+        execution layer can adopt the leg's ENTRY discipline (trading_from_leg, v9)."""
         if self._sub_engines is None:
-            return self
+            return None
         switch = self._config.regime_switch
         assert switch is not None
         above = _benchmark_above_ma(bars, switch.benchmark, switch.ma_period, switch.kind)
-        return self._sub_engines[0] if above else self._sub_engines[1]
+        return switch.trend if above else switch.chop
+
+    def _active_engine(self, bars: Mapping[str, DataFrame]) -> DefaultAnalysisEngine:
+        """The engine that scores today: self, or the regime-switch leg picked by the
+        benchmark trend."""
+        leg = self.active_leg(bars)
+        if leg is None:
+            return self
+        switch = self._config.regime_switch
+        assert switch is not None
+        return self._sub_engines[0] if leg == switch.trend else self._sub_engines[1]  # type: ignore[index]
 
     def score_universe(
         self,
