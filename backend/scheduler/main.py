@@ -13,11 +13,14 @@ import asyncio
 import logging
 import os
 
+from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import create_engine
 
+from backend.scheduler import watchdog
 from backend.scheduler.jobs import JOBS
 from backend.scheduler.schedule import JOB_SCHEDULE
 
@@ -89,13 +92,30 @@ def _misfire_grace_time() -> int:
 def build_scheduler() -> AsyncIOScheduler:
     timezone = os.environ.get("SCHEDULER_TIMEZONE", "UTC")
     scheduler = AsyncIOScheduler(
-        jobstores={"default": SQLAlchemyJobStore(url=_jobstore_url())},
+        jobstores={
+            # pool_pre_ping: a Postgres restart (2026-08-04 OOM incident) must cost
+            # one reconnect, not the scheduler thread — dead pooled connections are
+            # detected and replaced before each job-store operation.
+            "default": SQLAlchemyJobStore(
+                engine=create_engine(_jobstore_url(), pool_pre_ping=True)
+            ),
+            # The watchdog heartbeat lives in memory: no DB, no persistence, and it
+            # must keep firing precisely when the DB-backed store is in trouble.
+            "memory": MemoryJobStore(),
+        },
         job_defaults={
             "coalesce": True,
             "max_instances": 1,
             "misfire_grace_time": _misfire_grace_time(),
         },
         timezone=timezone,
+    )
+    scheduler.add_job(
+        watchdog.heartbeat_job,
+        trigger=IntervalTrigger(minutes=5),
+        id="watchdog_heartbeat",
+        jobstore="memory",
+        replace_existing=True,
     )
     for job_name, (hour, minute) in JOB_SCHEDULE.items():
         scheduler.add_job(
@@ -146,6 +166,8 @@ async def _run() -> None:
     )
     scheduler = build_scheduler()
     scheduler.start()
+    watchdog.beat()
+    watchdog.start()
     logger.info("scheduler started with jobs: %s", ", ".join(JOB_SCHEDULE))
     stop = asyncio.Event()
     try:
