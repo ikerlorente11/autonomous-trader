@@ -684,151 +684,6 @@
     "ast_hash": "ed9a7bbc19c3df698a5d5d69cb8e681d",
     "semantic_hash": "ed9a7bbc19c3df698a5d5d69cb8e681d"
   },
-  "frontend/.svelte-kit.rootowned/ambient.d.ts": {
-    "mtime": 1780037786.931671,
-    "ast_hash": "97d1c505fcfef8e708209ab32d8a7247",
-    "semantic_hash": "97d1c505fcfef8e708209ab32d8a7247"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/app.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "aede11362954b9ee1a3c3eae295872f6",
-    "semantic_hash": "aede11362954b9ee1a3c3eae295872f6"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/matchers.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "69cd52e0d7a4887e2be35ac8fcc8718d",
-    "semantic_hash": "69cd52e0d7a4887e2be35ac8fcc8718d"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/0.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "c993af8b37fa361bbceccac7550a10cb",
-    "semantic_hash": "c993af8b37fa361bbceccac7550a10cb"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/1.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "32d3350095fd8dd72f0440292ba12132",
-    "semantic_hash": "32d3350095fd8dd72f0440292ba12132"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/10.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "3c2a7e91b174aac445ab53549fcebe9c",
-    "semantic_hash": "3c2a7e91b174aac445ab53549fcebe9c"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/2.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "867c6c025c705ca561151cc848910192",
-    "semantic_hash": "867c6c025c705ca561151cc848910192"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/3.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "eebcd84c2a6bb62d14b9ec15db2d03ab",
-    "semantic_hash": "eebcd84c2a6bb62d14b9ec15db2d03ab"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/4.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "8d1808981e7a607a5eef8833a43e95b7",
-    "semantic_hash": "8d1808981e7a607a5eef8833a43e95b7"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/5.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "8818ba41609c47ff66d649806943bb8d",
-    "semantic_hash": "8818ba41609c47ff66d649806943bb8d"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/6.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "5cdc87884ecc8ed78eb2d90f906f9fbf",
-    "semantic_hash": "5cdc87884ecc8ed78eb2d90f906f9fbf"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/7.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "a6974c6fd80e19e3ea575a482a539760",
-    "semantic_hash": "a6974c6fd80e19e3ea575a482a539760"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/8.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "efd6c6eab2c3af804f3583f28551a6d5",
-    "semantic_hash": "efd6c6eab2c3af804f3583f28551a6d5"
-  },
-  "frontend/.svelte-kit.rootowned/generated/client/nodes/9.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "2652221b05019e1db23bdc5fc34c2c4e",
-    "semantic_hash": "2652221b05019e1db23bdc5fc34c2c4e"
-  },
-  "frontend/.svelte-kit.rootowned/generated/root.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "9ded90507ac9a392a954e3ae16bdd0c7",
-    "semantic_hash": "9ded90507ac9a392a954e3ae16bdd0c7"
-  },
-  "frontend/.svelte-kit.rootowned/generated/root.svelte": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "6fdb73521fa2371b1c5848f18d3e1557",
-    "semantic_hash": "6fdb73521fa2371b1c5848f18d3e1557"
-  },
-  "frontend/.svelte-kit.rootowned/generated/server/internal.js": {
-    "mtime": 1780037786.9507053,
-    "ast_hash": "fe1dd78cce918ab004a6f1a7000393d2",
-    "semantic_hash": "fe1dd78cce918ab004a6f1a7000393d2"
-  },
-  "frontend/.svelte-kit.rootowned/non-ambient.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "78c581b2eedf71417afe4e2267973b91",
-    "semantic_hash": "78c581b2eedf71417afe4e2267973b91"
-  },
-  "frontend/.svelte-kit.rootowned/tsconfig.json": {
-    "mtime": 1780037786.931671,
-    "ast_hash": "b79adac9a35b16d650f1e7bcd0b7bcdc",
-    "semantic_hash": "b79adac9a35b16d650f1e7bcd0b7bcdc"
-  },
-  "frontend/.svelte-kit.rootowned/types/route_meta_data.json": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "1eaca88c4f62e4d546913ab3b7ed3918",
-    "semantic_hash": "1eaca88c4f62e4d546913ab3b7ed3918"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "d2a78dfe57b26bbbed3d1dda209ef8c7",
-    "semantic_hash": "d2a78dfe57b26bbbed3d1dda209ef8c7"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/experiments/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "f30a8f1b71249cf0d0f1da0c12ebab6b",
-    "semantic_hash": "f30a8f1b71249cf0d0f1da0c12ebab6b"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/info/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "43310c32b1d1539162dceee2d4256a73",
-    "semantic_hash": "43310c32b1d1539162dceee2d4256a73"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/market/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "43e52e8f91125f0cbd96bf8e90d7550a",
-    "semantic_hash": "43e52e8f91125f0cbd96bf8e90d7550a"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/market/[symbol]/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "c013eb13f57abd8ecb9241539285d505",
-    "semantic_hash": "c013eb13f57abd8ecb9241539285d505"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/portfolio/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "e2c48cdb1673c8682ae1cf04f3bb5493",
-    "semantic_hash": "e2c48cdb1673c8682ae1cf04f3bb5493"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/portfolios/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "2f9669b177c49d666b48dd246b3cd675",
-    "semantic_hash": "2f9669b177c49d666b48dd246b3cd675"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/system/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "9087047d3dcdbc902bc599ab66e36407",
-    "semantic_hash": "9087047d3dcdbc902bc599ab66e36407"
-  },
-  "frontend/.svelte-kit.rootowned/types/src/routes/trades/$types.d.ts": {
-    "mtime": 1780037786.9697394,
-    "ast_hash": "c6f0e35c280494b1854e1667c85ffefc",
-    "semantic_hash": "c6f0e35c280494b1854e1667c85ffefc"
-  },
   "frontend/package.json": {
     "mtime": 1780032509.061965,
     "ast_hash": "f74b716c6a73c7b643c19489d8d8e276",
@@ -1378,5 +1233,1485 @@
     "mtime": 1781092826.6037428,
     "ast_hash": "58baf46309da1ca9a11637313ae0f3ba",
     "semantic_hash": ""
+  },
+  "/home/raspberry/projects/autonomous-trader/.claude/settings.json": {
+    "mtime": 1781349096.7193263,
+    "ast_hash": "110bfa989fca86709f956644cb405b44",
+    "semantic_hash": "110bfa989fca86709f956644cb405b44"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/__init__.py": {
+    "mtime": 1780058306.0432196,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/__init__.py": {
+    "mtime": 1780058306.0432196,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/config.py": {
+    "mtime": 1785482379.3166316,
+    "ast_hash": "aa744b9afa75a7ecf31f103440652c93",
+    "semantic_hash": "aa744b9afa75a7ecf31f103440652c93"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/engine.py": {
+    "mtime": 1785482379.3166316,
+    "ast_hash": "f61b3894fddb7f37e0ef2a3da6e3f949",
+    "semantic_hash": "f61b3894fddb7f37e0ef2a3da6e3f949"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/indicators/__init__.py": {
+    "mtime": 1780058306.0472195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/indicators/base.py": {
+    "mtime": 1781349096.7233262,
+    "ast_hash": "290583087d9d03ccd7a4e8501e8df652",
+    "semantic_hash": "290583087d9d03ccd7a4e8501e8df652"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/indicators/momentum.py": {
+    "mtime": 1781285783.6472359,
+    "ast_hash": "51a82899e67c8bac688986b9d937e2e3",
+    "semantic_hash": "51a82899e67c8bac688986b9d937e2e3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/indicators/moving_average.py": {
+    "mtime": 1780922353.4995434,
+    "ast_hash": "a0518161a6306da8e7a33490b6dfac04",
+    "semantic_hash": "a0518161a6306da8e7a33490b6dfac04"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/indicators/volatility.py": {
+    "mtime": 1780058306.0472195,
+    "ast_hash": "12ac1dc1a65ace4cea9d38f308c3333a",
+    "semantic_hash": "12ac1dc1a65ace4cea9d38f308c3333a"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/micro/__init__.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/micro/universe.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "3987e3f706980a9606ac1bbd114a0e19",
+    "semantic_hash": "3987e3f706980a9606ac1bbd114a0e19"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/performance/__init__.py": {
+    "mtime": 1780058306.0472195,
+    "ast_hash": "09db3425e2d77a457b9f9b2a8d75198e",
+    "semantic_hash": "09db3425e2d77a457b9f9b2a8d75198e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/performance/metrics.py": {
+    "mtime": 1780913330.6167035,
+    "ast_hash": "d76d3fa2056112c03cabfcd801dbee69",
+    "semantic_hash": "d76d3fa2056112c03cabfcd801dbee69"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/performance/settle.py": {
+    "mtime": 1780389140.590497,
+    "ast_hash": "c8a484fab3c6cc33d513ca8d18e293f8",
+    "semantic_hash": "c8a484fab3c6cc33d513ca8d18e293f8"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/scoring/__init__.py": {
+    "mtime": 1780058306.0472195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/scoring/composite_scorer.py": {
+    "mtime": 1781349096.7273262,
+    "ast_hash": "2f533484ec19d94af9e4b2214b6d99e4",
+    "semantic_hash": "2f533484ec19d94af9e4b2214b6d99e4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/scoring/persistence.py": {
+    "mtime": 1780389140.590497,
+    "ast_hash": "4d15a93fdda381d71703eb4d673d93a3",
+    "semantic_hash": "4d15a93fdda381d71703eb4d673d93a3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/scoring/symbol_ranker.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "0321b477f8c7552e7cd8c86fafe7b1b4",
+    "semantic_hash": "0321b477f8c7552e7cd8c86fafe7b1b4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/fundamental/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/fundamental/signals.py": {
+    "mtime": 1781349096.7273262,
+    "ast_hash": "c566958dfd7a5576c9d7329e94eaa1f7",
+    "semantic_hash": "c566958dfd7a5576c9d7329e94eaa1f7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/macro/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/macro/regime.py": {
+    "mtime": 1780913330.6207035,
+    "ast_hash": "595f1c281505719ce0ec9e730ea348ed",
+    "semantic_hash": "595f1c281505719ce0ec9e730ea348ed"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/sentiment/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/sentiment/news.py": {
+    "mtime": 1780913330.6207035,
+    "ast_hash": "89cac3467ec0b5dd8ce9f118a711182b",
+    "semantic_hash": "89cac3467ec0b5dd8ce9f118a711182b"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/analysis/signals/technical/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/deps.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "6fa8e66cb0522603a26c5a22a2c3f48e",
+    "semantic_hash": "6fa8e66cb0522603a26c5a22a2c3f48e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/main.py": {
+    "mtime": 1780922353.5035434,
+    "ast_hash": "25811b9bc6ede43448ef3b1561519ad9",
+    "semantic_hash": "25811b9bc6ede43448ef3b1561519ad9"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/__init__.py": {
+    "mtime": 1780058306.0512195,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/algorithms.py": {
+    "mtime": 1781446031.5781348,
+    "ast_hash": "31a81d0d71ee8fd4d6a500f819cae8ab",
+    "semantic_hash": "31a81d0d71ee8fd4d6a500f819cae8ab"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/market.py": {
+    "mtime": 1780389140.594497,
+    "ast_hash": "dad4d0b1d9764f0a30441034cb8a2e08",
+    "semantic_hash": "dad4d0b1d9764f0a30441034cb8a2e08"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/portfolio.py": {
+    "mtime": 1780913330.6207035,
+    "ast_hash": "eba97c324f32764980bbebd497e60b57",
+    "semantic_hash": "eba97c324f32764980bbebd497e60b57"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/portfolios.py": {
+    "mtime": 1784638608.0874572,
+    "ast_hash": "f9fb05d96e93acc5082601d3f92e4169",
+    "semantic_hash": "f9fb05d96e93acc5082601d3f92e4169"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/system.py": {
+    "mtime": 1781447403.6677256,
+    "ast_hash": "a4f6a4175737271ecfa1c33f183d8889",
+    "semantic_hash": "a4f6a4175737271ecfa1c33f183d8889"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/routers/trades.py": {
+    "mtime": 1780389140.594497,
+    "ast_hash": "6c9d520494a4257a59c1ed4e4daac4dd",
+    "semantic_hash": "6c9d520494a4257a59c1ed4e4daac4dd"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/api/schemas.py": {
+    "mtime": 1784638608.0874572,
+    "ast_hash": "c753157e1953e597e4c1a65b02deb9bf",
+    "semantic_hash": "c753157e1953e597e4c1a65b02deb9bf"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/backtest/__init__.py": {
+    "mtime": 1781349096.7273262,
+    "ast_hash": "931334f617e30b5eb0ad511702f7a2f4",
+    "semantic_hash": "931334f617e30b5eb0ad511702f7a2f4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/backtest/__main__.py": {
+    "mtime": 1781349096.7273262,
+    "ast_hash": "48b62f7db04472a95f6586475d285cb7",
+    "semantic_hash": "48b62f7db04472a95f6586475d285cb7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/backtest/data.py": {
+    "mtime": 1781349096.7273262,
+    "ast_hash": "a80079558a2131184096a80cb2df2104",
+    "semantic_hash": "a80079558a2131184096a80cb2df2104"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/backtest/runner.py": {
+    "mtime": 1785478761.6412222,
+    "ast_hash": "bac8113f3b670b979c3d9093fb1d2620",
+    "semantic_hash": "bac8113f3b670b979c3d9093fb1d2620"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/contracts.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "13f415fdd16958f9f37cde3a4189336c",
+    "semantic_hash": "13f415fdd16958f9f37cde3a4189336c"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/__init__.py": {
+    "mtime": 1780058306.0552194,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/calendar.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "af306fa39a89bb849f36ad78521c3d75",
+    "semantic_hash": "af306fa39a89bb849f36ad78521c3d75"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/errors.py": {
+    "mtime": 1780058306.0552194,
+    "ast_hash": "bccc6d28a66bdfa681b62d8f229379df",
+    "semantic_hash": "bccc6d28a66bdfa681b62d8f229379df"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/fundamentals_ingest.py": {
+    "mtime": 1780913330.6247034,
+    "ast_hash": "0738f48de86e63c081cea2eaefeb7a48",
+    "semantic_hash": "0738f48de86e63c081cea2eaefeb7a48"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/ingest.py": {
+    "mtime": 1780389140.6904957,
+    "ast_hash": "999b64987fd8b21cf7a07d66fc6cf28f",
+    "semantic_hash": "999b64987fd8b21cf7a07d66fc6cf28f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/intraday_ingest.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "7a41920ebdd2aa20997d6c6e7817ce65",
+    "semantic_hash": "7a41920ebdd2aa20997d6c6e7817ce65"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/macro_ingest.py": {
+    "mtime": 1780913330.6247034,
+    "ast_hash": "ce194972ae3479fd3ded70b3c198abba",
+    "semantic_hash": "ce194972ae3479fd3ded70b3c198abba"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/news_ingest.py": {
+    "mtime": 1780913330.6247034,
+    "ast_hash": "ae6817f3ce4e6f71e4140174a7fd7764",
+    "semantic_hash": "ae6817f3ce4e6f71e4140174a7fd7764"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/protocols.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "ff04e58736aa32ad78fa709e4ec581b8",
+    "semantic_hash": "ff04e58736aa32ad78fa709e4ec581b8"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/__init__.py": {
+    "mtime": 1780058306.0552194,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/alpaca_intraday_provider.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "6a49f534d2c7a31ebd1b6b2e924aae68",
+    "semantic_hash": "6a49f534d2c7a31ebd1b6b2e924aae68"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/finnhub_fundamentals_provider.py": {
+    "mtime": 1784631604.1111474,
+    "ast_hash": "531a7ad5a7db32f4482699de745f464a",
+    "semantic_hash": "531a7ad5a7db32f4482699de745f464a"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/finnhub_news_provider.py": {
+    "mtime": 1784631604.1151474,
+    "ast_hash": "d1a5c11943f694eaad3e3b2c72c45727",
+    "semantic_hash": "d1a5c11943f694eaad3e3b2c72c45727"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/fred_provider.py": {
+    "mtime": 1780913330.6247034,
+    "ast_hash": "1bc6b42d8d7ae07612135a942228608e",
+    "semantic_hash": "1bc6b42d8d7ae07612135a942228608e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/twelve_data_intraday_provider.py": {
+    "mtime": 1781367018.4480345,
+    "ast_hash": "8789fa23fb0ef57a4d3444522f1b710f",
+    "semantic_hash": "8789fa23fb0ef57a4d3444522f1b710f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/twelve_data_provider.py": {
+    "mtime": 1780389140.6944957,
+    "ast_hash": "b017443f7ec25ec7d882183fc756ee93",
+    "semantic_hash": "b017443f7ec25ec7d882183fc756ee93"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/yfinance_intraday_provider.py": {
+    "mtime": 1781367018.4520345,
+    "ast_hash": "e3cd4f5b2bb9520bceeab55a08e09f6f",
+    "semantic_hash": "e3cd4f5b2bb9520bceeab55a08e09f6f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/providers/yfinance_provider.py": {
+    "mtime": 1780389140.6944957,
+    "ast_hash": "2c38bcbdb8f4de4180b2124974317ba3",
+    "semantic_hash": "2c38bcbdb8f4de4180b2124974317ba3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/data_ingestion/validation.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "de8e1b640deaa7853474e5143cefafe4",
+    "semantic_hash": "de8e1b640deaa7853474e5143cefafe4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/__init__.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/base.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "33ffb26fe7f463b6e72f8eca9a22a444",
+    "semantic_hash": "33ffb26fe7f463b6e72f8eca9a22a444"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/env.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "a5ebc1d9e8225a6a103eeb026427f9f7",
+    "semantic_hash": "a5ebc1d9e8225a6a103eeb026427f9f7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0001_initial_schema.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "b5fbab8e0b0f500e8ef3c1a84abf9a1f",
+    "semantic_hash": "b5fbab8e0b0f500e8ef3c1a84abf9a1f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0002_continuous_aggregates.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "dedf3e63df506b6695b6bd752f2d6e82",
+    "semantic_hash": "dedf3e63df506b6695b6bd752f2d6e82"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0003_algorithm_signals_strategy_version.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "7c8b78e933895be7e00357b88be87b8f",
+    "semantic_hash": "7c8b78e933895be7e00357b88be87b8f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0004_job_runs.py": {
+    "mtime": 1780058306.0592194,
+    "ast_hash": "bd7301832cdf110cd794617d805329eb",
+    "semantic_hash": "bd7301832cdf110cd794617d805329eb"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0005_multi_portfolio.py": {
+    "mtime": 1780389140.598497,
+    "ast_hash": "d34902f90c0d3eb54f2187eefcd44a1f",
+    "semantic_hash": "d34902f90c0d3eb54f2187eefcd44a1f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0006_signal_completeness_indexes.py": {
+    "mtime": 1780389140.598497,
+    "ast_hash": "738e471fd954d96ca858fdc2ede68d17",
+    "semantic_hash": "738e471fd954d96ca858fdc2ede68d17"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0007_position_high_water_mark.py": {
+    "mtime": 1780389140.6944957,
+    "ast_hash": "bdeeea981a4a5085fba75cba81ebfc57",
+    "semantic_hash": "bdeeea981a4a5085fba75cba81ebfc57"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0008_portfolio_strategy_label.py": {
+    "mtime": 1780922353.5035434,
+    "ast_hash": "cda246ac56f3549bf64d1ce4a640d725",
+    "semantic_hash": "cda246ac56f3549bf64d1ce4a640d725"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0009_trade_orders_commission.py": {
+    "mtime": 1781030046.2978468,
+    "ast_hash": "2761793cf3a94d7c12f179b5a27c8083",
+    "semantic_hash": "2761793cf3a94d7c12f179b5a27c8083"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0010_intraday_bars.py": {
+    "mtime": 1781367018.4520345,
+    "ast_hash": "52e28fa82f3dd3ddc924cc979c7bae94",
+    "semantic_hash": "52e28fa82f3dd3ddc924cc979c7bae94"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0011_portfolio_kind.py": {
+    "mtime": 1781367018.4520345,
+    "ast_hash": "7dbed8ce54308549276eeb19f25b97a2",
+    "semantic_hash": "7dbed8ce54308549276eeb19f25b97a2"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/migrations/versions/0012_seed_micro_portfolios.py": {
+    "mtime": 1781367018.4520345,
+    "ast_hash": "df7219a1930979539d4d4cc433b39df8",
+    "semantic_hash": "df7219a1930979539d4d4cc433b39df8"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/models.py": {
+    "mtime": 1781367018.4520345,
+    "ast_hash": "5ed4bb7b77e4220ab78851fe676a024c",
+    "semantic_hash": "5ed4bb7b77e4220ab78851fe676a024c"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/__init__.py": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/fundamentals_queries.py": {
+    "mtime": 1780913330.6287034,
+    "ast_hash": "d77952de504bc81d4d497f819f1c4c43",
+    "semantic_hash": "d77952de504bc81d4d497f819f1c4c43"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/macro_queries.py": {
+    "mtime": 1784752706.184191,
+    "ast_hash": "c7d0c28073c1ad778a71fd274c64e13f",
+    "semantic_hash": "c7d0c28073c1ad778a71fd274c64e13f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/market_queries.py": {
+    "mtime": 1784752706.184191,
+    "ast_hash": "6f48414bb74103e591d872c3db48807c",
+    "semantic_hash": "6f48414bb74103e591d872c3db48807c"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/news_queries.py": {
+    "mtime": 1780913330.6287034,
+    "ast_hash": "2a5b9e1b8a485ec9e4ffa8c620b15f1d",
+    "semantic_hash": "2a5b9e1b8a485ec9e4ffa8c620b15f1d"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/portfolio_queries.py": {
+    "mtime": 1784638608.0914571,
+    "ast_hash": "115dc7c0db01c6c9b0782ac1d093e1bf",
+    "semantic_hash": "115dc7c0db01c6c9b0782ac1d093e1bf"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/queries/system_queries.py": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "831d06dcb4c0806ddbc636966930fe20",
+    "semantic_hash": "831d06dcb4c0806ddbc636966930fe20"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/seed_watchlist.py": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "1ed4a8f9880b3692cacd4b2cfa43b1a0",
+    "semantic_hash": "1ed4a8f9880b3692cacd4b2cfa43b1a0"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/db/session.py": {
+    "mtime": 1780913330.6287034,
+    "ast_hash": "255cf899f26d5cccf256efe859c0b395",
+    "semantic_hash": "255cf899f26d5cccf256efe859c0b395"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/experiments/__init__.py": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "55a6feff1cb33fdf4e038a9da46a0a4d",
+    "semantic_hash": "55a6feff1cb33fdf4e038a9da46a0a4d"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/experiments/comparator.py": {
+    "mtime": 1781446031.5781348,
+    "ast_hash": "2b1aca29b638536fad63f2ab99efaa40",
+    "semantic_hash": "2b1aca29b638536fad63f2ab99efaa40"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/experiments/tracker.py": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "4859ed9b63cd2ed14b4c6816357c7b1f",
+    "semantic_hash": "4859ed9b63cd2ed14b4c6816357c7b1f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/scheduler/__init__.py": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/scheduler/jobs.py": {
+    "mtime": 1785478761.6452222,
+    "ast_hash": "5717211aa61215be60fc18cdb8ae4555",
+    "semantic_hash": "5717211aa61215be60fc18cdb8ae4555"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/scheduler/main.py": {
+    "mtime": 1786523590.3105974,
+    "ast_hash": "f6fc5bb2e0f1707397017c6b31000e13",
+    "semantic_hash": "f6fc5bb2e0f1707397017c6b31000e13"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/scheduler/schedule.py": {
+    "mtime": 1780913330.6287034,
+    "ast_hash": "fdaef5a3a94632cff1c76ec9281025ca",
+    "semantic_hash": "fdaef5a3a94632cff1c76ec9281025ca"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/scheduler/watchdog.py": {
+    "mtime": 1786523590.3105974,
+    "ast_hash": "5b91781a9d675f3d8a74997d05e30ae4",
+    "semantic_hash": "5b91781a9d675f3d8a74997d05e30ae4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/__init__.py": {
+    "mtime": 1780389140.6064968,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/conftest.py": {
+    "mtime": 1784638608.0914571,
+    "ast_hash": "2ba1871b3d0c6cb815cc90befaaf67e2",
+    "semantic_hash": "2ba1871b3d0c6cb815cc90befaaf67e2"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/factories.py": {
+    "mtime": 1781367018.4560344,
+    "ast_hash": "896306f23d00338e982bfc95f4d40a63",
+    "semantic_hash": "896306f23d00338e982bfc95f4d40a63"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/__init__.py": {
+    "mtime": 1780389140.7024956,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_api.py": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "697f553784b7025ab51efdc2a1d170b7",
+    "semantic_hash": "697f553784b7025ab51efdc2a1d170b7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_db_pool.py": {
+    "mtime": 1780913330.6327033,
+    "ast_hash": "94140218a5448e6337fc351c8047c60d",
+    "semantic_hash": "94140218a5448e6337fc351c8047c60d"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_fundamentals_ingest.py": {
+    "mtime": 1784631604.1191473,
+    "ast_hash": "1d68462943525ffc0946f483b6bd9d30",
+    "semantic_hash": "1d68462943525ffc0946f483b6bd9d30"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_intraday_ingest.py": {
+    "mtime": 1781367018.4560344,
+    "ast_hash": "fd7c0251b7e5a29f1f6232efaf721638",
+    "semantic_hash": "fd7c0251b7e5a29f1f6232efaf721638"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_jobs.py": {
+    "mtime": 1781349096.731326,
+    "ast_hash": "e3bdced12fa3f6631009f72b33724cdd",
+    "semantic_hash": "e3bdced12fa3f6631009f72b33724cdd"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_macro_ingest.py": {
+    "mtime": 1780913330.6327033,
+    "ast_hash": "b5c3485b672de282403c255a0d747ff7",
+    "semantic_hash": "b5c3485b672de282403c255a0d747ff7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_micro_execution.py": {
+    "mtime": 1784631604.1191473,
+    "ast_hash": "e3c15ed01a5935da85ad0cd34df134a0",
+    "semantic_hash": "e3c15ed01a5935da85ad0cd34df134a0"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_micro_m3_guards.py": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "4f0cf3c922e34195d0c9e04bf43113b4",
+    "semantic_hash": "4f0cf3c922e34195d0c9e04bf43113b4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_micro_universe.py": {
+    "mtime": 1781367018.4560344,
+    "ast_hash": "3d6d8e4536c859d66ce257f52c026151",
+    "semantic_hash": "3d6d8e4536c859d66ce257f52c026151"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_news_ingest.py": {
+    "mtime": 1784631604.1191473,
+    "ast_hash": "21ca73ad787e6c4af81eed8f846b272e",
+    "semantic_hash": "21ca73ad787e6c4af81eed8f846b272e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_paper_broker.py": {
+    "mtime": 1784631604.1231472,
+    "ast_hash": "e44bf467c825db8007e7765d1a588a8c",
+    "semantic_hash": "e44bf467c825db8007e7765d1a588a8c"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_portfolio_manager.py": {
+    "mtime": 1780922353.5115433,
+    "ast_hash": "639d7f2380269113e2dfe6a52b0a1d44",
+    "semantic_hash": "639d7f2380269113e2dfe6a52b0a1d44"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_protective_sell.py": {
+    "mtime": 1784631604.1231472,
+    "ast_hash": "22536891dc9a5f346bbdb1c7b9b375d1",
+    "semantic_hash": "22536891dc9a5f346bbdb1c7b9b375d1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_reports.py": {
+    "mtime": 1780913330.6327033,
+    "ast_hash": "ed85aac7f10f7c0fbefcb153b2c8769a",
+    "semantic_hash": "ed85aac7f10f7c0fbefcb153b2c8769a"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_run_analysis_fundamentals.py": {
+    "mtime": 1780913330.6327033,
+    "ast_hash": "b7db172ff33df50695df161a47248e2f",
+    "semantic_hash": "b7db172ff33df50695df161a47248e2f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_run_analysis_macro.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "911dd9a6fe73770cf937a3035f558e63",
+    "semantic_hash": "911dd9a6fe73770cf937a3035f558e63"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_run_analysis_news.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "ac7a831e48ce00f3a6d92a9e110b57d3",
+    "semantic_hash": "ac7a831e48ce00f3a6d92a9e110b57d3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/integration/test_upsert_and_queries.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "4a896e542f4e3f7269323585a8713cfb",
+    "semantic_hash": "4a896e542f4e3f7269323585a8713cfb"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/regression/__init__.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/regression/test_fallback_no_burst.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "7a8d786fe057e481750de4b1ba8a085e",
+    "semantic_hash": "7a8d786fe057e481750de4b1ba8a085e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/regression/test_incremental_window.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "8bbea246ccc7b643a4cf7378c9ce1ef3",
+    "semantic_hash": "8bbea246ccc7b643a4cf7378c9ce1ef3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_api_sanitizer.py": {
+    "mtime": 1780389140.6064968,
+    "ast_hash": "44bff19909eace0337c1b49b862538fd",
+    "semantic_hash": "44bff19909eace0337c1b49b862538fd"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_calendar.py": {
+    "mtime": 1780389140.6064968,
+    "ast_hash": "2bb32fede0818a62e5436cf0c93bd415",
+    "semantic_hash": "2bb32fede0818a62e5436cf0c93bd415"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_composite_scorer.py": {
+    "mtime": 1781349096.731326,
+    "ast_hash": "fe085995c2eb31bb268093998500915e",
+    "semantic_hash": "fe085995c2eb31bb268093998500915e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_config.py": {
+    "mtime": 1780389140.6064968,
+    "ast_hash": "ef9528001e72ca8754eef3ff08b62df1",
+    "semantic_hash": "ef9528001e72ca8754eef3ff08b62df1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_performance_metrics.py": {
+    "mtime": 1780389140.6064968,
+    "ast_hash": "02287eb654606330de3e0a3028b1a741",
+    "semantic_hash": "02287eb654606330de3e0a3028b1a741"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_settle.py": {
+    "mtime": 1780389140.6104968,
+    "ast_hash": "078372bd67dd4c079eed1c34c1fcb9aa",
+    "semantic_hash": "078372bd67dd4c079eed1c34c1fcb9aa"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_symbol_ranker.py": {
+    "mtime": 1780389140.6104968,
+    "ast_hash": "f638711e188a3ec67043329a3bc6af63",
+    "semantic_hash": "f638711e188a3ec67043329a3bc6af63"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/test_validation.py": {
+    "mtime": 1780389140.6104968,
+    "ast_hash": "5c2c72bd233ee8dfa5d693207fa4e01c",
+    "semantic_hash": "5c2c72bd233ee8dfa5d693207fa4e01c"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/__init__.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_alpaca_intraday_provider.py": {
+    "mtime": 1781367018.4560344,
+    "ast_hash": "6cf52103435c0e2012060ee856b01607",
+    "semantic_hash": "6cf52103435c0e2012060ee856b01607"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_backtester.py": {
+    "mtime": 1781349096.731326,
+    "ast_hash": "1b598ce52f21e9398a897ac90b0a7ca3",
+    "semantic_hash": "1b598ce52f21e9398a897ac90b0a7ca3"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_calendar_schedule.py": {
+    "mtime": 1780389140.7064955,
+    "ast_hash": "39c1f0ecaaea640cf5e788303b4a22f5",
+    "semantic_hash": "39c1f0ecaaea640cf5e788303b4a22f5"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_comparator_significance.py": {
+    "mtime": 1781096486.6166463,
+    "ast_hash": "7c3366788dc315052ef677c18b87abfb",
+    "semantic_hash": "7c3366788dc315052ef677c18b87abfb"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_engine_extras.py": {
+    "mtime": 1781361903.4708655,
+    "ast_hash": "bf3a98476fff40ef9bd7d516eb5c0be7",
+    "semantic_hash": "bf3a98476fff40ef9bd7d516eb5c0be7"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_finnhub_fundamentals_provider.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "febf0058a90cf1bbc8514efc395830bc",
+    "semantic_hash": "febf0058a90cf1bbc8514efc395830bc"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_finnhub_news_provider.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "91eb68ee2b8558949ba744e411884587",
+    "semantic_hash": "91eb68ee2b8558949ba744e411884587"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_fpa_periods.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "95399348e78a6b392967741a682a7d9a",
+    "semantic_hash": "95399348e78a6b392967741a682a7d9a"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_fred_provider.py": {
+    "mtime": 1780913330.6367033,
+    "ast_hash": "2c4b900f2a33ad4671fbbb6e561eb266",
+    "semantic_hash": "2c4b900f2a33ad4671fbbb6e561eb266"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_freshness_gate.py": {
+    "mtime": 1781030046.3058467,
+    "ast_hash": "9463bcc90ea5487b7f00c31f1616bad1",
+    "semantic_hash": "9463bcc90ea5487b7f00c31f1616bad1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_fundamental_signals.py": {
+    "mtime": 1780913330.6407032,
+    "ast_hash": "ce05578d85f73119d26f1ca6856ece19",
+    "semantic_hash": "ce05578d85f73119d26f1ca6856ece19"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_indicators.py": {
+    "mtime": 1781285783.6552358,
+    "ast_hash": "c308e3478cc73c81bea80d46d9c2fcde",
+    "semantic_hash": "c308e3478cc73c81bea80d46d9c2fcde"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_ingest_fallback.py": {
+    "mtime": 1780389140.7104955,
+    "ast_hash": "a371614eff1e8634ec3028f0727dfb26",
+    "semantic_hash": "a371614eff1e8634ec3028f0727dfb26"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_intraday_ingest_fallback.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "af9d813facc841e8fdafcab4c388ff45",
+    "semantic_hash": "af9d813facc841e8fdafcab4c388ff45"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_macro_regime.py": {
+    "mtime": 1780913330.6407032,
+    "ast_hash": "784ec7627574bf0b6935905faa003148",
+    "semantic_hash": "784ec7627574bf0b6935905faa003148"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_market_hours.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "7e650e5d22765a00aa761618001bdb37",
+    "semantic_hash": "7e650e5d22765a00aa761618001bdb37"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_metrics.py": {
+    "mtime": 1780389140.7104955,
+    "ast_hash": "c235b95fe46ce417f1c544767a0d5db4",
+    "semantic_hash": "c235b95fe46ce417f1c544767a0d5db4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_news_buzz.py": {
+    "mtime": 1780913330.6407032,
+    "ast_hash": "daddd012288b75546a1a8387674bca40",
+    "semantic_hash": "daddd012288b75546a1a8387674bca40"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_portfolio_comparator.py": {
+    "mtime": 1781446031.5781348,
+    "ast_hash": "10fa75557a230904aa8feb5a01489b52",
+    "semantic_hash": "10fa75557a230904aa8feb5a01489b52"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_provider_helpers.py": {
+    "mtime": 1780389140.7104955,
+    "ast_hash": "5a83a0466e4ca3984d3dfc1a520f1bee",
+    "semantic_hash": "5a83a0466e4ca3984d3dfc1a520f1bee"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_rank_normalize.py": {
+    "mtime": 1781030046.3058467,
+    "ast_hash": "5e9031c5fc2391544719c9cb08585263",
+    "semantic_hash": "5e9031c5fc2391544719c9cb08585263"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_regime_switch.py": {
+    "mtime": 1785482379.3166316,
+    "ast_hash": "3499f1c1d740c743964cddd401b5f8a1",
+    "semantic_hash": "3499f1c1d740c743964cddd401b5f8a1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_risk_manager.py": {
+    "mtime": 1781285783.6552358,
+    "ast_hash": "57a364772f22873009c4207d16722ec4",
+    "semantic_hash": "57a364772f22873009c4207d16722ec4"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_scoring.py": {
+    "mtime": 1780919948.4532504,
+    "ast_hash": "f84ad9dca0a19c94ddc35701e13539bc",
+    "semantic_hash": "f84ad9dca0a19c94ddc35701e13539bc"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_stops.py": {
+    "mtime": 1780922353.5115433,
+    "ast_hash": "ede03f27ea97e0e86dfa5712c44c7a0a",
+    "semantic_hash": "ede03f27ea97e0e86dfa5712c44c7a0a"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_strategy_versions.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "ead66984e6f1e3ee8d17b35a2813b78b",
+    "semantic_hash": "ead66984e6f1e3ee8d17b35a2813b78b"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_twelve_data_provider.py": {
+    "mtime": 1780389140.7144954,
+    "ast_hash": "09ed7e2c5b945d97e087b05ac866c1e1",
+    "semantic_hash": "09ed7e2c5b945d97e087b05ac866c1e1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_validation.py": {
+    "mtime": 1780389140.7144954,
+    "ast_hash": "1be393aee1840208a35ea35ed8ff1102",
+    "semantic_hash": "1be393aee1840208a35ea35ed8ff1102"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_vol_sizing.py": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "6469e971050703ba3cae7dcd8829bf71",
+    "semantic_hash": "6469e971050703ba3cae7dcd8829bf71"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_watchdog.py": {
+    "mtime": 1786523590.3105974,
+    "ast_hash": "74986e9b8a82cff86131dbe6608422f1",
+    "semantic_hash": "74986e9b8a82cff86131dbe6608422f1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_yfinance_intraday_provider.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "ce396be3a6045effa414290847a94922",
+    "semantic_hash": "ce396be3a6045effa414290847a94922"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/tests/unit/test_yfinance_provider.py": {
+    "mtime": 1780389140.7144954,
+    "ast_hash": "a223c05ce793416febdf5d126e902164",
+    "semantic_hash": "a223c05ce793416febdf5d126e902164"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/__init__.py": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/broker_adapter.py": {
+    "mtime": 1780389140.6104968,
+    "ast_hash": "4cd37b56573a725183bf72f135806905",
+    "semantic_hash": "4cd37b56573a725183bf72f135806905"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/broker_factory.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "0cb0e32a094845ba8f11fe98170a6034",
+    "semantic_hash": "0cb0e32a094845ba8f11fe98170a6034"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/mock_real_broker.py": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "f52bc349cddb52f1188ee4a07db7d775",
+    "semantic_hash": "f52bc349cddb52f1188ee4a07db7d775"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/paper_broker.py": {
+    "mtime": 1784631604.1231472,
+    "ast_hash": "11ca8511b6a4f385c2c97db29ac7fd35",
+    "semantic_hash": "11ca8511b6a4f385c2c97db29ac7fd35"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/portfolio_manager.py": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "27d9e900add03a8f5a42508132ac710b",
+    "semantic_hash": "27d9e900add03a8f5a42508132ac710b"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/risk_manager.py": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "08c3dba32bd1c5b79fc4490ad8c4cdaf",
+    "semantic_hash": "08c3dba32bd1c5b79fc4490ad8c4cdaf"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/trading/stops.py": {
+    "mtime": 1780922353.5155432,
+    "ast_hash": "f1d61380ed90a54a3c12ae8b6420da9c",
+    "semantic_hash": "f1d61380ed90a54a3c12ae8b6420da9c"
+  },
+  "/home/raspberry/projects/autonomous-trader/conftest.py": {
+    "mtime": 1780389140.7144954,
+    "ast_hash": "c114bd00edd667baaacb088925ae6b41",
+    "semantic_hash": "c114bd00edd667baaacb088925ae6b41"
+  },
+  "/home/raspberry/projects/autonomous-trader/docker/init-db.sh": {
+    "mtime": 1780389140.7184954,
+    "ast_hash": "ed9a7bbc19c3df698a5d5d69cb8e681d",
+    "semantic_hash": "ed9a7bbc19c3df698a5d5d69cb8e681d"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/package.json": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "f74b716c6a73c7b643c19489d8d8e276",
+    "semantic_hash": "f74b716c6a73c7b643c19489d8d8e276"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/app.d.ts": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "1984ee509c913c32ed66a2017f03ecc9",
+    "semantic_hash": "1984ee509c913c32ed66a2017f03ecc9"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/api/client.ts": {
+    "mtime": 1780389140.6184967,
+    "ast_hash": "18a439ffeef45b508c9ba0371595bf54",
+    "semantic_hash": "18a439ffeef45b508c9ba0371595bf54"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/api/endpoints.ts": {
+    "mtime": 1784638608.099457,
+    "ast_hash": "f34c2bd221747b8ea084acf13b30c5b4",
+    "semantic_hash": "f34c2bd221747b8ea084acf13b30c5b4"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/api/index.ts": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "d660cc5fae32c556d0c772e177582678",
+    "semantic_hash": "d660cc5fae32c556d0c772e177582678"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/api/types.ts": {
+    "mtime": 1784638608.099457,
+    "ast_hash": "e33be30c223cf6fefc30cfba8a406a47",
+    "semantic_hash": "e33be30c223cf6fefc30cfba8a406a47"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/CandlestickChart.svelte": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "6bd46809cf5110ce24cc36333936fd24",
+    "semantic_hash": "6bd46809cf5110ce24cc36333936fd24"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/ChartCanvas.svelte": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "72b1397042b5bf975ad9bc4d585e7e17",
+    "semantic_hash": "72b1397042b5bf975ad9bc4d585e7e17"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/ComparisonChart.svelte": {
+    "mtime": 1780924322.884676,
+    "ast_hash": "056d756646a934201b5304a8628dda1a",
+    "semantic_hash": "056d756646a934201b5304a8628dda1a"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/NavChart.svelte": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "3ded2c9091568d2ce3456784a50f459e",
+    "semantic_hash": "3ded2c9091568d2ce3456784a50f459e"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/VolumeChart.svelte": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "7b7743d6699d3b9872026c5efc4cdd5d",
+    "semantic_hash": "7b7743d6699d3b9872026c5efc4cdd5d"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/comparePalette.ts": {
+    "mtime": 1780924322.884676,
+    "ast_hash": "6bb269affee94f955bc1c98dc9777bef",
+    "semantic_hash": "6bb269affee94f955bc1c98dc9777bef"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/date-adapter.d.ts": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "7e91d72e74ac66600a910bbccfafaaa9",
+    "semantic_hash": "7e91d72e74ac66600a910bbccfafaaa9"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/financial.d.ts": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "1b2b53e1ff8bf935c2cf3d664ab485b0",
+    "semantic_hash": "1b2b53e1ff8bf935c2cf3d664ab485b0"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/register.ts": {
+    "mtime": 1780405603.8101997,
+    "ast_hash": "1b708e77a88b75f884dc0155d5725c7c",
+    "semantic_hash": "1b708e77a88b75f884dc0155d5725c7c"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/charts/theme.ts": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "69e2043a0dc4266973c664aaa0a14773",
+    "semantic_hash": "69e2043a0dc4266973c664aaa0a14773"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/Card.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "f62e58066f2d4859ad5082e53c17c08b",
+    "semantic_hash": "f62e58066f2d4859ad5082e53c17c08b"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/EmptyState.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "497979ede460c199b410cb3c09817f76",
+    "semantic_hash": "497979ede460c199b410cb3c09817f76"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/ErrorState.svelte": {
+    "mtime": 1780405603.8101997,
+    "ast_hash": "17e3d733724c84c6e136e3c3c7284177",
+    "semantic_hash": "17e3d733724c84c6e136e3c3c7284177"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/Icon.svelte": {
+    "mtime": 1781447403.6717255,
+    "ast_hash": "dab9043ef5eb5c0b03459b3d14313607",
+    "semantic_hash": "dab9043ef5eb5c0b03459b3d14313607"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/LoadingSpinner.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "5bfcd8e3fe1e53a30b039a0eb46e7841",
+    "semantic_hash": "5bfcd8e3fe1e53a30b039a0eb46e7841"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/MetricCard.svelte": {
+    "mtime": 1780405603.8101997,
+    "ast_hash": "9aaf111345cfa7cf26e8fe67e2ff9e7c",
+    "semantic_hash": "9aaf111345cfa7cf26e8fe67e2ff9e7c"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/PriceChange.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "d9996d727af45c9c3f0816783e648f25",
+    "semantic_hash": "d9996d727af45c9c3f0816783e648f25"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/RangeSelector.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "3a95cc3066a76ca2f0858a8c509361b4",
+    "semantic_hash": "3a95cc3066a76ca2f0858a8c509361b4"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/Region.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "e75c1954ac9b623f62ab62a733b489e4",
+    "semantic_hash": "e75c1954ac9b623f62ab62a733b489e4"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/SignalScore.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "f377a0a749e6fffb162a0c1665d1331b",
+    "semantic_hash": "f377a0a749e6fffb162a0c1665d1331b"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/Skeleton.svelte": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "023bf8a5c108221fdc4091ee9d95c86d",
+    "semantic_hash": "023bf8a5c108221fdc4091ee9d95c86d"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/components/StatusBadge.svelte": {
+    "mtime": 1780245678.007821,
+    "ast_hash": "62a38bdfd00b174031d54d5d265f343d",
+    "semantic_hash": "62a38bdfd00b174031d54d5d265f343d"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/i18n/index.ts": {
+    "mtime": 1780405603.8101997,
+    "ast_hash": "c614e0034aa5d972f0af1abc7ee182f1",
+    "semantic_hash": "c614e0034aa5d972f0af1abc7ee182f1"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/i18n/messages.ts": {
+    "mtime": 1785482379.3206315,
+    "ast_hash": "206f576d4953363320a2d381f8688f01",
+    "semantic_hash": "206f576d4953363320a2d381f8688f01"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/i18n/state.svelte.ts": {
+    "mtime": 1780405603.8141997,
+    "ast_hash": "18c1cdb6b4bdc6d048b23793a051672b",
+    "semantic_hash": "18c1cdb6b4bdc6d048b23793a051672b"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/stores/activePortfolio.ts": {
+    "mtime": 1781447403.6757255,
+    "ast_hash": "9b07062b3a28229b860e66b5c6d6771f",
+    "semantic_hash": "9b07062b3a28229b860e66b5c6d6771f"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/stores/systemStatus.svelte.ts": {
+    "mtime": 1780058306.087219,
+    "ast_hash": "001a5a38d20d977ee3671440979b161a",
+    "semantic_hash": "001a5a38d20d977ee3671440979b161a"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/utils/format.ts": {
+    "mtime": 1780405603.8141997,
+    "ast_hash": "598b27df0d210409a252cdc9a56b944d",
+    "semantic_hash": "598b27df0d210409a252cdc9a56b944d"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/utils/marketHours.ts": {
+    "mtime": 1780058306.091219,
+    "ast_hash": "c2b15aabac09a0c3a43be3fe2dddfe76",
+    "semantic_hash": "c2b15aabac09a0c3a43be3fe2dddfe76"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/utils/poller.svelte.ts": {
+    "mtime": 1780058306.091219,
+    "ast_hash": "f114eee07abd062b476370b59044b9e3",
+    "semantic_hash": "f114eee07abd062b476370b59044b9e3"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/lib/utils/thresholds.ts": {
+    "mtime": 1780058306.091219,
+    "ast_hash": "519c3b27e3a36484a11f22afbbf2a271",
+    "semantic_hash": "519c3b27e3a36484a11f22afbbf2a271"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/+layout.svelte": {
+    "mtime": 1781447403.6757255,
+    "ast_hash": "71fa95c8aa1d7db8b7deac72c5545cb2",
+    "semantic_hash": "71fa95c8aa1d7db8b7deac72c5545cb2"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/+layout.ts": {
+    "mtime": 1780058306.091219,
+    "ast_hash": "73ee90a856777a3bce1361e58fab7e80",
+    "semantic_hash": "73ee90a856777a3bce1361e58fab7e80"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/+page.svelte": {
+    "mtime": 1781447968.1967304,
+    "ast_hash": "b30e7d173b242014335ec38a361439da",
+    "semantic_hash": "b30e7d173b242014335ec38a361439da"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/+page.ts": {
+    "mtime": 1780058306.095219,
+    "ast_hash": "57ecbf9715a859df15d2507905352014",
+    "semantic_hash": "57ecbf9715a859df15d2507905352014"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/compare/+page.svelte": {
+    "mtime": 1781446031.5821347,
+    "ast_hash": "c2402d641c10a0cd11c58b2f93b2af97",
+    "semantic_hash": "c2402d641c10a0cd11c58b2f93b2af97"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/experiments/+page.svelte": {
+    "mtime": 1780405603.8181996,
+    "ast_hash": "e900fe6dd9f4f703d3848c1be092293e",
+    "semantic_hash": "e900fe6dd9f4f703d3848c1be092293e"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/info/+page.svelte": {
+    "mtime": 1785482379.3206315,
+    "ast_hash": "8209a5ec34239c604f4668ad1b04f107",
+    "semantic_hash": "8209a5ec34239c604f4668ad1b04f107"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/market/+page.svelte": {
+    "mtime": 1780405603.8181996,
+    "ast_hash": "ecf1fca4daa4ed20512037c3712225e3",
+    "semantic_hash": "ecf1fca4daa4ed20512037c3712225e3"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/market/[symbol]/+page.svelte": {
+    "mtime": 1780405603.8181996,
+    "ast_hash": "3deb1242b5f7c48858f9a80cc935eeb1",
+    "semantic_hash": "3deb1242b5f7c48858f9a80cc935eeb1"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/market/[symbol]/+page.ts": {
+    "mtime": 1780058306.095219,
+    "ast_hash": "a457c36b350ce195ca17a9e7308b09a1",
+    "semantic_hash": "a457c36b350ce195ca17a9e7308b09a1"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/micro/+page.svelte": {
+    "mtime": 1781447403.6757255,
+    "ast_hash": "9e4cee1ba512bdf4c631f8a4e83c8886",
+    "semantic_hash": "9e4cee1ba512bdf4c631f8a4e83c8886"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/portfolios/+page.svelte": {
+    "mtime": 1784638608.103457,
+    "ast_hash": "387429d5999a1092f66b0d23dfb96130",
+    "semantic_hash": "387429d5999a1092f66b0d23dfb96130"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/reports/+page.svelte": {
+    "mtime": 1780913330.6447031,
+    "ast_hash": "ac8260903f35912227760540a04e3b05",
+    "semantic_hash": "ac8260903f35912227760540a04e3b05"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/reports/+page.ts": {
+    "mtime": 1780913330.6447031,
+    "ast_hash": "57ecbf9715a859df15d2507905352014",
+    "semantic_hash": "57ecbf9715a859df15d2507905352014"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/system/+page.svelte": {
+    "mtime": 1780405603.8221996,
+    "ast_hash": "40ced761ec14ff883f92b4f2ff4e161b",
+    "semantic_hash": "40ced761ec14ff883f92b4f2ff4e161b"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/routes/trades/+page.svelte": {
+    "mtime": 1780405603.8221996,
+    "ast_hash": "2fb5b077c08220a5e6b33861d4df39a0",
+    "semantic_hash": "2fb5b077c08220a5e6b33861d4df39a0"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/svelte.config.js": {
+    "mtime": 1780058306.0992188,
+    "ast_hash": "36c333dbdf4ee20829cd1d6bad0f8f50",
+    "semantic_hash": "36c333dbdf4ee20829cd1d6bad0f8f50"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/tsconfig.json": {
+    "mtime": 1780389140.6224966,
+    "ast_hash": "c143a9e22b5ee02cdcaaba051315f855",
+    "semantic_hash": "c143a9e22b5ee02cdcaaba051315f855"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/vite.config.ts": {
+    "mtime": 1780246237.7063615,
+    "ast_hash": "140e3d4df5935f130937b3d6bfc9a98d",
+    "semantic_hash": "140e3d4df5935f130937b3d6bfc9a98d"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/backfill_bars.py": {
+    "mtime": 1781349096.735326,
+    "ast_hash": "2c3a4a43a3344b5779889535b900e1b9",
+    "semantic_hash": "2c3a4a43a3344b5779889535b900e1b9"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/deploy.sh": {
+    "mtime": 1781285783.6632354,
+    "ast_hash": "147042f029298087c2c6c4b32c87cb2b",
+    "semantic_hash": "147042f029298087c2c6c4b32c87cb2b"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/hooks/pre-push": {
+    "mtime": 1780405603.8221996,
+    "ast_hash": "3c539ec0cce77dae6bcb26b0a1ad9aca",
+    "semantic_hash": "3c539ec0cce77dae6bcb26b0a1ad9aca"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/repair_nav_marks_2026-07-22.sql": {
+    "mtime": 1784805501.3234622,
+    "ast_hash": "33a5618843bee1496c48ebf333dda0e2",
+    "semantic_hash": "33a5618843bee1496c48ebf333dda0e2"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/repair_phantom_sells_2026-07-21.sql": {
+    "mtime": 1784631604.1271472,
+    "ast_hash": "f0a238f107206506934216bbaac234ba",
+    "semantic_hash": "f0a238f107206506934216bbaac234ba"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/reset_portfolios.sql": {
+    "mtime": 1781361903.4748657,
+    "ast_hash": "b253dd8838c63f47dfc55962cfa3d7e1",
+    "semantic_hash": "b253dd8838c63f47dfc55962cfa3d7e1"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/setup-test-db.sh": {
+    "mtime": 1780389140.7224953,
+    "ast_hash": "ce88166ef6e454bfc829b5cd1241c52e",
+    "semantic_hash": "ce88166ef6e454bfc829b5cd1241c52e"
+  },
+  "/home/raspberry/projects/autonomous-trader/scripts/test.sh": {
+    "mtime": 1781285783.6632354,
+    "ast_hash": "44cf59b22b050ddaf90d117d3ee30053",
+    "semantic_hash": "44cf59b22b050ddaf90d117d3ee30053"
+  },
+  "/home/raspberry/projects/autonomous-trader/.github/workflows/ci.yml": {
+    "mtime": 1780389140.6864958,
+    "ast_hash": "72876c743d5cbc3ee49e41a228dc7b42",
+    "semantic_hash": "72876c743d5cbc3ee49e41a228dc7b42"
+  },
+  "/home/raspberry/projects/autonomous-trader/.github/workflows/deploy.yml": {
+    "mtime": 1780389663.883388,
+    "ast_hash": "dc12c3758556f43f3e22b057d2666ca7",
+    "semantic_hash": "dc12c3758556f43f3e22b057d2666ca7"
+  },
+  "/home/raspberry/projects/autonomous-trader/CLAUDE.md": {
+    "mtime": 1784638608.0874572,
+    "ast_hash": "1c8b7d482ced6c559a3d477490d4a601",
+    "semantic_hash": "1c8b7d482ced6c559a3d477490d4a601"
+  },
+  "/home/raspberry/projects/autonomous-trader/LAUNCH_PROMPT.md": {
+    "mtime": 1780058306.0432196,
+    "ast_hash": "3de71eee903ec8336b1e885fb0045a64",
+    "semantic_hash": "3de71eee903ec8336b1e885fb0045a64"
+  },
+  "/home/raspberry/projects/autonomous-trader/README.md": {
+    "mtime": 1780058306.0432196,
+    "ast_hash": "da0394c445670d08d4cf36b66f5d894e",
+    "semantic_hash": "da0394c445670d08d4cf36b66f5d894e"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements-analysis.txt": {
+    "mtime": 1780058306.0632193,
+    "ast_hash": "c0ec14732222d4ae655a090fc443d117",
+    "semantic_hash": "c0ec14732222d4ae655a090fc443d117"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements-api.txt": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "720203a3cc04c9c586202bd72a3e1c30",
+    "semantic_hash": "720203a3cc04c9c586202bd72a3e1c30"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements-data.txt": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "7ea89d2ab432b3cf447f31a858244d6f",
+    "semantic_hash": "7ea89d2ab432b3cf447f31a858244d6f"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements-db.txt": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "ce4296ac0ddffa0bd76902d5c5f7e627",
+    "semantic_hash": "ce4296ac0ddffa0bd76902d5c5f7e627"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements-dev.txt": {
+    "mtime": 1780389140.6944957,
+    "ast_hash": "ed616fa13f56b8d8d4adcf7bfc92d5d1",
+    "semantic_hash": "ed616fa13f56b8d8d4adcf7bfc92d5d1"
+  },
+  "/home/raspberry/projects/autonomous-trader/backend/requirements.txt": {
+    "mtime": 1780058306.0672193,
+    "ast_hash": "b584cefef8d0d5ecb2b1b95583836e97",
+    "semantic_hash": "b584cefef8d0d5ecb2b1b95583836e97"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/m1.yaml": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "aa97491a1bf3c3fd35612f393a3022f7",
+    "semantic_hash": "aa97491a1bf3c3fd35612f393a3022f7"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/m2.yaml": {
+    "mtime": 1781367018.4600344,
+    "ast_hash": "59ff718fde431c7012c1c5c7c493ae5b",
+    "semantic_hash": "59ff718fde431c7012c1c5c7c493ae5b"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/m3.yaml": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "cba1231e1a960380d0dcfa6bc3d9978b",
+    "semantic_hash": "cba1231e1a960380d0dcfa6bc3d9978b"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v1.yaml": {
+    "mtime": 1780922353.5195432,
+    "ast_hash": "24e9c0e779f5540d40cf417f9986aaee",
+    "semantic_hash": "24e9c0e779f5540d40cf417f9986aaee"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v10.yaml": {
+    "mtime": 1785482379.3166316,
+    "ast_hash": "bd273334c2ef7eff5a3278dec2bbec94",
+    "semantic_hash": "bd273334c2ef7eff5a3278dec2bbec94"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v2.yaml": {
+    "mtime": 1780922353.5195432,
+    "ast_hash": "8c58b21251ffd78354faf415eff88026",
+    "semantic_hash": "8c58b21251ffd78354faf415eff88026"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v3.yaml": {
+    "mtime": 1781030046.3138466,
+    "ast_hash": "070d47d6e473a8b002bc04f266fe61bf",
+    "semantic_hash": "070d47d6e473a8b002bc04f266fe61bf"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v4.yaml": {
+    "mtime": 1781285783.6592357,
+    "ast_hash": "dde61665e5580cd176f5770bb28ed6b8",
+    "semantic_hash": "dde61665e5580cd176f5770bb28ed6b8"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v5.yaml": {
+    "mtime": 1781349096.731326,
+    "ast_hash": "35b86c63cbe6cc7412f0c12502e44e27",
+    "semantic_hash": "35b86c63cbe6cc7412f0c12502e44e27"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v6.yaml": {
+    "mtime": 1781349096.731326,
+    "ast_hash": "71e3ff5e9194577abfd83132d95ca4b1",
+    "semantic_hash": "71e3ff5e9194577abfd83132d95ca4b1"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v7.yaml": {
+    "mtime": 1784638608.095457,
+    "ast_hash": "632f208ff7156e5dc6fa6df4f9490682",
+    "semantic_hash": "632f208ff7156e5dc6fa6df4f9490682"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategies/v8.yaml": {
+    "mtime": 1784638608.099457,
+    "ast_hash": "54211c8567107134103ce46f4085d4b7",
+    "semantic_hash": "54211c8567107134103ce46f4085d4b7"
+  },
+  "/home/raspberry/projects/autonomous-trader/config/strategy.yaml": {
+    "mtime": 1781361903.4708655,
+    "ast_hash": "842c6daab40bbda7eb7290e612a63bf0",
+    "semantic_hash": "842c6daab40bbda7eb7290e612a63bf0"
+  },
+  "/home/raspberry/projects/autonomous-trader/docker/README.md": {
+    "mtime": 1780058306.0712192,
+    "ast_hash": "c29145158e37794b89130f1a468d64d0",
+    "semantic_hash": "c29145158e37794b89130f1a468d64d0"
+  },
+  "/home/raspberry/projects/autonomous-trader/docker/docker-compose.dev.yml": {
+    "mtime": 1780416821.1736352,
+    "ast_hash": "9d9266c8750e8a5f98c1ead6bcb7d335",
+    "semantic_hash": "9d9266c8750e8a5f98c1ead6bcb7d335"
+  },
+  "/home/raspberry/projects/autonomous-trader/docker/docker-compose.yml": {
+    "mtime": 1780059671.2308736,
+    "ast_hash": "c669702ab53caaa35330a09c69229baf",
+    "semantic_hash": "c669702ab53caaa35330a09c69229baf"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/analysis-engine.md": {
+    "mtime": 1781030046.3138466,
+    "ast_hash": "768a625e69e27c8385861dacbb3984dd",
+    "semantic_hash": "768a625e69e27c8385861dacbb3984dd"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/backend-services.md": {
+    "mtime": 1781030046.3138466,
+    "ast_hash": "563572d6b530a4e47fd69fe944d2bce4",
+    "semantic_hash": "563572d6b530a4e47fd69fe944d2bce4"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/data-ingestion.md": {
+    "mtime": 1780913330.6407032,
+    "ast_hash": "2c4f39bdd7bab5baf1e4c67abfeeb796",
+    "semantic_hash": "2c4f39bdd7bab5baf1e4c67abfeeb796"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/module-contracts.md": {
+    "mtime": 1781030046.3178465,
+    "ast_hash": "fc0035fecab84c04e40ebe7f77179ce7",
+    "semantic_hash": "fc0035fecab84c04e40ebe7f77179ce7"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/protective-sell.md": {
+    "mtime": 1780389140.7184954,
+    "ast_hash": "bb3443fef323b177d8159ad349b05a8e",
+    "semantic_hash": "bb3443fef323b177d8159ad349b05a8e"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/schema.md": {
+    "mtime": 1781030046.3178465,
+    "ast_hash": "f8750fd0e1584918ae7646b67071e480",
+    "semantic_hash": "f8750fd0e1584918ae7646b67071e480"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/architecture/workflow-tree.md": {
+    "mtime": 1780058306.0752192,
+    "ast_hash": "e0e75be0764ccef6e0ad3214fd436c44",
+    "semantic_hash": "e0e75be0764ccef6e0ad3214fd436c44"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/design/frontend-implementation.md": {
+    "mtime": 1781030046.3178465,
+    "ast_hash": "6aeacc059f588775587cdf94315ad109",
+    "semantic_hash": "6aeacc059f588775587cdf94315ad109"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/design/ui-system.md": {
+    "mtime": 1780058306.0752192,
+    "ast_hash": "d1c4137299308118b14eac95c0d802ed",
+    "semantic_hash": "d1c4137299308118b14eac95c0d802ed"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/design/ux-architecture.md": {
+    "mtime": 1780058306.0752192,
+    "ast_hash": "ae77a516fd5a29e70898265fb52c82d4",
+    "semantic_hash": "ae77a516fd5a29e70898265fb52c82d4"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/01-diagnostico-perdidas.md": {
+    "mtime": 1780922353.5195432,
+    "ast_hash": "453d5f00e042f7acb6ba7ae6469ef144",
+    "semantic_hash": "453d5f00e042f7acb6ba7ae6469ef144"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/02-plan-mejora.md": {
+    "mtime": 1781030046.3218465,
+    "ast_hash": "2a0fa97af0fa94198b29b3a3bfa996f2",
+    "semantic_hash": "2a0fa97af0fa94198b29b3a3bfa996f2"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/03-plan-v3.md": {
+    "mtime": 1781030046.3218465,
+    "ast_hash": "a475cc22a62f5948479db1af343dfdb4",
+    "semantic_hash": "a475cc22a62f5948479db1af343dfdb4"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/04-plan-v4.md": {
+    "mtime": 1781285783.6592357,
+    "ast_hash": "b321d578ccd62382938978d19b276603",
+    "semantic_hash": "b321d578ccd62382938978d19b276603"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/05-plan-v5-v6.md": {
+    "mtime": 1781349096.735326,
+    "ast_hash": "97f36c2b595d340bfa60d0ad9e607261",
+    "semantic_hash": "97f36c2b595d340bfa60d0ad9e607261"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/06-plan-filtro-mercado.md": {
+    "mtime": 1781361903.4708655,
+    "ast_hash": "c386aeb6920ee03f83f49edfebfb3bc4",
+    "semantic_hash": "c386aeb6920ee03f83f49edfebfb3bc4"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/07-plan-v7-v8.md": {
+    "mtime": 1785482379.3206315,
+    "ast_hash": "d6ba746dc68c830caa5a66e477ff74d5",
+    "semantic_hash": "d6ba746dc68c830caa5a66e477ff74d5"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/diagnostics/PROMPT-revision-perdidas.md": {
+    "mtime": 1780922353.5235431,
+    "ast_hash": "26c416429c8178bf422de3f5ddacc6c5",
+    "semantic_hash": "26c416429c8178bf422de3f5ddacc6c5"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/finance/experiment-framework.md": {
+    "mtime": 1781030046.3218465,
+    "ast_hash": "b825b68e3f969a2ef39c805631c78aa7",
+    "semantic_hash": "b825b68e3f969a2ef39c805631c78aa7"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/finance/performance-metrics.md": {
+    "mtime": 1780058306.0752192,
+    "ast_hash": "8b605de4e73f41415cf912437e04aaa7",
+    "semantic_hash": "8b605de4e73f41415cf912437e04aaa7"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/finance/reporting-structure.md": {
+    "mtime": 1780058306.0752192,
+    "ast_hash": "95df03edf38a794a4af627d517f86608",
+    "semantic_hash": "95df03edf38a794a4af627d517f86608"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/qa/analytics-checklist.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "465d3e88382176b677c308713bdc062a",
+    "semantic_hash": "465d3e88382176b677c308713bdc062a"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/qa/full-audit-report.md": {
+    "mtime": 1780389140.6144967,
+    "ast_hash": "88899159766fbb27608a93d36c759be2",
+    "semantic_hash": "88899159766fbb27608a93d36c759be2"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/qa/security-audit.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "6a4372a116af9acea3cdc7dd8b92cbc4",
+    "semantic_hash": "6a4372a116af9acea3cdc7dd8b92cbc4"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/qa/testing-strategy.md": {
+    "mtime": 1780389140.7184954,
+    "ast_hash": "932709a67ae1887b83ac59387d02ad0c",
+    "semantic_hash": "932709a67ae1887b83ac59387d02ad0c"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/00-signal-synthesis.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "e484fc9e55bfb498ec972671f4d053ea",
+    "semantic_hash": "e484fc9e55bfb498ec972671f4d053ea"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/01-technical-fundamental.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "c5b8c79b84fcb27528a4f4d923c1388e",
+    "semantic_hash": "c5b8c79b84fcb27528a4f4d923c1388e"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/02-news-sentiment-smartmoney.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "e1fb910b48686cbaa062c659589a8a21",
+    "semantic_hash": "e1fb910b48686cbaa062c659589a8a21"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/03-macro-intermarket-calendar.md": {
+    "mtime": 1780058306.079219,
+    "ast_hash": "969f18484bb93a8442de8dfe02230668",
+    "semantic_hash": "969f18484bb93a8442de8dfe02230668"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/10-microtrading-intraday-technical.md": {
+    "mtime": 1781367018.4640343,
+    "ast_hash": "e4089bd626c25a58c620028f0defd715",
+    "semantic_hash": "e4089bd626c25a58c620028f0defd715"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/11-microtrading-catalysts-data.md": {
+    "mtime": 1781367018.4640343,
+    "ast_hash": "a1701c1c1b5d21f8dce49d025ed3183a",
+    "semantic_hash": "a1701c1c1b5d21f8dce49d025ed3183a"
+  },
+  "/home/raspberry/projects/autonomous-trader/docs/research/12-microtrading-risk-costs-execution.md": {
+    "mtime": 1781367018.4640343,
+    "ast_hash": "688f1a8101761eedded6bf2380d60b9c",
+    "semantic_hash": "688f1a8101761eedded6bf2380d60b9c"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/src/app.html": {
+    "mtime": 1780058306.083219,
+    "ast_hash": "a66222ed4e9b67dfe6783091a338ae19",
+    "semantic_hash": "a66222ed4e9b67dfe6783091a338ae19"
+  },
+  "/home/raspberry/projects/autonomous-trader/frontend/static/favicon.svg": {
+    "mtime": 1780058306.095219,
+    "ast_hash": "daaacda93343d408a4491a640097ccb1",
+    "semantic_hash": "daaacda93343d408a4491a640097ccb1"
   }
 }
