@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import enum
 import math
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -24,6 +25,10 @@ from backend.db.queries.portfolio_queries import (
 # Minimum paired sessions before a verdict is anything but INSUFFICIENT_EVIDENCE —
 # below this there is no statistical power (diagnostics: "≥20 sesiones por brazo").
 _MIN_PAIRED_DAYS = 20
+
+# Same default as PortfolioManager's NAV benchmark column — the leaderboard's
+# synthetic buy-and-hold row must name the series the NAV rows actually store.
+_BENCHMARK_SYMBOL = os.environ.get("BENCHMARK_SYMBOL", "SPY")
 
 # Significance-test parameters. Kept module-level so tests are deterministic and
 # the magic numbers live in one named place.
@@ -205,6 +210,35 @@ class ExperimentComparator:
             significant=pValue < alpha,
         )
 
+    def _significance_paired(
+        self, diffs: Sequence[float], alpha: float
+    ) -> SignificanceResult:
+        """Bootstrap test on the mean of PAIRED daily differences vs zero.
+
+        For arm-vs-benchmark alpha the days are paired (same sessions), so we
+        resample the difference series itself — independent resampling of the two
+        legs (as in `_significance_returns`) would throw away the pairing and
+        overstate the variance."""
+        arr = np.asarray(diffs, dtype=float)
+        arr = arr[np.isfinite(arr)]
+        if arr.size < 2:
+            return _NAN_SIGNIFICANCE
+
+        observed = float(arr.mean())
+        rng = np.random.default_rng(_BOOTSTRAP_SEED)
+        boot = rng.choice(arr, size=(_BOOTSTRAP_ITERATIONS, arr.size), replace=True).mean(axis=1)
+        pBelow = float(np.mean(boot <= 0.0))
+        pAbove = float(np.mean(boot >= 0.0))
+        pValue = min(1.0, 2.0 * min(pBelow, pAbove))
+        ciLow, ciHigh = np.quantile(boot, [alpha / 2.0, 1.0 - alpha / 2.0])
+        return SignificanceResult(
+            p_value=pValue,
+            statistic=observed,
+            ci_low=float(ciLow),
+            ci_high=float(ciHigh),
+            significant=pValue < alpha,
+        )
+
     def _significance_sharpe(
         self, a: Sequence[float], b: Sequence[float], alpha: float
     ) -> SignificanceResult:
@@ -329,6 +363,11 @@ class LeaderboardEntry:
     excess: float
     sharpe: float
     max_drawdown: float
+    # Annualized alpha vs the benchmark (mean paired daily excess ×252) with a
+    # bootstrap CI/p-value; None when the window is under _MIN_PAIRED_DAYS — the
+    # gate that keeps "who's up this month" from reading as a verdict.
+    alpha: SignificanceResult | None = None
+    is_benchmark: bool = False
 
 
 @dataclass(frozen=True)
@@ -463,6 +502,28 @@ class PortfolioComparator(ExperimentComparator):
             }
         )
 
+    def _window_alpha(self, window: pd.DataFrame) -> SignificanceResult | None:
+        """Annualized alpha vs the benchmark over the window, with bootstrap CI.
+
+        Paired daily excess returns (arm − benchmark on the same sessions); the
+        statistic and CI are scaled ×252 so the number reads as annual pp, not a
+        daily mean. None below `_MIN_PAIRED_DAYS`: underpowered windows must say
+        "insufficient", not flash a p-value."""
+        rt = metrics.daily_returns(window)
+        rb = metrics.daily_returns(window, column="benchmark")
+        diffs = (rt - rb).dropna()
+        if len(diffs) < _MIN_PAIRED_DAYS:
+            return None
+        sig = self._significance_paired([float(x) for x in diffs], alpha=0.05)
+        scale = float(metrics.TRADING_DAYS_PER_YEAR)
+        return SignificanceResult(
+            p_value=sig.p_value,
+            statistic=sig.statistic * scale,
+            ci_low=sig.ci_low * scale,
+            ci_high=sig.ci_high * scale,
+            significant=sig.significant,
+        )
+
     async def leaderboard(
         self,
         portfolios: Sequence[Any],
@@ -503,6 +564,7 @@ class PortfolioComparator(ExperimentComparator):
                 excluded=[p.name for p in portfolios],
             )
 
+        benchmark_frame: pd.DataFrame | None = None
         for p in portfolios:
             frame = frames[p.id]
             window = (
@@ -515,6 +577,10 @@ class PortfolioComparator(ExperimentComparator):
                 continue
             ret = metrics.total_return(window).pct
             bench = metrics.total_return(window, column="benchmark").pct
+            if benchmark_frame is None and not math.isnan(bench):
+                benchmark_frame = pd.DataFrame(
+                    {"ts": window["ts"].to_numpy(), "total": window["benchmark"].to_numpy()}
+                )
             entries.append(
                 LeaderboardEntry(
                     portfolio_id=p.id,
@@ -527,6 +593,26 @@ class PortfolioComparator(ExperimentComparator):
                     excess=(ret - bench) if not (math.isnan(ret) or math.isnan(bench)) else float("nan"),
                     sharpe=metrics.sharpe_ratio(window),
                     max_drawdown=metrics.max_drawdown(window).max_drawdown,
+                    alpha=self._window_alpha(window),
+                )
+            )
+
+        # Passive buy-and-hold of the benchmark is the arm to beat: it competes as a
+        # first-class row so the table splits into "above the index" and "below it".
+        if benchmark_frame is not None and len(benchmark_frame) >= 2:
+            entries.append(
+                LeaderboardEntry(
+                    portfolio_id=0,
+                    name=f"{_BENCHMARK_SYMBOL} buy & hold",
+                    strategy_label=None,
+                    kind="benchmark",
+                    active=True,
+                    total_return=metrics.total_return(benchmark_frame).pct,
+                    benchmark_return=metrics.total_return(benchmark_frame).pct,
+                    excess=0.0,
+                    sharpe=metrics.sharpe_ratio(benchmark_frame),
+                    max_drawdown=metrics.max_drawdown(benchmark_frame).max_drawdown,
+                    is_benchmark=True,
                 )
             )
 
