@@ -599,6 +599,21 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > polls it from **host cron every 30 min, outside Docker**, and emails on transition (SMTP_* in
 > `.env`; disabled and log-only until `SMTP_PASSWORD` is set).
 >
+> **Version moratorium (owner-approved 2026-08-31, in force until 2027-03-01).** Ten daily
+> versions in 3.5 months was curve-fitting noise — every "winner" regressed the next window. Until
+> **2027-03-01** (or a significant leaderboard verdict, whichever first): **no new live strategy
+> version, no new portfolio, no weight/threshold/knob change to any live arm's config**. Carved-out
+> exceptions: the pre-registered m3 judgment on 2026-09-30 (may retire, never add), retirements per
+> the written rules, and reliability fixes that provably don't change trading behaviour. Offline
+> work is allowed and encouraged: data ingestion, observation-mode signals, backtester work, and
+> the two thesis candidates — event signals (`docs/research/13-eventos-pead-insider-datos.md`) and
+> monthly cross-sectional momentum (`docs/diagnostics/10-plan-momentum-mensual.md`) — calibrated
+> under the standing 2-calibration + 1-OOS-window rule. When the moratorium lifts, **at most one**
+> new version launches. Full text: `docs/diagnostics/09-igualacion-carteras.md` §3.5. The
+> leaderboard now carries a **synthetic SPY buy-and-hold row and per-arm annualized alpha with a
+> bootstrap 95% CI / p-value** (null under 20 shared sessions) — verdicts are read from there,
+> not from "who's up this month".
+
 > Two operational rules came out of the same day. **Every job now has a wall-clock cap**
 > (`JOB_TIMEOUT_SECONDS`, 1800 s; per-job `JOB_TIMEOUT_SECONDS_<JOB>`): a Finnhub outage turned
 > `fetch_news_sentiment` into an hours-long crawl that never failed and never ended, and an
