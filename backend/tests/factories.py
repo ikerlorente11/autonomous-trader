@@ -24,14 +24,17 @@ def bar(
     *,
     ts: dt.datetime | None = None,
     close: float = 100.0,
+    open_price: float | None = None,
     volume: int = 1_000_000,
 ) -> OHLCVBar:
+    """Flat OHLC at ``close`` unless ``open_price`` is given (market-on-open fills)."""
     when = ts or dt.datetime(2026, 5, 29, tzinfo=UTC)
     c = Decimal(str(close))
+    o = Decimal(str(open_price)) if open_price is not None else c
     return OHLCVBar(
         symbol=symbol,
         ts=when,
-        open=c,
+        open=o,
         high=c,
         low=c,
         close=c,

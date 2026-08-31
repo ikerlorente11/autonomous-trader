@@ -50,6 +50,7 @@ class PortfolioManager:
         *,
         intraday: bool = False,
         atr_by_symbol: Mapping[str, Decimal] | None = None,
+        order_type: str = "market",
     ) -> None:
         self._broker = broker
         self._session = session
@@ -62,6 +63,12 @@ class PortfolioManager:
         # Raw ATR per symbol (supplied by the job that already holds the frames) —
         # only consumed when the version's config asks for vol-targeted sizing.
         self._atr_by_symbol = atr_by_symbol
+        # How signal orders reach the venue. The daily pipeline decides pre-market and
+        # asks for "market_on_open" so the fill is the next open — the first price it
+        # could actually get. Intraday (micro) keeps "market": it decides and trades
+        # inside the same session. It rides the seam's existing order_type argument,
+        # so no adapter learns anything new.
+        self._order_type = order_type
 
     async def _latest_prices(self, symbols: Sequence[str]) -> dict[str, Decimal]:
         if not symbols:
@@ -117,7 +124,7 @@ class PortfolioManager:
             if position is None or position.symbol in too_young:
                 continue
             order = await self._broker.place_order(
-                position.symbol, "sell", position.qty, "market"
+                position.symbol, "sell", position.qty, self._order_type
             )
             orders.append(order)
 
@@ -135,7 +142,9 @@ class PortfolioManager:
             )
             sizes = risk.size_positions(buys, balance)
             for symbol, qty in sizes.items():
-                order = await self._broker.place_order(symbol, "buy", qty, "market")
+                order = await self._broker.place_order(
+                    symbol, "buy", qty, self._order_type
+                )
                 orders.append(order)
 
         return orders

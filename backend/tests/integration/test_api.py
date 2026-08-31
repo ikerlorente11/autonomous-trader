@@ -26,6 +26,7 @@ async def test_system_status_lists_all_jobs(api_client) -> None:
         "fetch_news_sentiment",
         "fetch_market_data",
         "fetch_fundamentals",
+        "settle_pending_orders",
         "run_analysis",
         "execute_paper_trades",
         "update_portfolio_nav",

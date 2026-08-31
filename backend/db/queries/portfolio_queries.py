@@ -247,22 +247,26 @@ async def compute_cost_summary(
     }
 
 
-async def count_filled_orders_since(
+async def count_acted_orders_since(
     session: AsyncSession,
     portfolio_id: int,
     since: dt.datetime,
     *,
     exclude_strategy_version: str | None = None,
 ) -> int:
-    """How many *filled* orders this portfolio wrote at/after ``since`` (idempotency
-    guard). Rejected orders are excluded: a run that only produced rejections (e.g. no
-    price yet, all-HOLD) must be retryable, not locked out for the day (H2).
-    ``exclude_strategy_version`` lets the daily-execution guard ignore intraday
-    protective-sell fills — a stop-out must not count as "already traded today"."""
+    """How many orders this portfolio ACTED ON at/after ``since`` (idempotency guard).
+
+    Filled *and* pending both count: a market-on-open order is a decision already
+    taken, it just has not met its price yet, and counting only fills would let a
+    second run of the day queue the whole batch again. Rejected orders are excluded —
+    a run that only produced rejections (no price yet, all-HOLD) must be retryable,
+    not locked out for the day (H2). ``exclude_strategy_version`` lets the daily
+    execution ignore intraday protective-sell fills: a stop-out must not count as
+    "already traded today"."""
     conditions = [
         TradeOrder.portfolio_id == portfolio_id,
         TradeOrder.ts >= since,
-        func.lower(TradeOrder.status) == "filled",
+        func.lower(TradeOrder.status).in_(("filled", "pending")),
     ]
     if exclude_strategy_version is not None:
         conditions.append(

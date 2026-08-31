@@ -127,6 +127,11 @@ class MockRealBroker:
             equity += qty * (price if price is not None else self._avg_cost.get(symbol, Decimal(0)))
         return self._cash + equity
 
+    async def settle_open_orders(self, asof: dt.datetime) -> int:
+        """Nothing to settle: this double fills on placement, like a real venue would
+        for a market order. Present so the daily job calls one method for any adapter."""
+        return 0
+
     async def get_order_status(self, order_id: str) -> OrderStatus:
         idx = int(order_id) - 1
         if idx < 0 or idx >= len(self._orders):

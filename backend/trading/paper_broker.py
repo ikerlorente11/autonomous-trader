@@ -17,6 +17,7 @@ import os
 from decimal import Decimal
 
 from sqlalchemy import insert as sa_insert
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.contracts import (
@@ -26,8 +27,10 @@ from backend.contracts import (
     OrderStatus,
     Position,
 )
+from backend.data_ingestion.calendar import nth_prior_trading_day
 from backend.db.models import PortfolioPosition, TradeOrder
 from backend.db.queries.market_queries import (
+    get_first_bar_from,
     get_latest_bars,
     get_latest_intraday_bars,
 )
@@ -37,9 +40,30 @@ from backend.db.queries.portfolio_queries import (
     get_position,
 )
 
+# Order types the seam understands. "market" fills against the latest stored price;
+# "market_on_open" is accepted now and filled at the next session's OPEN — the first
+# price actually obtainable after a pre-market decision. Filling at the last close (as
+# every daily order did until 2026-08-31) means trading at a price that had already
+# happened when the signal was computed, and it is systematically ~0.08% favourable on
+# entries. See docs/diagnostics/08-revision-2026-08.md §6.1.
+MARKET_ON_OPEN = "market_on_open"
+# A pending order this many sessions old is cancelled rather than filled at a price
+# that no longer has anything to do with the decision that produced it.
+_DEFAULT_PENDING_EXPIRY_SESSIONS = 3
+
 _DEFAULT_SLIPPAGE_PCT = Decimal("0.001")
 _DEFAULT_COMMISSION_PCT = Decimal("0")
 _DEFAULT_COMMISSION_PER_ORDER = Decimal("0")
+
+
+def _pending_expiry_sessions() -> int:
+    raw = os.environ.get("PENDING_ORDER_EXPIRY_SESSIONS")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_PENDING_EXPIRY_SESSIONS
+    try:
+        return int(raw)
+    except ValueError:
+        return _DEFAULT_PENDING_EXPIRY_SESSIONS
 
 
 def _decimal_env(name: str, default: Decimal) -> Decimal:
@@ -188,6 +212,14 @@ class PaperBroker:
                 "non-positive quantity", ts,
             )
 
+        if order_type == MARKET_ON_OPEN:
+            # Accepted, not filled: the fill price is the next session's open, which
+            # does not exist yet at 08:00 UTC. Cash and positions move at settlement.
+            return await self._write_order(
+                symbol, side, qty_dec, None, OrderState.PENDING,
+                "queued for the next open", ts,
+            )
+
         market_price = await self._latest_close(symbol)
         if market_price is None or market_price <= 0:
             return await self._write_order(
@@ -263,6 +295,74 @@ class PaperBroker:
             Decimal(0),
         )
         return cash + equity
+
+    async def settle_open_orders(self, asof: dt.datetime) -> int:
+        """Fill pending market-on-open orders at their session's open. Returns fills.
+
+        Runs after the bars land, so the open of the session the order was queued for
+        finally exists. Every guard from the immediate path applies again at settlement
+        — the price moved, and a protective stop may have already sold the shares a
+        pending signal-exit was going to sell."""
+        pending = (
+            await self._session.scalars(
+                select(TradeOrder)
+                .where(
+                    TradeOrder.portfolio_id == self._portfolio_id,
+                    TradeOrder.status == OrderState.PENDING.value,
+                )
+                # Sells first: they free the cash the buys of the same batch need.
+                .order_by((TradeOrder.side == "buy"), TradeOrder.ts)
+            )
+        ).all()
+
+        filled = 0
+        for order in pending:
+            bar = await get_first_bar_from(self._session, order.symbol, order.ts.date())
+            if bar is None or bar.open is None or bar.open <= 0:
+                if self._is_expired(order, asof):
+                    order.status = OrderState.CANCELLED.value
+                    order.reason = "expired: no open price within the fill window"
+                continue
+
+            side_enum = OrderSide(order.side)
+            direction = Decimal(1) if side_enum is OrderSide.BUY else Decimal(-1)
+            fill_price = bar.open * (Decimal(1) + direction * self._slippage_pct)
+            commission = self._commission_for(order.qty, fill_price)
+
+            if side_enum is OrderSide.SELL:
+                position = await get_position(
+                    self._session, self._portfolio_id, order.symbol, for_update=True
+                )
+                held = position.qty if position else Decimal(0)
+                if held < order.qty:
+                    order.status = OrderState.REJECTED.value
+                    order.reason = f"insufficient shares to sell ({held} < {order.qty})"
+                    continue
+            else:
+                cash = await self.get_cash()
+                cost = order.qty * fill_price + commission
+                if cost > cash:
+                    order.status = OrderState.REJECTED.value
+                    order.reason = f"insufficient cash ({cash:.2f} < {cost:.2f})"
+                    continue
+
+            order.price = fill_price
+            order.commission = commission
+            order.status = OrderState.FILLED.value
+            order.reason = f"market-on-open fill @ {bar.ts.date().isoformat()}"
+            if side_enum is OrderSide.BUY:
+                await self._apply_buy(order.symbol, order.qty, fill_price)
+            else:
+                await self._apply_sell(order.symbol, order.qty)
+            await self._session.flush()
+            filled += 1
+
+        await self._session.flush()
+        return filled
+
+    def _is_expired(self, order: TradeOrder, asof: dt.datetime) -> bool:
+        cutoff = nth_prior_trading_day(asof.date(), _pending_expiry_sessions())
+        return cutoff is not None and order.ts.date() < cutoff
 
     async def get_order_status(self, order_id: str) -> OrderStatus:
         order = await self._session.get(TradeOrder, int(order_id))

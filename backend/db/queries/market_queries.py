@@ -32,6 +32,25 @@ async def count_bars_per_symbol(
     return {symbol: count for symbol, count in (await session.execute(stmt)).all()}
 
 
+async def get_first_bar_from(
+    session: AsyncSession, symbol: str, day: dt.date
+) -> MarketBar | None:
+    """Earliest stored bar for ``symbol`` on or after ``day`` (market-on-open fills).
+
+    An order queued pre-market on day d fills at session d's open; if d is a holiday
+    or the symbol did not trade, it fills at the next session that did."""
+    stmt: Select[tuple[MarketBar]] = (
+        select(MarketBar)
+        .where(
+            MarketBar.symbol == symbol,
+            MarketBar.ts >= dt.datetime.combine(day, dt.time.min, tzinfo=dt.timezone.utc),
+        )
+        .order_by(MarketBar.ts)
+        .limit(1)
+    )
+    return (await session.scalars(stmt)).first()
+
+
 async def bar_coverage_by_session(
     session: AsyncSession, symbols: Sequence[str], start: dt.datetime, end: dt.datetime
 ) -> dict[dt.date, int]:
