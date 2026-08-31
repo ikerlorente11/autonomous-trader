@@ -181,6 +181,9 @@ def make_risk_manager(
     vol_target_pct: Decimal | None = None,
     atr_by_symbol: Mapping[str, Decimal] | None = None,
     stop_atr_multiple: Decimal | None = None,
+    max_position_pct: Decimal | None = None,
+    min_cash_pct: Decimal | None = None,
+    max_open_positions: int | None = None,
 ) -> FixedFractionalRiskManager:
     return FixedFractionalRiskManager(
         prices,
@@ -188,4 +191,7 @@ def make_risk_manager(
         vol_target_pct=vol_target_pct,
         atr_by_symbol=atr_by_symbol,
         stop_atr_multiple=stop_atr_multiple,
+        max_position_pct=max_position_pct,
+        min_cash_pct=min_cash_pct,
+        max_open_positions=max_open_positions,
     )

@@ -280,9 +280,11 @@ class DefaultAnalysisEngine:
         persisted by their own producers (observation mode), never double-written."""
         active = self._active_engine(bars)
         if active is not self:
-            return active.score_universe(
+            indicators, scores = active.score_universe(
                 bars, asof, extra_signals=extra_signals, regime_score=regime_score
             )
+            # The cadence belongs to THIS version, not the delegated leg's config.
+            return indicators, self._apply_rebalance_gate(scores, bars, asof)
         per_symbol = {
             symbol: self._symbol_indicators(symbol, frame, asof)
             for symbol, frame in bars.items()
@@ -323,7 +325,45 @@ class DefaultAnalysisEngine:
                     }
                 )
             scores.append(score)
-        return indicators, scores
+        return indicators, self._apply_rebalance_gate(scores, bars, asof)
+
+    def _is_rebalance_session(
+        self, bars: Mapping[str, DataFrame], asof: dt.datetime
+    ) -> bool:
+        """First session of the month, detected without state or an exchange calendar:
+        signals score bars through d−1 and fill at d's open, so when the universe's
+        latest bar belongs to the previous month, `asof` is the month's first session.
+        Fail-open on an empty universe (never block on absent data)."""
+        if self._config.ranker.rebalance_cadence is None:
+            return True
+        last: dt.datetime | None = None
+        for frame in bars.values():
+            if len(frame):
+                ts = frame.index[-1]
+                if last is None or ts > last:
+                    last = ts
+        if last is None:
+            return True
+        return (asof.year, asof.month) != (last.year, last.month)
+
+    def _apply_rebalance_gate(
+        self, scores: list[SymbolScore], bars: Mapping[str, DataFrame], asof: dt.datetime
+    ) -> list[SymbolScore]:
+        """Off-cadence sessions hold: signal BUYs and SELLs both wait for the next
+        rebalance day (protective stops run outside the engine and are exempt)."""
+        if self._is_rebalance_session(bars, asof):
+            return scores
+        return [
+            score.model_copy(
+                update={
+                    "action": SignalAction.HOLD,
+                    "reason": (score.reason or "") + " | rebalance cadence: off-day",
+                }
+            )
+            if score.action in (SignalAction.BUY, SignalAction.SELL)
+            else score
+            for score in scores
+        ]
 
     def score_symbol(
         self, symbol: str, bars: DataFrame, asof: dt.datetime

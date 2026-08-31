@@ -139,6 +139,7 @@ class PortfolioManager:
                 prices,
                 open_position_count=len(open_positions),
                 **self._vol_sizing_kwargs(),
+                **self._envelope_kwargs(),
             )
             sizes = risk.size_positions(buys, balance)
             for symbol, qty in sizes.items():
@@ -169,6 +170,21 @@ class PortfolioManager:
             "atr_by_symbol": self._atr_by_symbol,
             "stop_atr_multiple": multiple,
         }
+
+    def _envelope_kwargs(self) -> dict[str, object]:
+        """Per-version sizing envelope (v11): overrides for the env sizing globals
+        when the version's config sets them; empty dict = env fallback, unchanged."""
+        trading = self._config.trading if self._config else None
+        if trading is None:
+            return {}
+        out: dict[str, object] = {}
+        if trading.max_position_pct is not None:
+            out["max_position_pct"] = Decimal(str(trading.max_position_pct))
+        if trading.min_cash_pct is not None:
+            out["min_cash_pct"] = Decimal(str(trading.min_cash_pct))
+        if trading.max_open_positions is not None:
+            out["max_open_positions"] = trading.max_open_positions
+        return out
 
     async def _cap_daily_trades(self, buys: list[RankedSymbol]) -> list[RankedSymbol]:
         """m3: cap signal-driven entries per session. Interval jobs re-run all day —
