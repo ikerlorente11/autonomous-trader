@@ -171,6 +171,28 @@ class JobOutcome:
     detail: dict[str, Any] = field(default_factory=dict)
 
 
+_DEFAULT_JOB_TIMEOUT_SECONDS = 1800
+
+
+def _job_timeout_seconds(job: str) -> int:
+    """Wall-clock cap for one job run; <= 0 disables it.
+
+    No job had a ceiling until 2026-08-31, when a Finnhub outage turned
+    ``fetch_news_sentiment`` into an hours-long crawl: every symbol burned its
+    retries against a server-sent ``Retry-After``, and the manual pipeline sat behind
+    it without ever reaching the trades. An unbounded job is also a job that can still
+    be running when tomorrow's copy is due. Overridable per job
+    (``JOB_TIMEOUT_SECONDS_FETCH_NEWS_SENTIMENT``) for the rare slow one."""
+    for name in (f"JOB_TIMEOUT_SECONDS_{job.upper()}", "JOB_TIMEOUT_SECONDS"):
+        raw = os.environ.get(name)
+        if raw is not None and raw.strip() != "":
+            try:
+                return int(raw)
+            except ValueError:
+                continue
+    return _DEFAULT_JOB_TIMEOUT_SECONDS
+
+
 @asynccontextmanager
 async def _job_context(job: str):
     run_id = _today_utc_midnight().isoformat()
@@ -179,8 +201,16 @@ async def _job_context(job: str):
     outcome = JobOutcome()
     _log_event(job, "job_start", run_id=run_id)
     error: str | None = None
+    limit = _job_timeout_seconds(job)
     try:
-        yield outcome
+        async with asyncio.timeout(limit if limit > 0 else None):
+            yield outcome
+    except TimeoutError:
+        # Recorded as a failure, not a silent truncation: the health check counts
+        # failed runs, so a job that hangs now raises the alarm instead of hiding.
+        outcome.status = "failed"
+        error = f"job exceeded its {limit}s wall-clock limit"
+        logger.error("job %s timed out after %ss", job, limit)
     except Exception as exc:  # noqa: BLE001 — record and degrade, never crash scheduler
         outcome.status = "failed"
         error = repr(exc)

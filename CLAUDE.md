@@ -597,6 +597,16 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > component's self-report, since the 2026-08-04 freeze reported nothing at all. `scripts/health_alert.py`
 > polls it from **host cron every 30 min, outside Docker**, and emails on transition (SMTP_* in
 > `.env`; disabled and log-only until `SMTP_PASSWORD` is set).
+>
+> Two operational rules came out of the same day. **Every job now has a wall-clock cap**
+> (`JOB_TIMEOUT_SECONDS`, 1800 s; per-job `JOB_TIMEOUT_SECONDS_<JOB>`): a Finnhub outage turned
+> `fetch_news_sentiment` into an hours-long crawl that never failed and never ended, and an
+> unbounded job can still be running when tomorrow's copy is due — a timeout is recorded as
+> `failed`, so the health check sees it. And **never `pg_dump -t` a hypertable**: it dumps the
+> always-empty parent (the rows live in `_timescaledb_internal` chunks), which produced a 0-row
+> NAV "backup" right before the reset deleted the real curves. Use
+> `scripts/archive_portfolios.sh` (`\COPY (SELECT …)`, and it fails on any empty table);
+> `scripts/rebuild_nav_from_ledger.py` rebuilds NAV from the trade ledger if it ever happens again.
 
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.

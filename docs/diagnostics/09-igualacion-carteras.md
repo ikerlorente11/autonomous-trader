@@ -88,9 +88,28 @@ justamente porque nadie había escrito cuándo pararlo.
 ## 4. Qué se conserva del historial anterior
 
 El reinicio borra `trade_orders`, `portfolio_positions` y `portfolio_nav` de las carteras activas.
-Antes de ejecutarlo se vuelca un archivo comprimido de esas tres tablas más `cash_movements` y
-`portfolios` en `~/.local/state/autonomous-trader/archive/`, fuera del repositorio. Los
-diagnósticos 01-08 ya contienen las conclusiones; el volcado está por si hiciera falta rehacer
+Antes se archiva todo en `~/.local/state/autonomous-trader/archive/`, fuera del repositorio.
+
+> **Incidente del propio archivado (2026-08-31).** El primer volcado se hizo con
+> `pg_dump --data-only -t portfolio_nav`, que sobre un **hypertable de TimescaleDB vuelca solo la
+> tabla padre — siempre vacía**: las filas viven en los *chunks* de `_timescaledb_internal`. El
+> archivo salió con 0 filas de NAV y la comprobación («las cinco tablas están») miró las cabeceras
+> `COPY`, no las filas. El reinicio borró después las curvas reales.
+>
+> **Recuperado:** el ledger sí se archivó entero (7 152 órdenes), así que
+> `scripts/rebuild_nav_from_ledger.py` reconstruye las curvas diarias desde las operaciones y las
+> barras almacenadas → `pre-reset-nav-rebuilt.csv`. Contrastado contra las cifras del documento 08:
+> v3, v8, v10, m1 y m3 coinciden al euro; v1 y v7 quedan un 0,02% y un 0,11% por debajo porque su
+> última operación es anterior al 28-ago y la reconstrucción marca al cierre de cada sesión, no al
+> del día anterior como hacía el job vivo. **Es una aproximación**: dilo allí donde se usen estas
+> cifras.
+>
+> **Corregido para siempre:** `scripts/archive_portfolios.sh` usa `\COPY (SELECT * FROM …)`, que
+> atraviesa el hypertable como cualquier consulta, y **falla si alguna tabla sale con 0 filas** —
+> un backup que no se puede verificar no es un backup. Úsalo antes de cualquier operación
+> destructiva; `pg_dump -t` sobre hypertables, nunca.
+
+Los diagnósticos 01-08 contienen las conclusiones; el archivo está por si hiciera falta rehacer
 una cifra concreta.
 
 ## Handoff notes
