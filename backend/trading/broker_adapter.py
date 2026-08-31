@@ -13,6 +13,7 @@ small budget can take a position in a high-priced symbol; every adapter honours 
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
@@ -38,3 +39,10 @@ class BrokerAdapter(Protocol):
     async def get_cash(self) -> Decimal: ...
 
     async def get_order_status(self, order_id: str) -> OrderStatus: ...
+
+    # Settle whatever the adapter still owes: orders accepted but not yet filled.
+    # A real venue does this itself and its adapter returns 0 (the fill shows up via
+    # get_order_status); the paper doubles owe their own market-on-open fills, so they
+    # do the work here. Keeping it on the seam means the daily job calls the same
+    # method whatever adapter is wired — the env-only swap survives.
+    async def settle_open_orders(self, asof: dt.datetime) -> int: ...

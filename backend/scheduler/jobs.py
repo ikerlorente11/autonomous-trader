@@ -94,7 +94,7 @@ from backend.db.queries.market_queries import (
 )
 from backend.db.queries.news_queries import get_recent_news_counts
 from backend.db.queries.portfolio_queries import (
-    count_filled_orders_since,
+    count_acted_orders_since,
     get_active_watchlist,
     get_latest_analysis_ts,
     get_open_positions,
@@ -103,6 +103,7 @@ from backend.db.queries.portfolio_queries import (
 from backend.db.session import async_session
 from backend.scheduler.schedule import JOB_SCHEDULE
 from backend.trading.broker_factory import make_broker
+from backend.trading.paper_broker import MARKET_ON_OPEN
 from backend.trading.portfolio_manager import PortfolioManager
 from backend.trading.stops import (
     atr_stop_multiple,
@@ -687,7 +688,7 @@ async def execute_paper_trades() -> None:
                 # Per-portfolio idempotency: don't double-trade one already traded today.
                 # Protective-sell fills don't count — an intraday stop-out must not
                 # block a later manual run of the daily execution.
-                if await count_filled_orders_since(
+                if await count_acted_orders_since(
                     session, portfolio.id, midnight,
                     exclude_strategy_version=_PROTECTIVE_SELL_STRATEGY,
                 ) > 0:
@@ -710,6 +711,9 @@ async def execute_paper_trades() -> None:
                                 portfolio.strategy_label, engine, frames
                             ),
                             atr_by_symbol=atr_map,
+                            # Decided pre-market: fill at the next open, the first
+                            # price this order could actually get (diagnostics 08 §6.1).
+                            order_type=MARKET_ON_OPEN,
                         )
                         orders = await manager.execute_signals(ranked)
                     per_portfolio[str(portfolio.id)] = len(orders)
@@ -727,6 +731,44 @@ async def execute_paper_trades() -> None:
                 "skipped_already_traded": skipped,
                 "failed": failed,
             }
+
+
+async def settle_pending_orders() -> None:
+    """Fill yesterday's market-on-open orders now that the session's open has landed.
+
+    Runs between the bar fetch and the analysis, so by the time the day's execution
+    sizes new buys, the pending batch has already consumed (or released) its cash."""
+    async with _job_context("settle_pending_orders") as outcome:
+        today = _today_utc()
+        if not is_trading_day(today):
+            outcome.status = "skipped"
+            outcome.detail = {"reason": "MARKET_CLOSED"}
+            _log_event("settle_pending_orders", "MARKET_CLOSED", day=today.isoformat())
+            return
+        asof = _today_utc_midnight()
+        async with async_session() as session:
+            portfolios = await list_portfolios(
+                session, active_only=True, kinds=_DAILY_KINDS
+            )
+            settled: dict[str, int] = {}
+            failed: dict[str, str] = {}
+            for portfolio in portfolios:
+                try:
+                    async with session.begin_nested():
+                        broker = make_broker(session, portfolio.id)
+                        filled = await broker.settle_open_orders(asof)
+                    if filled:
+                        settled[str(portfolio.id)] = filled
+                except Exception as exc:  # noqa: BLE001 — isolate, record, continue
+                    failed[str(portfolio.id)] = repr(exc)
+                    logger.exception(
+                        "settle_pending_orders failed for portfolio %s", portfolio.id
+                    )
+            await session.commit()
+            if failed:
+                outcome.status = "degraded"
+            outcome.detail = {"filled": sum(settled.values()), "per_portfolio": settled,
+                              "failed": failed}
 
 
 async def update_portfolio_nav() -> None:
@@ -1142,6 +1184,7 @@ JOBS: dict[str, Callable[[], Awaitable[None]]] = {
     "fetch_fundamentals": fetch_fundamentals,
     "run_analysis": run_analysis,
     "execute_paper_trades": execute_paper_trades,
+    "settle_pending_orders": settle_pending_orders,
     "update_portfolio_nav": update_portfolio_nav,
     "protective_sell": protective_sell,
     "fetch_intraday_bars": fetch_intraday_bars,

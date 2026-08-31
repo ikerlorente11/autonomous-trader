@@ -14,6 +14,10 @@ JOB_SCHEDULE: dict[str, tuple[int, int]] = {
     "fetch_news_sentiment": (6, 15),
     "fetch_market_data": (6, 30),
     "fetch_fundamentals": (6, 45),
+    # Between the bars landing and the analysis: yesterday's market-on-open orders
+    # fill at the open that arrived with the 06:30 fetch, so the day's execution
+    # sizes against a settled cash balance.
+    "settle_pending_orders": (7, 0),
     "run_analysis": (7, 30),
     "execute_paper_trades": (8, 0),
     "update_portfolio_nav": (8, 15),

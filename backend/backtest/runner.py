@@ -10,8 +10,10 @@ portfolio runs, fed by the same DB tables.
 Mechanics per trading day d (mirroring the live schedule):
   1. signals are computed on bars THROUGH d-1 (live: 06:30 fetch has only d-1),
      with fundamentals lagged ``fundamentals_lag_days`` and the macro regime as-of d-1;
-  2. exits then sized entries fill at d's OPEN ± slippage (+ commission) — slightly
-     more honest than the live paper fill at d-1's close;
+  2. exits then sized entries fill at d's OPEN ± slippage (+ commission) — since
+     2026-08-31 this matches the live path exactly (daily orders are market-on-open,
+     settled by ``settle_pending_orders``; before that the live fill was d-1's close,
+     which is what made backtest and live diverge by 1.5-2pp — diagnostics 08 §6.1);
   3. the intraday trailing stop is approximated with d's high/low: trigger when
      low_d <= peak - distance using the PRIOR peak (no same-day look-ahead), fill at
      the stop level (or the open if it gapped through), then ratchet peak to high_d;
