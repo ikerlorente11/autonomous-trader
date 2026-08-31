@@ -218,6 +218,8 @@ lección de v1 no se repite.
   `BrokerAdapter`.** Los dos knobs de §3 son opcionales con default None.
 - **No implementa nada todavía** — este es el diseño; la implementación (gate + plumbing
   de sizing + overlay + tests) es un PR aparte cuando se decida ejecutar el protocolo.
+  *(Actualización 2026-08-31: implementado y ejecutado — resultados en §7; los knobs son
+  genéricos y quedan mergeados aunque v11 se archive.)*
 
 ## 6. Riesgos conocidos y mitigaciones
 
@@ -227,6 +229,73 @@ lección de v1 no se repite.
 | Historia corta (12-1 puntuable solo desde ~2024-05; ventanas de ~6-12 meses) | Asumido y declarado: tres ventanas es lo que hay; la OOS es pequeña — por eso el criterio es exceso > 0, no significancia estadística (esa se exigirá en vivo, doc 09 §3.1) |
 | Sesgo de la watchlist (62 nombres líquidos, sin quebrados = sesgo de supervivencia leve) | Igual para todas las versiones comparadas; se anota en el resultado |
 | `_SLICE_BARS=280` deja solo 28 barras de margen sobre el 12-1 | Restricción documentada §2.1; ampliarla es cambio global, diferido |
+
+## 7. Resultados de calibración (2026-08-31) — v11 NO pasa; la OOS queda sin quemar
+
+El protocolo §4 se ejecutó tal como estaba escrito (implementación: gate de cadencia +
+envolvente de sizing + `scripts/backtest_sweep_v11.py`; comisiones 0,05% y slippage 0,1%
+activos). Tablas completas de las 8 combinaciones, sin selección previa:
+
+**C1 (2024-06-03 → 2025-05-30, tendencia; SPY +11,67%)**
+
+| combo | retorno | Sharpe | maxDD | rot/año | mesesSig | trades | stops |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| n5_l126_ew | −11,72% | −0,83 | −20,93% | 5,64 | 10 | 58 | 29 |
+| n5_l126_vt | −1,16% | −1,50 | −4,28% | 1,38 | 10 | 66 | 32 |
+| n5_l231_ew | −11,19% | −0,80 | −17,98% | 5,44 | 9 | 56 | 28 |
+| n5_l231_vt | −0,46% | −1,29 | −3,54% | 1,18 | 10 | 62 | 31 |
+| n8_l126_ew | −8,57% | −0,67 | −19,77% | 5,98 | 10 | 98 | 48 |
+| n8_l126_vt | −0,17% | −0,76 | −6,17% | 2,12 | 10 | 100 | 49 |
+| n8_l231_ew | −8,38% | −0,71 | −18,57% | 5,46 | 10 | 90 | 45 |
+| n8_l231_vt | +0,68% | −0,66 | −5,51% | 2,01 | 10 | 98 | 49 |
+
+**C2 (2026-01-02 → 2026-07-31, lateral+recuperación; SPY +9,35%)**
+
+| combo | retorno | Sharpe | maxDD | rot/año | mesesSig | trades | stops |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| n5_l126_ew | −8,84% | −0,85 | −15,18% | 4,83 | 6 | 31 | 15 |
+| n5_l126_vt | −1,66% | −1,85 | −3,25% | 0,99 | 6 | 38 | 18 |
+| n5_l231_ew | −2,64% | −0,19 | −14,32% | 6,13 | 6 | 38 | 19 |
+| n5_l231_vt | +0,55% | −0,81 | −2,28% | 1,11 | 6 | 39 | 19 |
+| n8_l126_ew | −13,19% | −1,46 | −17,34% | 5,64 | 6 | 59 | 27 |
+| n8_l126_vt | −3,39% | −2,10 | −4,69% | 1,92 | 6 | 65 | 30 |
+| n8_l231_ew | +2,07% | +0,06 | −9,93% | 5,29 | 6 | 54 | 26 |
+| n8_l231_vt | +2,47% | −0,02 | −2,93% | 1,80 | 6 | 59 | 28 |
+
+**Aplicación literal de §4.3.** Elegibles (rotación < 2×/año en AMBAS ventanas, ≥4
+meses con operaciones): solo `n5_l126_vt` (1,38/0,99) y `n5_l231_vt` (1,18/1,11) — los
+n8_vt fallan C1 por décimas (2,12/2,01) y TODAS las equal-weight rotan 5-6×/año.
+Ganadora formal: `n5_l231_vt`, Sharpe medio −1,05.
+
+**Decisión: v11 se archiva en calibración y la OOS NO se corre.** La ganadora formal
+está a 10-12 pp de SPY en las dos ventanas de calibración; el criterio §4.4.1 (exceso
+OOS > 0) no tiene ninguna posibilidad realista, y correr la OOS la quemaría para
+siempre (§4.4: la OOS usada no se reutiliza). Preservar la ventana virgen para un
+rediseño vale más que el trámite.
+
+**Diagnóstico del mecanismo (por qué falla, no solo cuánto):**
+
+1. **El stop intradía destruye la cadencia mensual.** ~50% de todas las operaciones son
+   stops en las 16 celdas. El ciclo: compra fuerza el día 1 → el trailing (ATR×3,5,
+   suelo 7%) salta con un retroceso ordinario a mitad de mes → cooldown 3d + cadencia
+   impiden reentrar → recompra el mes siguiente más caro. Las equal-weight sangran
+   −8/−13% por ese ciclo (y de ahí su rotación 5-6×, que las inelegibiliza); el
+   momentum 12-1 de la literatura NO lleva trailing stop del 7% — retiene a través de
+   retrocesos que aquí venden el mínimo local sistemáticamente.
+2. **Las vol-target "aprueban" elegibilidad no jugando.** Con riesgo 0,4%/posición y
+   stop ~10%, cada posición es ~4% del NAV → ~20% invertido. Son planas porque están
+   en caja — la variante moderna de la lección c1 (07-plan §2): `mesesSig` no detecta
+   infra-exposición. Un protocolo futuro debe añadir un mínimo de exposición media.
+3. La comparación honesta ya existía: v10 captura momentum con confirmación de régimen
+   y ejecución diaria (+44,8% en su ventana larga) — trocear ese mecanismo en
+   rebalanceos mensuales con stops intradía es peor que ambas cosas por separado.
+
+**Qué implicaría una v11b (protocolo NUEVO, la OOS sigue virgen):** exit solo en
+rebalanceo (sin trailing intradía, o stop de catástrofe ≥20%), mínimo de exposición
+media como criterio de elegibilidad, y quizá `max_position_pct` como tope duro con
+equal-weight real. Requiere pre-registro nuevo ANTES de correr nada, y las mismas C1/C2
+ya están contaminadas para elegir stops (se miraron): cualquier v11b debería calibrar
+en ventanas desplazadas o aceptar la contaminación por escrito.
 
 ## Handoff notes
 

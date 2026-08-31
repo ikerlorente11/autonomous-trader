@@ -63,6 +63,13 @@ class RankerConfig(_Frozen):
     min_score_to_exit: float
     min_data_completeness: float
     market_filter: MarketFilterConfig | None = None
+    # v11 (10-plan-momentum-mensual §3.1): when "monthly", signal-driven BUY/SELL act
+    # only on the first session of each month (detected statelessly: the month of
+    # `asof` differs from the month of the universe's latest bar — with market-on-open
+    # fills that is exactly the first session after a month boundary). Non-rebalance
+    # days emit HOLDs; protective stops never pass through here and stay intraday.
+    # None = act every day (current behaviour).
+    rebalance_cadence: Literal["monthly"] | None = None
 
 
 class RegimeMultiplierConfig(_Frozen):
@@ -149,6 +156,13 @@ class TradingConfig(_Frozen):
     # risk controls must never wait).
     max_trades_per_day: int | None = None
     min_hold_minutes: int | None = None
+    # v11 (10-plan-momentum-mensual §3.2): per-version sizing envelope. The env
+    # globals (MAX_POSITION_PCT 5% / MIN_CASH_PCT 20% / MAX_OPEN_POSITIONS 10) cap
+    # structural exposure at ~50%, which a concentrated monthly top-N cannot live
+    # under. None = env fallback, so every existing version is byte-for-byte intact.
+    max_position_pct: float | None = None
+    min_cash_pct: float | None = None
+    max_open_positions: int | None = None
 
 
 class RegimeSwitchConfig(_Frozen):

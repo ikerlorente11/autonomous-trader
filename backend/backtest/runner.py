@@ -377,8 +377,20 @@ class Backtester:
                         "atr_by_symbol": atr_by_symbol,
                         "stop_atr_multiple": Decimal(str(atr_mult)),
                     }
+                envelope_kwargs: dict = {}
+                if day_trading.max_position_pct is not None:
+                    envelope_kwargs["max_position_pct"] = Decimal(
+                        str(day_trading.max_position_pct)
+                    )
+                if day_trading.min_cash_pct is not None:
+                    envelope_kwargs["min_cash_pct"] = Decimal(str(day_trading.min_cash_pct))
+                if day_trading.max_open_positions is not None:
+                    envelope_kwargs["max_open_positions"] = day_trading.max_open_positions
                 risk = FixedFractionalRiskManager(
-                    prices, open_position_count=open_count_before, **vol_kwargs
+                    prices,
+                    open_position_count=open_count_before,
+                    **vol_kwargs,
+                    **envelope_kwargs,
                 )
                 from backend.contracts import AccountBalance  # local import: tiny dataclass
 

@@ -1,0 +1,25 @@
+# Strategy version "v11" — monthly cross-sectional momentum (thesis B, backtest-only
+# while the version moratorium runs; no portfolio selects this label until the cohort
+# verdict + OOS promotion, docs/diagnostics/10-plan-momentum-mensual.md §4.5).
+#
+# Pure relative momentum: the composite IS the symbol's momentum percentile across the
+# day's universe (single weight + rank_normalize), top-N picked by the act threshold,
+# entries/exits by signal only on the first session of each month. Protective stops
+# stay intraday (v7 profile: wide, weeks-horizon). market_filter inherits from base.
+ranker:
+  min_score_to_act: 87.0      # top-8 of 62 ≈ percentile 87 (sweep axis: 92 = top-5)
+  min_score_to_exit: 50.0     # hysteresis: signal exit only below the universe median
+  rebalance_cadence: monthly
+scoring:
+  weights: { rsi: 0.0, ma_trend: 0.0, atr: 0.0, momentum: 1.0 }
+  rank_normalize: true
+indicators:
+  momentum: { period: 231, skip: 21 }   # 12-1 (sweep axis: 126 = 6-1)
+trading:
+  stop_atr_multiple: 3.5
+  stop_min_distance_pct: 0.07
+  allow_pyramiding: false
+  stop_reentry_cooldown_days: 3
+  max_position_pct: 0.11      # ≈ (1 − 0.05) / 8
+  min_cash_pct: 0.05
+  max_open_positions: 8
