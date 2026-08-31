@@ -11,6 +11,8 @@ from backend.analysis.performance.metrics import signal_accuracy
 from backend.api.deps import get_session
 from backend.api.schemas import (
     ExperimentEntry,
+    LeaderboardEntryView,
+    LeaderboardView,
     PortfolioComparisonView,
     PortfolioStatsView,
     SignalAccuracySummary,
@@ -21,6 +23,7 @@ from backend.db.queries.portfolio_queries import (
     get_latest_analysis_ts,
     get_settled_signals,
     get_top_ranked_signals,
+    list_portfolios,
 )
 from backend.experiments.comparator import (
     ExperimentComparator,
@@ -59,6 +62,49 @@ def _sig_view(s: SignificanceResult) -> SignificanceView:
         ci_low=_finite(s.ci_low),
         ci_high=_finite(s.ci_high),
         significant=s.significant,
+    )
+
+
+@router.get("/leaderboard", response_model=LeaderboardView)
+async def leaderboard(
+    include_inactive: bool = Query(default=False),
+    kind: str | None = Query(default=None, description="daily | micro"),
+    start: dt.date | None = Query(default=None),
+    end: dt.date | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> LeaderboardView:
+    """Rank every portfolio over the sessions they all share.
+
+    Since-inception numbers are not comparable across arms created weeks apart; this
+    is the table to read before retiring or promoting a strategy version."""
+    portfolios = await list_portfolios(
+        session,
+        active_only=not include_inactive,
+        kinds=(kind,) if kind else None,
+    )
+    board = await PortfolioComparator(session).leaderboard(
+        portfolios, start=start, end=end
+    )
+    return LeaderboardView(
+        start=board.start,
+        end=board.end,
+        sessions=board.sessions,
+        entries=[
+            LeaderboardEntryView(
+                portfolio_id=e.portfolio_id,
+                name=e.name,
+                strategy_label=e.strategy_label,
+                kind=e.kind,
+                active=e.active,
+                total_return=_finite(e.total_return),
+                benchmark_return=_finite(e.benchmark_return),
+                excess=_finite(e.excess),
+                sharpe=_finite(e.sharpe),
+                max_drawdown=_finite(e.max_drawdown),
+            )
+            for e in board.entries
+        ],
+        excluded=board.excluded,
     )
 
 

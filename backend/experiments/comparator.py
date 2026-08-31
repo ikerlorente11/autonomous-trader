@@ -318,6 +318,36 @@ class PortfolioStats:
 
 
 @dataclass(frozen=True)
+class LeaderboardEntry:
+    portfolio_id: int
+    name: str
+    strategy_label: str | None
+    kind: str
+    active: bool
+    total_return: float
+    benchmark_return: float
+    excess: float
+    sharpe: float
+    max_drawdown: float
+
+
+@dataclass(frozen=True)
+class Leaderboard:
+    """Every arm measured over the SAME sessions.
+
+    Portfolios were created on different dates (v1/v3 from 15-jun, v7/v8 from 22-jul,
+    v10 from 31-jul), so their since-inception numbers answer different questions and
+    ranking them against each other is meaningless. This intersects the NAV dates and
+    reports only that window."""
+
+    start: dt.date | None
+    end: dt.date | None
+    sessions: int
+    entries: list[LeaderboardEntry]
+    excluded: list[str]
+
+
+@dataclass(frozen=True)
 class PortfolioComparison:
     a: PortfolioStats
     b: PortfolioStats
@@ -416,4 +446,97 @@ class PortfolioComparator(ExperimentComparator):
             a=stats_a, b=stats_b, paired_days=paired,
             returns_significance=returns_sig, sharpe_significance=sharpe_sig,
             verdict=verdict, notes=notes,
+        )
+
+    async def _nav_bench_frame(self, portfolio_id: int) -> pd.DataFrame:
+        far_past = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        far_future = dt.datetime(2100, 1, 1, tzinfo=dt.timezone.utc)
+        rows = await get_nav_history(self._session, portfolio_id, far_past, far_future)
+        return pd.DataFrame(
+            {
+                "ts": [r.ts for r in rows],
+                "total": [float(r.total) for r in rows],
+                "benchmark": [
+                    float(r.benchmark_value) if r.benchmark_value is not None else float("nan")
+                    for r in rows
+                ],
+            }
+        )
+
+    async def leaderboard(
+        self,
+        portfolios: Sequence[Any],
+        *,
+        start: dt.date | None = None,
+        end: dt.date | None = None,
+    ) -> Leaderboard:
+        """Rank every portfolio over the sessions they ALL have in common.
+
+        ``start``/``end`` clip the window further (e.g. "since the reset"); without
+        them the window is the natural intersection, which is the youngest arm's
+        history. Arms with fewer than 2 sessions in the window are excluded by name
+        rather than silently dropped — a truncated leaderboard that looks complete is
+        worse than no leaderboard."""
+        frames: dict[int, pd.DataFrame] = {}
+        for p in portfolios:
+            frame = await self._nav_bench_frame(p.id)
+            if not frame.empty:
+                frame = frame.assign(day=pd.to_datetime(frame["ts"]).dt.normalize())
+            frames[p.id] = frame
+
+        common: pd.DatetimeIndex | None = None
+        for frame in frames.values():
+            if frame.empty:
+                continue
+            days = pd.DatetimeIndex(frame["day"].unique())
+            common = days if common is None else common.intersection(days)
+        if common is not None and start is not None:
+            common = common[common >= pd.Timestamp(start, tz="UTC")]
+        if common is not None and end is not None:
+            common = common[common <= pd.Timestamp(end, tz="UTC")]
+
+        entries: list[LeaderboardEntry] = []
+        excluded: list[str] = []
+        if common is None or len(common) < 2:
+            return Leaderboard(
+                start=None, end=None, sessions=0, entries=[],
+                excluded=[p.name for p in portfolios],
+            )
+
+        for p in portfolios:
+            frame = frames[p.id]
+            window = (
+                frame[frame["day"].isin(common)].sort_values("ts")
+                if not frame.empty
+                else frame
+            )
+            if len(window) < 2:
+                excluded.append(p.name)
+                continue
+            ret = metrics.total_return(window).pct
+            bench = metrics.total_return(window, column="benchmark").pct
+            entries.append(
+                LeaderboardEntry(
+                    portfolio_id=p.id,
+                    name=p.name,
+                    strategy_label=p.strategy_label,
+                    kind=p.kind,
+                    active=bool(p.active),
+                    total_return=ret,
+                    benchmark_return=bench,
+                    excess=(ret - bench) if not (math.isnan(ret) or math.isnan(bench)) else float("nan"),
+                    sharpe=metrics.sharpe_ratio(window),
+                    max_drawdown=metrics.max_drawdown(window).max_drawdown,
+                )
+            )
+
+        entries.sort(
+            key=lambda e: (-e.excess if not math.isnan(e.excess) else float("inf"))
+        )
+        return Leaderboard(
+            start=common.min().date(),
+            end=common.max().date(),
+            sessions=int(len(common)),
+            entries=entries,
+            excluded=excluded,
         )
