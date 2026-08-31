@@ -283,10 +283,41 @@ class InsiderTransaction(Base):
     txn_type: Mapped[str | None] = mapped_column(String(16))
     shares: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     price: Mapped[Decimal | None] = mapped_column(PRICE)
+    # filed_ts is what the market saw (point-in-time key); transaction_date is when
+    # the insider actually traded — up to 2 business days earlier (legal deadline).
     filed_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    issuer_cik: Mapped[str | None] = mapped_column(String(16))
+    transaction_date: Mapped[dt.date | None] = mapped_column(Date)
+    acceptance_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    shares_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    is_amendment: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str | None] = mapped_column(String(16))
 
     __table_args__ = (
         Index("ix_insider_symbol_filed", "symbol", "filed_ts"),
+    )
+
+
+class EarningsEvent(Base):
+    """One earnings announcement per symbol and fiscal quarter (thesis A, PEAD).
+
+    ``available_ts`` is the first session at which the surprise is actionable —
+    the lookahead guard: bmo -> that session, amc/unknown -> the next one."""
+
+    __tablename__ = "earnings_events"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    fiscal_period_end: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    announce_date: Mapped[dt.date] = mapped_column(Date)
+    announce_session: Mapped[str] = mapped_column(String(8), default="unknown")
+    available_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    eps_estimate: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    eps_actual: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    surprise_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    source: Mapped[str] = mapped_column(String(24))
+
+    __table_args__ = (
+        Index("ix_earnings_events_symbol_available", "symbol", "available_ts"),
     )
 
 
