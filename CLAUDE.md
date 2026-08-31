@@ -583,6 +583,21 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > micro arm. `PATCH /api/portfolios/{id}` accepts `active` so a version can be retired without
 > the cascading `DELETE`. Full review: `docs/diagnostics/08-revision-2026-08.md`.
 
+> **Equalized cohort + health alerting (2026-08-31).** Portfolios created weeks apart cannot be
+> ranked against each other, so all live books were **reset together** (`scripts/reset_portfolios.sql`
+> — history archived first to `~/.local/state/autonomous-trader/archive/`) and the cohort is now
+> **v1, v3, v7, v8, v10 (daily) + m3 (micro)**, each at 500 € and 100 000 €; **v2, v5 and v6 are
+> retired** (`active=false`, history kept). `GET /api/algorithms/leaderboard` ranks every arm over
+> the sessions they ALL share (excluded arms are named, never silently dropped), surfaced on
+> `/compare`. **Retirement and promotion rules are now written down in advance** —
+> `docs/diagnostics/09-igualacion-carteras.md` — including a dated kill criterion for the micro
+> section (judge m3 on **2026-09-30**: no positive GROSS edge → `MICRO_ENABLED=false`).
+> **Health alerting:** `GET /api/system/health` judges liveness from the data the pipeline should
+> have produced (NAV/bar staleness in sessions, job silence, failed runs) — never from a
+> component's self-report, since the 2026-08-04 freeze reported nothing at all. `scripts/health_alert.py`
+> polls it from **host cron every 30 min, outside Docker**, and emails on transition (SMTP_* in
+> `.env`; disabled and log-only until `SMTP_PASSWORD` is set).
+
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.

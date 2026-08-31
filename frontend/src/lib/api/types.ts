@@ -249,6 +249,29 @@ export interface PortfolioComparison {
 	notes: string[];
 }
 
+// backend/api/schemas.py::LeaderboardEntryView
+export interface LeaderboardEntry {
+	portfolio_id: number;
+	name: string;
+	strategy_label: string | null;
+	kind: string;
+	active: boolean;
+	total_return: number | null;
+	benchmark_return: number | null;
+	excess: number | null;
+	sharpe: number | null;
+	max_drawdown: number | null;
+}
+
+// backend/api/schemas.py::LeaderboardView
+export interface Leaderboard {
+	start: string | null;
+	end: string | null;
+	sessions: number;
+	entries: LeaderboardEntry[];
+	excluded: string[];
+}
+
 // backend/api/schemas.py::JobStatus
 export interface JobStatus {
 	job: string;

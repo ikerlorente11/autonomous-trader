@@ -7,11 +7,19 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_session
-from backend.api.schemas import JobStatus, RunTrigger, SystemStatus
+from backend.api.schemas import (
+    HealthCheckSchema,
+    JobStatus,
+    PipelineHealth,
+    RunTrigger,
+    SystemStatus,
+)
 from backend.db.queries.system_queries import (
     get_last_run_per_job,
+    get_pipeline_freshness,
     get_recent_job_runs,
 )
+from backend.health import evaluate
 from backend.scheduler.jobs import run_pipeline
 from backend.scheduler.schedule import JOB_SCHEDULE, next_run_after
 
@@ -56,6 +64,36 @@ async def run_pipeline_now(background: BackgroundTasks) -> RunTrigger:
         status="started",
         detail="Daily pipeline started: macro, news, market data, fundamentals, "
         "analysis, trades, NAV snapshot.",
+    )
+
+
+@router.get("/health", response_model=PipelineHealth)
+async def pipeline_health(
+    session: AsyncSession = Depends(get_session),
+) -> PipelineHealth:
+    """Is the pipeline producing data? Polled from the host by scripts/health_alert.py.
+
+    Always 200 — the verdict is in the body. An HTTP error code would be
+    indistinguishable from the API itself being down, and the poller must be able to
+    tell those apart to write a useful subject line."""
+    now = dt.datetime.now(dt.timezone.utc)
+    facts = await get_pipeline_freshness(
+        session, failed_since=now - dt.timedelta(hours=24)
+    )
+    report = evaluate(
+        now=now,
+        latest_nav=facts.latest_nav,
+        latest_bar=facts.latest_bar,
+        last_job_at=facts.last_job_at,
+        failed_jobs=facts.failed_jobs,
+    )
+    return PipelineHealth(
+        ok=report.ok,
+        asof=report.asof,
+        checks=[
+            HealthCheckSchema(name=c.name, ok=c.ok, detail=c.detail)
+            for c in report.checks
+        ],
     )
 
 

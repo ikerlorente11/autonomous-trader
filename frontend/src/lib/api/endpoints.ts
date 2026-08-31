@@ -7,6 +7,7 @@ import type {
 	CashMovement,
 	ExperimentEntry,
 	FpaPeriod,
+	Leaderboard,
 	NavRange,
 	OHLCVBar,
 	PerformanceMetrics,
@@ -158,7 +159,8 @@ export const algorithmsApi = {
 		api.get<SignalEntry[]>('/algorithms/signals', { params: { limit }, fetcher: f }),
 	experiments: (f?: F) => api.get<ExperimentEntry[]>('/algorithms/experiments', { fetcher: f }),
 	compare: (a: number, b: number, f?: F) =>
-		api.get<PortfolioComparison>('/algorithms/compare', { params: { a, b }, fetcher: f })
+		api.get<PortfolioComparison>('/algorithms/compare', { params: { a, b }, fetcher: f }),
+	leaderboard: (f?: F) => api.get<Leaderboard>('/algorithms/leaderboard', { fetcher: f })
 };
 
 export const systemApi = {

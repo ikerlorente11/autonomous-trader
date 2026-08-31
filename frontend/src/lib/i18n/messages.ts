@@ -177,6 +177,18 @@ const es: Dict = {
 	'compare.ab.verdict.A_BETTER': 'A es mejor (diferencia significativa)',
 	'compare.ab.verdict.B_BETTER': 'B es mejor (diferencia significativa)',
 
+	'compare.board.title': 'Clasificación en ventana común',
+	'compare.board.caption': 'Todas las carteras medidas sobre las MISMAS sesiones — las cifras desde el inicio de cada una no son comparables entre sí',
+	'compare.board.window': 'Ventana',
+	'compare.board.sessions': 'sesiones',
+	'compare.board.name': 'Cartera',
+	'compare.board.return': 'Retorno',
+	'compare.board.benchmark': 'Índice',
+	'compare.board.excess': 'Exceso',
+	'compare.board.maxDD': 'DD máx.',
+	'compare.board.excluded': 'Sin datos en la ventana',
+	'compare.board.empty': 'Todavía no hay sesiones comunes a todas las carteras.',
+
 	// Market
 	'market.title': 'Mercado',
 	'market.watchlist.title': 'Watchlist',

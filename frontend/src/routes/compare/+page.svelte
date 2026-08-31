@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { algorithmsApi, portfoliosApi } from '$lib/api/endpoints';
-	import type { NavRange, PortfolioComparison, PortfolioSnapshot } from '$lib/api/types';
+	import type {
+		Leaderboard,
+		NavRange,
+		PortfolioComparison,
+		PortfolioSnapshot
+	} from '$lib/api/types';
 	import { createResource } from '$lib/utils/poller.svelte';
 	import ComparisonChart from '$lib/charts/ComparisonChart.svelte';
 	import type { CompareSeries } from '$lib/charts/ComparisonChart.svelte';
@@ -11,6 +16,10 @@
 	const REFRESH = 300_000;
 
 	const portfolios = createResource(() => portfoliosApi.list(), { intervalMs: REFRESH });
+	// The only fair ranking: every arm over the sessions they all share.
+	const board = createResource<Leaderboard>(() => algorithmsApi.leaderboard(), {
+		intervalMs: REFRESH
+	});
 
 	let range = $state<NavRange>('all');
 	const ranges: readonly NavRange[] = ['7d', '30d', '90d', '1y', 'all'];
@@ -111,6 +120,52 @@
 	</Region>
 </Card>
 
+<Card title={t('compare.board.title')} caption={t('compare.board.caption')} span="full">
+	<Region
+		resource={board}
+		isEmpty={() => (board.data?.entries.length ?? 0) === 0}
+		emptyMessage={t('compare.board.empty')}
+	>
+		{#snippet children()}
+			<p class="ab-note">
+				{t('compare.board.window')}: {board.data?.start} → {board.data?.end}
+				({board.data?.sessions} {t('compare.board.sessions')})
+			</p>
+			<table class="ab-table">
+				<thead>
+					<tr>
+						<th>{t('compare.board.name')}</th>
+						<th>{t('compare.board.return')}</th>
+						<th>{t('compare.board.benchmark')}</th>
+						<th>{t('compare.board.excess')}</th>
+						<th>Sharpe</th>
+						<th>{t('compare.board.maxDD')}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each board.data?.entries ?? [] as e (e.portfolio_id)}
+						<tr>
+							<td>{e.strategy_label ? `${e.name} (${e.strategy_label})` : e.name}</td>
+							<td>{pct(e.total_return)}</td>
+							<td>{pct(e.benchmark_return)}</td>
+							<td class:up={(e.excess ?? 0) > 0} class:down={(e.excess ?? 0) < 0}>
+								{pct(e.excess)}
+							</td>
+							<td>{num(e.sharpe)}</td>
+							<td>{pct(e.max_drawdown)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+			{#if (board.data?.excluded.length ?? 0) > 0}
+				<p class="ab-note">
+					{t('compare.board.excluded')}: {board.data?.excluded.join(', ')}
+				</p>
+			{/if}
+		{/snippet}
+	</Region>
+</Card>
+
 <Card title={t('compare.ab.title')} caption={t('compare.ab.caption')} span="full">
 	<div class="controls">
 		<label class="ab-pick">
@@ -196,6 +251,12 @@
 		background: var(--color-accent, var(--color-text-0));
 		color: var(--color-bg-0);
 		font-weight: var(--weight-semibold);
+	}
+	.ab-table td.up {
+		color: var(--color-up, #16a34a);
+	}
+	.ab-table td.down {
+		color: var(--color-down, #dc2626);
 	}
 	.ab-pick {
 		display: inline-flex;

@@ -204,6 +204,30 @@ class PortfolioComparisonView(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class LeaderboardEntryView(BaseModel):
+    portfolio_id: int
+    name: str
+    strategy_label: str | None = None
+    kind: str
+    active: bool
+    total_return: float | None = None
+    benchmark_return: float | None = None
+    excess: float | None = None
+    sharpe: float | None = None
+    max_drawdown: float | None = None
+
+
+class LeaderboardView(BaseModel):
+    """All arms over the SAME sessions — the only fair ranking when portfolios were
+    created on different dates."""
+
+    start: dt.date | None = None
+    end: dt.date | None = None
+    sessions: int
+    entries: list[LeaderboardEntryView]
+    excluded: list[str] = Field(default_factory=list)
+
+
 class JobStatus(BaseModel):
     job: str
     status: str | None = None
@@ -219,3 +243,17 @@ class SystemStatus(BaseModel):
     jobs: list[JobStatus]
     recent_errors: list[JobStatus]
     micro_enabled: bool = False
+
+
+class HealthCheckSchema(BaseModel):
+    name: str
+    ok: bool
+    detail: str
+
+
+class PipelineHealth(BaseModel):
+    """Whether the pipeline is actually producing data — what the alerting reads."""
+
+    ok: bool
+    asof: dt.datetime
+    checks: list[HealthCheckSchema]
