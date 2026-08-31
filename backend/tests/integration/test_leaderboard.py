@@ -73,6 +73,49 @@ async def test_portfolios_without_window_data_are_named_not_dropped(
     assert body["sessions"] == 0 or "lb-absent" in body["excluded"]
 
 
+async def test_benchmark_rides_as_first_class_row(api_client, db_session) -> None:
+    pid = await seed_portfolio(db_session, name="lb-vs-spy", deposit=1000)
+    for day in range(3):
+        await _seed_nav(db_session, pid, day, 1000, 1000 + 10 * day)
+
+    r = await api_client.get("/api/algorithms/leaderboard")
+    body = r.json()
+    bench = [e for e in body["entries"] if e["is_benchmark"]]
+    assert len(bench) == 1
+    assert bench[0]["portfolio_id"] == 0
+    assert bench[0]["total_return"] == pytest.approx(0.02)
+    assert bench[0]["excess"] == pytest.approx(0.0)
+    # A flat portfolio against a rising index sorts below the benchmark row.
+    names = [e["name"] for e in body["entries"]]
+    assert names.index(bench[0]["name"]) < names.index("lb-vs-spy")
+
+
+async def test_alpha_significance_with_enough_sessions(api_client, db_session) -> None:
+    # 25 sessions of +1%/day against a flat index: unambiguous positive alpha.
+    pid = await seed_portfolio(db_session, name="lb-alpha", deposit=1000)
+    for day in range(25):
+        await _seed_nav(db_session, pid, day, 1000 * 1.01**day, 1000)
+
+    r = await api_client.get("/api/algorithms/leaderboard")
+    entry = next(e for e in r.json()["entries"] if e["name"] == "lb-alpha")
+    assert entry["alpha_annual"] is not None and entry["alpha_annual"] > 0
+    assert entry["alpha_ci_low"] > 0
+    assert entry["alpha_p_value"] < 0.05
+    assert entry["alpha_significant"] is True
+
+
+async def test_alpha_gated_below_min_paired_days(api_client, db_session) -> None:
+    pid = await seed_portfolio(db_session, name="lb-underpowered", deposit=1000)
+    for day in range(5):
+        await _seed_nav(db_session, pid, day, 1000 * 1.01**day, 1000)
+
+    r = await api_client.get("/api/algorithms/leaderboard")
+    entry = next(e for e in r.json()["entries"] if e["name"] == "lb-underpowered")
+    assert entry["alpha_annual"] is None
+    assert entry["alpha_p_value"] is None
+    assert entry["alpha_significant"] is None
+
+
 async def test_start_clips_the_window(api_client, db_session) -> None:
     pid = await seed_portfolio(db_session, name="lb-clip", deposit=1000)
     for day, total in enumerate([1000, 900, 900, 990]):

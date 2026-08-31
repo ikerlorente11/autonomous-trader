@@ -101,6 +101,12 @@ async def leaderboard(
                 excess=_finite(e.excess),
                 sharpe=_finite(e.sharpe),
                 max_drawdown=_finite(e.max_drawdown),
+                alpha_annual=_finite(e.alpha.statistic) if e.alpha else None,
+                alpha_ci_low=_finite(e.alpha.ci_low) if e.alpha else None,
+                alpha_ci_high=_finite(e.alpha.ci_high) if e.alpha else None,
+                alpha_p_value=_finite(e.alpha.p_value) if e.alpha else None,
+                alpha_significant=e.alpha.significant if e.alpha else None,
+                is_benchmark=e.is_benchmark,
             )
             for e in board.entries
         ],

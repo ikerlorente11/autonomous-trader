@@ -188,6 +188,11 @@ const es: Dict = {
 	'compare.board.maxDD': 'DD máx.',
 	'compare.board.excluded': 'Sin datos en la ventana',
 	'compare.board.empty': 'Todavía no hay sesiones comunes a todas las carteras.',
+	'compare.board.alpha': 'α anual (IC 95 %)',
+	'compare.board.pValue': 'p-valor',
+	'compare.board.underpowered': 'insuf.',
+	'compare.board.alphaNote':
+		'α anual = exceso diario medio frente al índice ×252, con IC 95 % bootstrap. Una versión solo «bate al índice» cuando el p-valor es < 0,05; con menos de 20 sesiones comunes no hay veredicto (insuf.). La fila del índice es la referencia pasiva a batir.',
 
 	// Market
 	'market.title': 'Mercado',
@@ -549,6 +554,23 @@ const en: Dict = {
 	'compare.mode.abs': '€ (absolute)',
 	'compare.range.label': 'Range',
 	'compare.empty': 'No portfolio data yet.',
+	'compare.board.title': 'Common-window leaderboard',
+	'compare.board.caption':
+		'Every portfolio measured over the SAME sessions — since-inception figures are not comparable across arms',
+	'compare.board.window': 'Window',
+	'compare.board.sessions': 'sessions',
+	'compare.board.name': 'Portfolio',
+	'compare.board.return': 'Return',
+	'compare.board.benchmark': 'Index',
+	'compare.board.excess': 'Excess',
+	'compare.board.maxDD': 'Max DD',
+	'compare.board.excluded': 'No data in window',
+	'compare.board.empty': 'No sessions shared by every portfolio yet.',
+	'compare.board.alpha': 'Annual α (95% CI)',
+	'compare.board.pValue': 'p-value',
+	'compare.board.underpowered': 'insuf.',
+	'compare.board.alphaNote':
+		'Annual α = mean daily excess over the index ×252, with a bootstrap 95% CI. A version only "beats the index" when the p-value is < 0.05; under 20 shared sessions there is no verdict (insuf.). The index row is the passive reference to beat.',
 	'compare.ab.title': 'Statistical verdict (A/B)',
 	'compare.ab.caption': 'Compare two portfolios with significance (p-value), not by eye',
 	'compare.ab.run': 'Compare',

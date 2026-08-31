@@ -131,32 +131,55 @@
 				{t('compare.board.window')}: {board.data?.start} → {board.data?.end}
 				({board.data?.sessions} {t('compare.board.sessions')})
 			</p>
-			<table class="ab-table">
-				<thead>
-					<tr>
-						<th>{t('compare.board.name')}</th>
-						<th>{t('compare.board.return')}</th>
-						<th>{t('compare.board.benchmark')}</th>
-						<th>{t('compare.board.excess')}</th>
-						<th>Sharpe</th>
-						<th>{t('compare.board.maxDD')}</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each board.data?.entries ?? [] as e (e.portfolio_id)}
+			<div class="board-scroll">
+				<table class="ab-table">
+					<thead>
 						<tr>
-							<td>{e.strategy_label ? `${e.name} (${e.strategy_label})` : e.name}</td>
-							<td>{pct(e.total_return)}</td>
-							<td>{pct(e.benchmark_return)}</td>
-							<td class:up={(e.excess ?? 0) > 0} class:down={(e.excess ?? 0) < 0}>
-								{pct(e.excess)}
-							</td>
-							<td>{num(e.sharpe)}</td>
-							<td>{pct(e.max_drawdown)}</td>
+							<th>{t('compare.board.name')}</th>
+							<th>{t('compare.board.return')}</th>
+							<th>{t('compare.board.benchmark')}</th>
+							<th>{t('compare.board.excess')}</th>
+							<th>{t('compare.board.alpha')}</th>
+							<th>{t('compare.board.pValue')}</th>
+							<th>Sharpe</th>
+							<th>{t('compare.board.maxDD')}</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{#each board.data?.entries ?? [] as e (e.portfolio_id)}
+							<tr class:bench={e.is_benchmark}>
+								<td>{e.strategy_label ? `${e.name} (${e.strategy_label})` : e.name}</td>
+								<td>{pct(e.total_return)}</td>
+								<td>{pct(e.benchmark_return)}</td>
+								<td class:up={(e.excess ?? 0) > 0} class:down={(e.excess ?? 0) < 0}>
+									{e.is_benchmark ? '—' : pct(e.excess)}
+								</td>
+								<td>
+									{#if e.is_benchmark}
+										—
+									{:else if e.alpha_annual == null}
+										{t('compare.board.underpowered')}
+									{:else}
+										<span
+											class:up={e.alpha_significant === true && e.alpha_annual > 0}
+											class:down={e.alpha_significant === true && e.alpha_annual < 0}
+										>
+											{pct(e.alpha_annual)}
+										</span>
+										<span class="ci">[{pct(e.alpha_ci_low)}, {pct(e.alpha_ci_high)}]</span>
+									{/if}
+								</td>
+								<td class:sig-p={e.alpha_significant === true}>
+									{e.is_benchmark ? '—' : num(e.alpha_p_value, 3)}
+								</td>
+								<td>{num(e.sharpe)}</td>
+								<td>{pct(e.max_drawdown)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<p class="ab-note">{t('compare.board.alphaNote')}</p>
 			{#if (board.data?.excluded.length ?? 0) > 0}
 				<p class="ab-note">
 					{t('compare.board.excluded')}: {board.data?.excluded.join(', ')}
@@ -252,11 +275,30 @@
 		color: var(--color-bg-0);
 		font-weight: var(--weight-semibold);
 	}
-	.ab-table td.up {
+	.ab-table td.up,
+	.ab-table td span.up {
 		color: var(--color-up, #16a34a);
 	}
-	.ab-table td.down {
+	.ab-table td.down,
+	.ab-table td span.down {
 		color: var(--color-down, #dc2626);
+	}
+	.board-scroll {
+		overflow-x: auto;
+	}
+	.ab-table tr.bench td {
+		color: var(--color-text-1);
+		background: var(--color-bg-1);
+		font-style: italic;
+	}
+	.ab-table .ci {
+		color: var(--color-text-2);
+		font-size: var(--text-xs, 0.75rem);
+		white-space: nowrap;
+		margin-left: var(--space-1);
+	}
+	.ab-table td.sig-p {
+		font-weight: var(--weight-semibold);
 	}
 	.ab-pick {
 		display: inline-flex;

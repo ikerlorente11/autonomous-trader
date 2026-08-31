@@ -215,6 +215,14 @@ class LeaderboardEntryView(BaseModel):
     excess: float | None = None
     sharpe: float | None = None
     max_drawdown: float | None = None
+    # Annualized alpha vs the benchmark with bootstrap 95% CI; all None while the
+    # window has fewer than the minimum paired sessions (underpowered = no verdict).
+    alpha_annual: float | None = None
+    alpha_ci_low: float | None = None
+    alpha_ci_high: float | None = None
+    alpha_p_value: float | None = None
+    alpha_significant: bool | None = None
+    is_benchmark: bool = False
 
 
 class LeaderboardView(BaseModel):

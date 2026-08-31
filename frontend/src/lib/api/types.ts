@@ -261,6 +261,12 @@ export interface LeaderboardEntry {
 	excess: number | null;
 	sharpe: number | null;
 	max_drawdown: number | null;
+	alpha_annual: number | null;
+	alpha_ci_low: number | null;
+	alpha_ci_high: number | null;
+	alpha_p_value: number | null;
+	alpha_significant: boolean | null;
+	is_benchmark: boolean;
 }
 
 // backend/api/schemas.py::LeaderboardView
