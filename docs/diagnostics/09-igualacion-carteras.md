@@ -85,6 +85,31 @@ justamente porque nadie había escrito cuándo pararlo.
 - Un backtest solo. Los backtests calibran; **la decisión de retirar o promocionar se toma sobre
   resultados vivos**, que es la lección de v1 (ganaba el backtest largo y perdió un 11,6% en vivo).
 
+### 3.5 Moratoria de versiones (aprobada por el owner el 2026-08-31)
+
+Diez versiones diarias y tres micro en 3,5 meses es ajustar ruido: cada "ganadora" (v1 en el
+backtest largo, v8 en julio, v10 en calibración) regresó a la media en la ventana siguiente, y
+cada lanzamiento reinicia el reloj estadístico de todo el cohorte. Por eso:
+
+- **No se lanza ninguna versión nueva en vivo** (diaria ni micro), no se crea ninguna cartera
+  nueva y **no se cambia ningún peso/umbral/knob** de las configs de los brazos vivos hasta el
+  **2027-03-01** o hasta que el leaderboard dé un veredicto con significancia (α con p < 0,05
+  sobre la ventana común), lo que llegue antes.
+- **Excepciones tasadas**: (1) el juicio pre-registrado de m3 el 2026-09-30 (§3.3) — puede
+  retirar, nunca añadir; (2) retiradas por §3.2; (3) arreglos de fiabilidad/operativa que no
+  cambien el comportamiento de trading (la barra: el backtest de la ventana produce las mismas
+  órdenes antes y después del cambio).
+- **Permitido durante la moratoria** (trabajo offline que no toca brazos vivos): ingesta de
+  nuevas fuentes de datos, señales en modo observación, trabajo de backtester, y el diseño +
+  calibración de las **candidatas de tesis**: señales de eventos
+  (`docs/research/13-eventos-pead-insider-datos.md`) y momentum mensual
+  (`docs/diagnostics/10-plan-momentum-mensual.md`). Calibración siempre con la regla vigente:
+  2 ventanas + 1 OOS nunca usada para elegir.
+- Al levantarse la moratoria se lanza **como mucho una** versión nueva, la mejor candidata de
+  ese trabajo — no una tanda.
+
+Cambiar esta regla a mitad de ventana invalida la ventana (§3, mismo contrato).
+
 ## 4. Qué se conserva del historial anterior
 
 El reinicio borra `trade_orders`, `portfolio_positions` y `portfolio_nav` de las carteras activas.
@@ -125,3 +150,5 @@ una cifra concreta.
 - Las reglas de §3 son el contrato del experimento. Cambiarlas a mitad de ventana invalida la
   ventana: si hay que cambiarlas, se cambian **y se reinicia el reloj**.
 - El 2026-09-30 hay que juzgar m3 (§3.3). Está anotado también en `MEMORY.md`.
+- **Moratoria de versiones activa hasta 2027-03-01** (§3.5): nada nuevo en vivo, ninguna config
+  viva se toca. El trabajo de tesis (eventos + momentum mensual) es solo diseño/backtest.
