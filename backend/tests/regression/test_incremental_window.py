@@ -56,9 +56,15 @@ async def test_current_group_fetches_a_trailing_window(monkeypatch: pytest.Monke
     async def _fake_counts(session, symbols, start, end):
         return {"AAPL": 100}  # >= _MIN_HISTORY_BARS -> the incremental ("current") path
 
+    async def _fake_coverage(session, symbols, start, end):
+        # Every session complete: nothing to heal, so the trailing window stands.
+        days = jobs.trading_days(start.date(), end.date())
+        return {day: len(symbols) for day in days}
+
     monkeypatch.setattr(jobs, "ingest_daily_bars", _fake_ingest)
     monkeypatch.setattr(jobs, "get_active_watchlist", _fake_watchlist)
     monkeypatch.setattr(jobs, "count_bars_per_symbol", _fake_counts)
+    monkeypatch.setattr(jobs, "bar_coverage_by_session", _fake_coverage)
     monkeypatch.setattr(jobs, "is_trading_day", lambda _d: True)
     monkeypatch.setattr(jobs, "async_session", lambda: _NullSession())
 

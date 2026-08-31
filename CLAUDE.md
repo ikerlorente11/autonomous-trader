@@ -570,6 +570,19 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > Research: `docs/research/10-microtrading-intraday-technical.md`, `11-…-catalysts-data.md`,
 > `12-…-risk-costs-execution.md`.
 
+> **August 2026 review — reliability fixes + m1 retired.** The 2026-08-04 blackout (8 days
+> blind) was a Postgres OOM: pooled connections never recycled, so scheduler backends grew to
+> 176 MB each and pinned `trader-db` against its cgroup. Fixed with `pool_recycle`
+> (`DB_POOL_RECYCLE`, 1800 s) on both the app engine and the APScheduler job store; the DB's
+> `mem_limit` rises 512 → 640 MB (a **declared** deviation from the RAM budget, see the doc).
+> The blackout also left permanent bar holes — the fixed 5-day incremental window cannot heal a
+> session it has already passed — so `fetch_market_data` now widens its window back to the
+> oldest incomplete session within 45 days, and `MAX_BAR_STALENESS_DAYS=3` turns the P12
+> freshness gate ON in production. **m1 is retired** (`active=false`, history kept): −14.4%
+> since launch of which **93% is transaction friction**, not direction; m3 remains the only
+> micro arm. `PATCH /api/portfolios/{id}` accepts `active` so a version can be retired without
+> the cascading `DELETE`. Full review: `docs/diagnostics/08-revision-2026-08.md`.
+
 **Data ingestion jobs (06:xx) run in sequence** — each writes to DB before next starts.
 **Analysis (07:30) reads all categories** from DB — never calls external APIs directly.
 All jobs are idempotent. Running twice on the same day must not create duplicate data.

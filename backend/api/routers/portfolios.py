@@ -30,6 +30,7 @@ from backend.db.queries.portfolio_queries import (
     get_portfolio_for_update,
     list_portfolios,
     rename_portfolio,
+    set_portfolio_active,
     set_portfolio_strategy_label,
 )
 
@@ -118,6 +119,8 @@ async def update(
             portfolio = await set_portfolio_strategy_label(
                 session, portfolio_id, payload.strategy_label
             )
+        if "active" in fields and payload.active is not None:
+            portfolio = await set_portfolio_active(session, portfolio_id, payload.active)
         if portfolio is None:
             portfolio = await get_portfolio(session, portfolio_id)
         if portfolio is None:

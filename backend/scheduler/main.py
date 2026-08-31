@@ -31,6 +31,7 @@ _DEFAULT_PROTECTIVE_SELL_INTERVAL_MIN = 15
 _DEFAULT_MICRO_INTRADAY_INTERVAL_MIN = 5
 _DEFAULT_MICRO_RUN_INTERVAL_MIN = 15
 _DEFAULT_MICRO_EOD_FLATTEN_CHECK_MIN = 5
+_DEFAULT_POOL_RECYCLE = 1800
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
@@ -82,6 +83,13 @@ def _jobstore_url() -> str:
     return url.replace("+asyncpg", "+psycopg")
 
 
+def _pool_recycle() -> int:
+    raw = os.environ.get("DB_POOL_RECYCLE")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_POOL_RECYCLE
+    return int(raw)
+
+
 def _misfire_grace_time() -> int:
     raw = os.environ.get("MISFIRE_GRACE_TIME")
     if raw is None or raw.strip() == "":
@@ -96,8 +104,15 @@ def build_scheduler() -> AsyncIOScheduler:
             # pool_pre_ping: a Postgres restart (2026-08-04 OOM incident) must cost
             # one reconnect, not the scheduler thread — dead pooled connections are
             # detected and replaced before each job-store operation.
+            # pool_recycle for the same reason as backend/db/session.py: this
+            # connection is touched every job tick and would otherwise live forever,
+            # accumulating backend memory against the DB's cgroup limit.
             "default": SQLAlchemyJobStore(
-                engine=create_engine(_jobstore_url(), pool_pre_ping=True)
+                engine=create_engine(
+                    _jobstore_url(),
+                    pool_pre_ping=True,
+                    pool_recycle=_pool_recycle(),
+                )
             ),
             # The watchdog heartbeat lives in memory: no DB, no persistence, and it
             # must keep firing precisely when the DB-backed store is in trouble.
