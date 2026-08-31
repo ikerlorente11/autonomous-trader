@@ -490,6 +490,22 @@ async def set_portfolio_strategy_label(
     return portfolio
 
 
+async def set_portfolio_active(
+    session: AsyncSession, portfolio_id: int, active: bool
+) -> Portfolio | None:
+    """Retire (or revive) a portfolio without touching its history. Caller commits.
+
+    The jobs list portfolios with ``active_only=True``, so an inactive book stops
+    trading while its trades/NAV stay queryable for the A/B record — which a
+    ``delete_portfolio`` cascade would destroy."""
+    portfolio = await session.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        return None
+    portfolio.active = active
+    await session.flush()
+    return portfolio
+
+
 async def delete_portfolio(session: AsyncSession, portfolio_id: int) -> bool:
     """Hard-delete a portfolio; FK cascade removes its trades/positions/NAV/movements.
     Returns False if it does not exist. Caller enforces the last-portfolio guard."""

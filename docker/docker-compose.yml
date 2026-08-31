@@ -39,7 +39,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    mem_limit: 512m
+    # 640m, above CLAUDE.md's < 200 MB idle target: measured anon usage is ~437 MB and
+    # the cgroup sat at its old 512 MB ceiling (389k reclaim events, one OOM kill —
+    # the 2026-08-04 blackout). DB_POOL_RECYCLE is the actual cure; this is the margin
+    # that keeps a spike from killing a backend again. Host has ~1.2 GB free.
+    mem_limit: 640m
     # Host port stays inside this project's reserved range (8030-8039) so it never
     # squats the conventional host 5432 a future Postgres might want.
     ports:

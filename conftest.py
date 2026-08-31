@@ -22,3 +22,9 @@ if _base and not urlsplit(_base).path.endswith(TEST_DB_NAME):
 
 # Never let a test reach the real scheduler job store.
 os.environ.pop("SCHEDULER_DB_URL", None)
+
+# The suite runs with the operator's --env-file .env, so live tuning must not decide
+# test outcomes. The freshness gate is the sharp one: fixtures seed bars at fixed past
+# dates, and a production MAX_BAR_STALENESS_DAYS would silently drop every symbol from
+# scoring. Tests that exercise the gate set it themselves via monkeypatch.
+os.environ["MAX_BAR_STALENESS_DAYS"] = "0"

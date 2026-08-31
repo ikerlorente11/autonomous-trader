@@ -57,10 +57,12 @@ class PortfolioCreate(BaseModel):
 
 class PortfolioUpdate(BaseModel):
     """Partial update: only the fields present in the request are applied. ``name``
-    renames; ``strategy_label`` sets the strategy version (null = base config)."""
+    renames; ``strategy_label`` sets the strategy version (null = base config);
+    ``active`` retires or revives the book without deleting its history."""
 
     name: str | None = Field(default=None, min_length=1, max_length=64)
     strategy_label: str | None = Field(default=None, max_length=16)
+    active: bool | None = Field(default=None)
 
     @field_validator("name")
     @classmethod

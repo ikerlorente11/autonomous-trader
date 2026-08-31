@@ -75,6 +75,16 @@ async def test_patch_rejects_unknown_strategy_version(api_client, db_session) ->
     assert r.status_code == 400
 
 
+async def test_patch_retires_and_revives_portfolio(api_client, db_session) -> None:
+    # Retiring a losing version must stop it trading WITHOUT deleting its history.
+    pid = await f.seed_portfolio(db_session, name="ab-retire", deposit=500)
+    r = await api_client.patch(f"/api/portfolios/{pid}", json={"active": False})
+    assert r.status_code == 200
+    assert r.json()["active"] is False
+    r = await api_client.patch(f"/api/portfolios/{pid}", json={"active": True})
+    assert r.json()["active"] is True
+
+
 async def test_patch_rename_still_works(api_client, db_session) -> None:
     pid = await f.seed_portfolio(db_session, name="ab-old", deposit=500)
     r = await api_client.patch(f"/api/portfolios/{pid}", json={"name": "ab-new"})

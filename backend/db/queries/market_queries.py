@@ -32,6 +32,22 @@ async def count_bars_per_symbol(
     return {symbol: count for symbol, count in (await session.execute(stmt)).all()}
 
 
+async def bar_coverage_by_session(
+    session: AsyncSession, symbols: Sequence[str], start: dt.datetime, end: dt.datetime
+) -> dict[dt.date, int]:
+    """How many of ``symbols`` have a bar on each stored session in the window."""
+    stmt = (
+        select(MarketBar.ts, func.count(func.distinct(MarketBar.symbol)))
+        .where(
+            MarketBar.symbol.in_(symbols),
+            MarketBar.ts >= start,
+            MarketBar.ts <= end,
+        )
+        .group_by(MarketBar.ts)
+    )
+    return {ts.date(): count for ts, count in (await session.execute(stmt)).all()}
+
+
 async def avg_dollar_volume(
     session: AsyncSession,
     symbols: Sequence[str],

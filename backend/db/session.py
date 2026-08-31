@@ -32,12 +32,20 @@ def _int_env(name: str, default: int) -> int:
 # burst (e.g. the dashboard's first load) doesn't fail while opening connections.
 _POOL_SIZE = _int_env("DB_POOL_SIZE", 6)
 _MAX_OVERFLOW = _int_env("DB_MAX_OVERFLOW", 4)
+# A Postgres backend never returns its private memory to the OS: catalog/plan caches
+# and the peaks of big statements (bulk upserts, wide signal scans) stay resident for
+# the life of the connection. With an immortal pool the scheduler's backends grew to
+# 176/174/126/70 MB RSS while idle and pinned trader-db against its 512 MB cgroup —
+# the OOM that froze the scheduler for 8 days on 2026-08-04. Recycling caps that
+# growth: a connection older than this is closed and reopened on next checkout.
+_POOL_RECYCLE = _int_env("DB_POOL_RECYCLE", 1800)
 
 engine = create_async_engine(
     _database_url(),
     pool_pre_ping=True,
     pool_size=_POOL_SIZE,
     max_overflow=_MAX_OVERFLOW,
+    pool_recycle=_POOL_RECYCLE,
     pool_timeout=_int_env("DB_POOL_TIMEOUT", 30),
     connect_args={"timeout": _int_env("DB_CONNECT_TIMEOUT", 30)},
 )

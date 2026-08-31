@@ -16,13 +16,14 @@ import json
 import logging
 import os
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analysis.config import load_strategy_config
 from backend.analysis.engine import DefaultAnalysisEngine
@@ -55,6 +56,8 @@ from backend.data_ingestion.calendar import (
     is_near_market_close,
     is_trading_day,
     nth_prior_trading_day,
+    previous_trading_day,
+    trading_days,
 )
 from backend.data_ingestion.fundamentals_ingest import (
     fundamentals_data_configured,
@@ -83,6 +86,7 @@ from backend.db.models import JobRun
 from backend.db.queries.fundamentals_queries import get_recent_fundamentals
 from backend.db.queries.macro_queries import get_latest_macro_values
 from backend.db.queries.market_queries import (
+    bar_coverage_by_session,
     count_bars_per_symbol,
     get_bars_range,
     get_intraday_bars_range,
@@ -123,6 +127,15 @@ _MIN_HISTORY_BARS = 60
 # day spanning a weekend/holiday would be empty. A few days back always catches the
 # last close; the upsert is idempotent so re-fetching is free.
 _INCREMENTAL_LOOKBACK_DAYS = 5
+# How far back the incremental fetch looks for holes to heal. The trailing window
+# above is blind to a session lost while the scheduler was down: catching up moves
+# the window past the hole and it stays missing forever (2026-08-04 blackout left
+# Aug 4-6 empty and Aug 3 at 1/62 symbols, silently shifting every indicator's
+# session count). Below, any incomplete session inside this window widens the fetch
+# back to it. A symbol that legitimately has no bar on some session (halt, late
+# listing) keeps the window at its widest — bounded, and the request count per
+# symbol is unchanged since the provider fetches a range, not a day.
+_GAP_HEAL_LOOKBACK_DAYS = 45
 # Must span the whole scored universe, not just buy candidates: the manager also
 # reads the low-scored end to find SELL signals on names it currently holds, so a
 # larger watchlist must not truncate exits. Comfortably above the 50-symbol target.
@@ -210,6 +223,30 @@ def _bars_to_frame(rows) -> pd.DataFrame:
         },
         index=[r.ts for r in rows],
     )
+
+
+async def _oldest_incomplete_session(
+    session: AsyncSession, symbols: Sequence[str], today: dt.date
+) -> dt.date | None:
+    """Oldest session in the heal window where some symbol has no stored bar.
+
+    The newest expected session is excluded: this job runs pre-market, so the most
+    recent close is precisely what the fetch about to run will bring in — counting it
+    as a hole would widen the window every single day."""
+    window_start = today - dt.timedelta(days=_GAP_HEAL_LOOKBACK_DAYS)
+    expected = trading_days(window_start, previous_trading_day(today))[:-1]
+    if not expected:
+        return None
+    coverage = await bar_coverage_by_session(
+        session,
+        symbols,
+        dt.datetime.combine(window_start, dt.time.min, tzinfo=dt.timezone.utc),
+        dt.datetime.combine(today, dt.time.min, tzinfo=dt.timezone.utc),
+    )
+    for day in expected:
+        if coverage.get(day, 0) < len(symbols):
+            return day
+    return None
 
 
 def _bar_staleness_cutoff(asof: dt.datetime) -> dt.date | None:
@@ -340,8 +377,11 @@ async def fetch_market_data() -> None:
                 reports.append(
                     await ingest_daily_bars(session, backfill, lookback_start, today)
                 )
+            incremental_start = today - dt.timedelta(days=_INCREMENTAL_LOOKBACK_DAYS)
             if current:
-                incremental_start = today - dt.timedelta(days=_INCREMENTAL_LOOKBACK_DAYS)
+                gap_start = await _oldest_incomplete_session(session, current, today)
+                if gap_start is not None and gap_start < incremental_start:
+                    incremental_start = gap_start
                 reports.append(
                     await ingest_daily_bars(session, current, incremental_start, today)
                 )
@@ -352,6 +392,7 @@ async def fetch_market_data() -> None:
                 "symbols_backfilled": len(backfill),
                 "symbols_missing": missing,
                 "anomalies": sum(len(r.anomalies) for r in reports),
+                "incremental_start": incremental_start.isoformat(),
             }
 
 
