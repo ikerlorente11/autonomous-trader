@@ -2,7 +2,9 @@
 
 Sistema autónomo de paper trading que analiza mercados diariamente, simula inversiones y expone un dashboard web para monitorizar todo. Diseñado para correr en Docker sobre una Raspberry Pi 4 (ARM64).
 
-> **Estado actual:** Definición de arquitectura. El desarrollo se lanza con los agentes de IA descritos en este documento.
+> **Estado actual:** backend (FastAPI + TimescaleDB), pipeline diario de ingesta, motor de análisis, backtesting, dashboard SvelteKit y despliegue Docker implementados, con CI (ruff + pytest). En fase de iteración de estrategias (`config/strategies/`) en paper trading. Solo simula: no opera con dinero real.
+>
+> El proyecto se ha desarrollado con ayuda de agentes de IA siguiendo las directrices de `CLAUDE.md`.
 
 ---
 

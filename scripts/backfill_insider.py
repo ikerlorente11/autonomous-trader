@@ -199,7 +199,7 @@ async def main(from_quarter: str, to_quarter: str | None) -> None:
         sys.exit("watchlist is empty — nothing to backfill")
 
     to_quarter = to_quarter or _latest_published_quarter(dt.date.today())
-    ua = os.environ.get("SEC_USER_AGENT", "autonomous-trader iker@encore-lab.com")
+    ua = os.environ.get("SEC_USER_AGENT", "autonomous-trader contact@example.com")
     total = 0
     async with httpx.AsyncClient(
         headers={"User-Agent": ua}, timeout=120.0, follow_redirects=True
