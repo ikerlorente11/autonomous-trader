@@ -319,3 +319,8 @@ Los jobs de ingesta (06:xx) corren en secuencia. El análisis (07:30) lee de la 
 
 - [CLAUDE.md](CLAUDE.md) — Directrices completas para agentes IA, reglas del proyecto
 - [LAUNCH_PROMPT.md](LAUNCH_PROMPT.md) — Prompts listos para lanzar cada fase de desarrollo
+
+## Licencia
+
+Puedes usar, modificar y compartir este proyecto libremente para fines **no comerciales**.
+No está permitido venderlo ni ganar dinero con él. Ver [LICENSE](LICENSE) (PolyForm Noncommercial 1.0.0).
