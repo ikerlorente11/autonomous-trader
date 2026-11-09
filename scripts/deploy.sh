@@ -75,15 +75,27 @@ if [ "$DEPLOYED" = "$NEW" ] && [ "${1:-}" != "--force" ]; then
 fi
 
 PREV="${DEPLOYED:-$(git rev-parse HEAD)}"
+# The commit last deployed may have no image of its own (docs-only, see below): roll back to the image the
+# containers actually run.
+RUNNING_TAG="$(docker inspect --format '{{.Config.Image}}' trader-api 2>/dev/null | sed -n 's/.*autonomous-trader:\([0-9a-f]\{40\}\)$/\1/p' || true)"
 git checkout -q main
 git reset --hard "$NEW"
 echo "Deploying ${PREV:0:8} -> ${NEW:0:8}"
+
+record_deployed() { mkdir -p "$(dirname "$STATE_FILE")"; echo "$NEW" >"$STATE_FILE"; }
+
+# A push of docs only does not run the CI (paths-ignore in ci.yml), so it has no image: nothing to swap.
+if git diff --quiet "$PREV" "$NEW" -- . ':(exclude)*.md' ':(exclude)docs' ':(exclude).claude' ':(exclude)LICENSE'; then
+  record_deployed
+  echo "Only docs changed — containers untouched, now at ${NEW:0:8}."
+  exit 0
+fi
 
 rollback() {
   echo "::error::Deploy of ${NEW:0:8} failed — rolling back to ${PREV:0:8}"
   git reset --hard "$PREV"
   # The commits before the CI built images have none: build that one here.
-  use_image "$PREV" || dc build
+  use_image "${RUNNING_TAG:-$PREV}" || use_image "$PREV" || dc build
   dc up -d --remove-orphans
   if health_check; then
     mkdir -p "$(dirname "$STATE_FILE")"
@@ -101,6 +113,14 @@ if ! use_image "$NEW"; then
   exit 1
 fi
 
+# The CI builds reproducible images: a commit that changes nothing the image carries (a script, the Makefile)
+# yields the very image already running, and a restart would only interrupt the scheduler.
+if [ -n "$RUNNING_TAG" ] && [ "$(docker image inspect --format '{{.Id}}' "ghcr.io/ikerlorente11/autonomous-trader:$NEW")" = "$(docker inspect --format '{{.Image}}' trader-api)" ]; then
+  record_deployed
+  echo "Same image as ${RUNNING_TAG:0:8} — containers untouched, now at ${NEW:0:8}."
+  exit 0
+fi
+
 if ! dc up -d --remove-orphans || ! health_check; then
   rollback
   exit 1
@@ -111,6 +131,5 @@ docker image prune -f >/dev/null 2>&1 || true
 # And the other commits' images: only the one now serving stays (Pi disk budget).
 docker images ghcr.io/ikerlorente11/autonomous-trader --format '{{.Tag}}' | grep -vxF -e "$NEW" -e latest   | xargs -r -I{} docker rmi "ghcr.io/ikerlorente11/autonomous-trader:{}" >/dev/null 2>&1 || true
 
-mkdir -p "$(dirname "$STATE_FILE")"
-echo "$NEW" >"$STATE_FILE"
+record_deployed
 echo "Deploy OK — now at ${NEW:0:8}, healthy at ${HEALTH_URL}"

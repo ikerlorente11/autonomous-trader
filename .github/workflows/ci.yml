@@ -6,7 +6,10 @@ name: CI
 on:
   push:
     branches: [main]
+    # Docs only: no CI run (on Mondays and by hand everything runs anyway)
+    paths-ignore: ["**.md", "docs/**", ".claude/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**", ".claude/**", "LICENSE"]
   workflow_dispatch: {}
   schedule:
     - cron: "0 5 * * 1"
@@ -16,8 +19,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Which half changed (changes.yml of the common CI): each test job runs only for its own. Everything counts as
+  # changed on the Monday cron, when run by hand or when the workflows themselves change.
+  changes:
+    uses: ikerlorente11/ci/.github/workflows/changes.yml@main
+    with:
+      filters: |
+        backend: ['backend/**', 'config/**', 'scripts/**', 'docker/**', 'pyproject.toml', 'conftest.py']
+        frontend: ['frontend/**']
+
   backend:
     name: Backend lint + tests
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changed), 'backend')
     runs-on: ubuntu-latest
     # The suite has DB-backed integration tests; provision the same TimescaleDB the Pi
     # runs, then create + migrate the isolated test database (scripts/setup-test-db.sh).
@@ -63,6 +77,8 @@ jobs:
         run: pytest
 
   frontend:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changed), 'frontend')
     uses: ikerlorente11/ci/.github/workflows/node.yml@main
     with:
       directory: frontend
@@ -70,9 +86,13 @@ jobs:
       # No vitest in frontend/package.json devDependencies: svelte-check and the build are the gate.
       test: "npm run check && npm run build"
 
+  # On every push to main that is not docs only, so that each deployed commit has its image: the build is
+  # reproducible, so a commit that changes nothing the image carries yields the same one and deploy.sh leaves the
+  # containers alone. always() so a skipped test job does not skip it; it waits for the ones that ran to pass.
   image:
-    if: github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule'
-    needs: [backend, frontend]
+    if: always() && (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule')
+        && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [changes, backend, frontend]
     uses: ikerlorente11/ci/.github/workflows/image.yml@main
     permissions:
       contents: read
