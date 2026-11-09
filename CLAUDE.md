@@ -655,8 +655,9 @@ All jobs: `misfire_grace_time=3600` — if missed, run within 1 hour or skip.
   development sessions only.
 - **Auto-deploy on merge.** `.github/workflows/deploy.yml` targets the **self-hosted runner on
   the Pi** (systemd service `actions.runner.…pi-trader`): every push/merge to `main` runs
-  `scripts/deploy.sh`, which fetches `origin/main`, **rebuilds the image** (source + frontend are
-  baked in — every change needs a rebuild), `up -d --remove-orphans` (init re-runs migrations),
+  `scripts/deploy.sh`, which fetches `origin/main`, **pulls that commit's image from GHCR** (built by
+  CI with source + frontend baked in; a docs-only commit has none and an unchanged image is not
+  swapped — both leave the containers alone), `up -d --remove-orphans` (init re-runs migrations),
   health-checks `/api/health` and **rolls back to the previously deployed commit on any failure**.
   CI (ci.yml, GitHub-hosted) is the test gate; deploy.sh runs no tests. A **cron fallback**
   (`crontab -l`, every 15 min, logs to `~/.local/state/autonomous-trader/deploy.log`) covers
