@@ -1,7 +1,7 @@
 """CLI: backtest one or more strategy versions over stored history.
 
     docker run --rm -v "$PWD":/app -w /app -e PYTHONPATH=/app \
-      --network docker_default --env-file .env docker-api:latest \
+      --network docker_default --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest \
       python -m backend.backtest --labels v1,v3,v4,v5,v6 \
       --start 2024-09-01 --end 2026-06-11 --cash 100000 [--json out.json]
 """

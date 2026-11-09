@@ -2,7 +2,7 @@
 
 One-shot operational tool (idempotent upsert — safe to re-run):
     docker run --rm -v "$PWD":/app -w /app --network docker_default \
-      --env-file .env docker-api:latest python scripts/backfill_bars.py [--days 1155]
+      --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest python scripts/backfill_bars.py [--days 1155]
 
 The analysis jobs only keep ~400 days warm; the backtester wants years. This walks
 the provider symbol-by-symbol through the standard ingest path (validation +

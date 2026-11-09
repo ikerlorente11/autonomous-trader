@@ -1,10 +1,13 @@
 name: Deploy to Pi on main
 
-# Push or merge to main -> the self-hosted runner ON the Pi pulls and redeploys.
+# The CI of a push to main succeeded (so its image is in GHCR) -> the self-hosted runner ON the Pi pulls it and
+# redeploys. Also by hand from the Actions tab (deploys origin/main).
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-  workflow_dispatch: {}   # also allow a manual run from the Actions tab
+  workflow_dispatch: {}
 
 # Never let two deploys overlap; queue them instead of cancelling an in-flight one.
 concurrency:
@@ -13,12 +16,14 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     # Targets the runner installed on the Pi (label set during `config.sh --labels`).
     runs-on: [self-hosted, autonomous-trader]
     steps:
       # No actions/checkout on purpose: the live deploy dir (with the bind-mounts the
       # containers serve) is the source of truth, and deploy.sh fast-forwards it itself.
-      - name: Pull master and redeploy
+      - name: Pull the image and redeploy
         env:
           APP_DIR: /home/raspberry/projects/autonomous-trader
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: "$APP_DIR/scripts/deploy.sh"

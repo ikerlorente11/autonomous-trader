@@ -497,7 +497,7 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > at d's open +/- slippage, daily-bar trailing-stop approximation with historical VIX, fundamentals
 > lagged 45 days, macro regime recomputed per day from `macro_series`. Run it in a throwaway
 > container: `docker run --rm -v "$PWD":/app -w /app -e PYTHONPATH=/app --network docker_default
-> --env-file .env docker-api:latest python -m backend.backtest --labels v1,v3,v4,v5,v6 --start
+> --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest python -m backend.backtest --labels v1,v3,v4,v5,v6 --start
 > 2024-09-02`. **Strategy changes are calibrated here before going live** — no new version ships
 > without a backtest. `scripts/backfill_bars.py` (idempotent) extends bar history (currently 62
 > symbols since 2023-04); the watchlist is still runtime data, never hardcoded.

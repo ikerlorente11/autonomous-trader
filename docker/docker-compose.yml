@@ -20,6 +20,8 @@ x-app-image: &app-image
   build:
     context: ..
     dockerfile: docker/Dockerfile
+  # Built by the CI (one tag per commit); scripts/deploy.sh pulls the commit it deploys. By hand: `docker compose pull`.
+  image: ghcr.io/ikerlorente11/autonomous-trader:${TRADER_IMAGE_TAG:-latest}
 
 services:
   db:
