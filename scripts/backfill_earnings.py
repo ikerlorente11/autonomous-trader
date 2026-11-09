@@ -3,7 +3,7 @@ the history's point-in-time quality against Finnhub before trusting it.
 
 Resumable one-shot (idempotent upsert; symbols already stored are skipped):
     docker run --rm -v "$PWD":/app -w /app --network docker_default \
-      --env-file .env docker-api:latest python scripts/backfill_earnings.py \
+      --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest python scripts/backfill_earnings.py \
       [--since 2023-01-01] [--max-requests 24] [--refresh] [--validate]
 
 The free AV quota is 25 requests/day and one EARNINGS call returns a symbol's full

@@ -17,7 +17,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${TEST_IMAGE:-docker-api:latest}"
+IMAGE="${TEST_IMAGE:-ghcr.io/ikerlorente11/autonomous-trader:latest}"
 NETWORK="${TEST_NETWORK:-docker_default}"
 MARKER="${1:-}"
 

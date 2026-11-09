@@ -2,7 +2,7 @@
 
 One-shot operational tool (idempotent upsert — safe to re-run):
     docker run --rm -v "$PWD":/app -w /app --network docker_default \
-      --env-file .env docker-api:latest python scripts/backfill_insider.py \
+      --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest python scripts/backfill_insider.py \
       [--from-quarter 2023q2] [--to-quarter 2026q2]
 
 Source (no API key): https://www.sec.gov/data-research/sec-markets-data/insider-transactions-data-sets

@@ -6,7 +6,7 @@ and months-with-signal-trades. The OOS window accepts a single --combo (the winn
 and is meant to be run ONCE.
 
     docker run --rm -v "$PWD":/app -w /app -e PYTHONPATH=/app \
-      --network docker_default --env-file .env docker-api:latest \
+      --network docker_default --env-file .env ghcr.io/ikerlorente11/autonomous-trader:latest \
       python scripts/backtest_sweep_v11.py --window c1 [--json out.json]
     ... --window oos --combo n8_l231_ew
 """

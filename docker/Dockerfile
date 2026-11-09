@@ -13,7 +13,7 @@
 # on sys.path. Entrypoints are `backend.api.main:app` / `backend.scheduler.main`.
 
 # ---------- Stage 1: build the SvelteKit static site ----------
-FROM node:20-alpine AS frontend
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci

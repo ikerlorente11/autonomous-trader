@@ -4,7 +4,7 @@
 # into it would test the deploy, not your edits. The test DB is a separate database
 # on the same TimescaleDB server. See docs/qa/testing-strategy.md.
 
-IMAGE    ?= docker-api:latest
+IMAGE    ?= ghcr.io/ikerlorente11/autonomous-trader:latest
 NETWORK  ?= docker_default
 DEV_DEPS := pip install -q -r backend/requirements-dev.txt
 RUN_UNIT := docker run --rm -v $(CURDIR):/app -w /app \
