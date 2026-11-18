@@ -613,6 +613,20 @@ The exact sources to use are determined by Phase 0 research. This table is the e
 > leaderboard now carries a **synthetic SPY buy-and-hold row and per-arm annualized alpha with a
 > bootstrap 95% CI / p-value** (null under 20 shared sessions) — verdicts are read from there,
 > not from "who's up this month".
+>
+> **Project end date: 2027-03-01 (owner decision, 2026-11-18 — supersedes the moratorium's
+> early-exit and thesis clauses).** The November review (`docs/diagnostics/11-revision-2026-11-cierre.md`)
+> found no arm with significant alpha after 56 shared sessions and showed the design cannot
+> separate a ±5 pp alpha from noise in under ~17 years. So: **v10 is retired** (−6.5 pp, rule
+> §3.2); the live cohort is **v1, v3, v7, v8 + m3**; the thesis work (docs 10 and 13) is
+> **cancelled**; a mid-window p < 0.05 no longer lifts anything. Until 2027-03-01 the only
+> legitimate work is keeping it running, §3.2 retirements and behaviour-preserving reliability
+> fixes. **On 2027-03-01 the project is archived** (archive_portfolios.sh, all books inactive,
+> stack down, cron entries removed, final `12-conclusiones.md`) **unless** some arm shows positive
+> annualized alpha with **p < 0.01 in both its 500 € and 100k books** — then that arm alone is
+> watched untouched until 2027-09-01 under the same bar. No extensions, no "one last version".
+> Note: the m3 gross-edge formula in doc 09 §3.3 double-counted commission — `realized_flow`
+> already excludes it; gross edge = `realized_flow + slippage_est`.
 
 > Two operational rules came out of the same day. **Every job now has a wall-clock cap**
 > (`JOB_TIMEOUT_SECONDS`, 1800 s; per-job `JOB_TIMEOUT_SECONDS_<JOB>`): a Finnhub outage turned
