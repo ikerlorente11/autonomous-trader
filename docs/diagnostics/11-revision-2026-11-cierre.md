@@ -173,6 +173,9 @@ Sobre la ventana común (desde 2026-09-01), con `GET /api/algorithms/leaderboard
 - Carteras 24 y 25 (v10) desactivadas el 2026-11-18; registro congelado en el NAV de ese día.
 - Juicio de m3 del 2026-09-30 documentado (§3.2) y fórmula del edge bruto corregida.
 - Fecha y criterio de cierre (§5), reflejados en `CLAUDE.md` y en el documento 09.
+- `scripts/closure_reminder.py` + cron del host (`0 9 1 3 *`): el 2027-03-01 lee el leaderboard,
+  aplica §5.2 y envía por correo el veredicto y los pasos de §5.3 (mismo SMTP que
+  `health_alert.py`; `--dry-run` y `--test` para probarlo). Solo actúa ese día.
 
 **Lo que el siguiente agente debe saber:**
 - **Cohorte vivo desde el 2026-11-18:** v1, v3, v7, v8 (diarias) y m3 (micro), en sus carteras de
