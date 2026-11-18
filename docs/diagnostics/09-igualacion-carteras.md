@@ -71,6 +71,10 @@ bruto por encima del coste**. Por tanto:
 > un **edge bruto positivo** — retorno antes de costes (`realized_flow + commission_total +
 > slippage_est`, vía `GET /api/portfolios/{id}/costs`) mayor que cero — **se apaga la sección
 > micro entera** (`MICRO_ENABLED=false`) y no se lanza ninguna variante nueva.
+>
+> **Corrección (2026-11-18, documento 11 §3.2):** `realized_flow` ya excluye la comisión (se cobra
+> aparte), así que la fórmula de arriba la cuenta dos veces. El edge bruto correcto es
+> `realized_flow + slippage_est`. Con las dos fórmulas m3 aprobaba a 2026-09-30 (+3,20 € / +637 €).
 
 El umbral es deliberadamente flojo (edge bruto > 0, no rentabilidad neta): si ni siquiera la
 señal bruta gana dinero antes de pagar el spread, no hay nada que optimizar y cualquier
@@ -86,6 +90,11 @@ justamente porque nadie había escrito cuándo pararlo.
   resultados vivos**, que es la lección de v1 (ganaba el backtest largo y perdió un 11,6% en vivo).
 
 ### 3.5 Moratoria de versiones (aprobada por el owner el 2026-08-31)
+
+> **Modificada el 2026-11-18 (documento 11 §5):** el 2027-03-01 pasa a ser la **fecha de cierre
+> del proyecto**. Se elimina la salida anticipada por veredicto significativo y se cancela el
+> trabajo de tesis; ese día solo se decide continuar (alfa con p < 0,01 en las dos carteras de un
+> brazo) o archivar. Lo que sigue queda como histórico.
 
 Diez versiones diarias y tres micro en 3,5 meses es ajustar ruido: cada "ganadora" (v1 en el
 backtest largo, v8 en julio, v10 en calibración) regresó a la media en la ventana siguiente, y
